@@ -1,0 +1,150 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Funciones de validación LDDEC 2026
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getProfile() {
+      return get(/databases/$(database)/documents/roles_usuarios/$(request.auth.uid)).data;
+    }
+
+    function isActive() {
+      return isAuthenticated() && getProfile().activo == true;
+    }
+
+    function isAdmin() {
+      // Soporte para nomenclatura estandarizada 'admin' y legado 'administrador'
+      return isActive() && (getProfile().role == 'admin' || getProfile().role == 'administrador');
+    }
+
+    function hasRole(role) {
+      return isActive() && getProfile().role == role;
+    }
+
+    // Unificación de roles de bodega para evitar bloqueos de publicación
+    function isBodega() {
+      return hasRole('bodega') || hasRole('bodeguero');
+    }
+
+    // REGLAS PARA PERFILES Y PRESENCIA
+    match /roles_usuarios/{userId} {
+      allow read: if isAuthenticated();
+      // El usuario puede actualizar su propio estado (online/offline) si está autenticado
+      allow update: if isAuthenticated() && request.auth.uid == userId;
+      // Solo el administrador puede crear o modificar perfiles de otros
+      allow write: if isAdmin();
+    }
+
+    // CLIENTES
+    match /clients/{clientId} {
+      allow read: if true; 
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('cobranzas') || hasRole('contador');
+    }
+
+    // CATÁLOGOS MAESTROS (LDDEC 1.6)
+    match /catalogo_prendas/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /catalogo_manualidades/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /procesos_tecnicos/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // INGRESOS (ENTRIES)
+    match /entries/{entryId} {
+      allow read: if true; 
+      allow write: if isAdmin() || isBodega() || hasRole('produccion') || hasRole('bodeguero_quimicos');
+    }
+
+    // SALIDAS Y ENTREGAS
+    match /outputs/{outputId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isBodega() || hasRole('chofer') || hasRole('bodeguero_quimicos');
+    }
+
+    match /salidas/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isBodega() || hasRole('chofer');
+    }
+
+    match /muestras/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isBodega() || hasRole('facturacion');
+    }
+
+    // FACTURACIÓN Y COBROS
+    match /facturas/{invoiceId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('cobranzas') || hasRole('contador');
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('cobranzas') || hasRole('contador');
+    }
+
+    // PRODUCCIÓN Y MANUALIDADES
+    match /manualidades/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('produccion') || hasRole('operario_manualidades');
+    }
+
+    match /manualidad_tarifas/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('produccion');
+    }
+
+    match /trabajadores_manualidades/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // TESORERÍA Y BANCOS
+    match /cuentas_bancarias/{accId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('banco') || hasRole('financiero');
+      
+      match /transacciones/{txId} {
+        allow read: if isAuthenticated();
+        allow write: if isAdmin() || hasRole('banco') || hasRole('financiero');
+      }
+    }
+
+    // BODEGA DE QUÍMICOS
+    match /quimicos_stock/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('bodeguero_quimicos') || hasRole('produccion');
+    }
+
+    match /quimicos_kardex/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('bodeguero_quimicos') || hasRole('produccion');
+    }
+
+    match /quimicos_procesos_maestro/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('produccion');
+    }
+
+    // CONFIGURACIÓN GLOBAL
+    match /configuracion/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // REGLA GENERAL DE SEGURIDAD
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

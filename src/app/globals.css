@@ -1,0 +1,156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11.2%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11.2%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11.2%;
+    
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+    
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47% 11.2%;
+    
+    --muted: 210 40% 94%;
+    --muted-foreground: 215.4 16.3% 44%;
+    
+    --accent: 217 91% 60%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 214.3 31.8% 88%;
+    --input: 214.3 31.8% 88%;
+    --ring: 221.2 83.2% 53.3%;
+    
+    --radius: 1.25rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    
+    --card: 222.2 84% 6.5%;
+    --card-foreground: 210 40% 98%;
+    
+    --popover: 222.2 84% 6.5%;
+    --popover-foreground: 210 40% 98%;
+    
+    --primary: 217 91% 60%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    
+    --secondary: 217.2 32.6% 14.5%;
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 217.2 32.6% 14.5%;
+    --muted-foreground: 215 20.2% 70%;
+    
+    --accent: 217.2 32.6% 14.5%;
+    --accent-foreground: 210 40% 98%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased transition-colors duration-300;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/20 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/30;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.erp-input {
+  @apply bg-muted/30 border-border h-12 rounded-[14px] focus-visible:ring-primary/20 transition-all text-foreground;
+}
+
+.erp-table-header {
+  @apply bg-muted/50 text-muted-foreground font-black uppercase tracking-widest text-[11px];
+}
+
+.erp-table-row {
+  @apply border-b border-border hover:bg-muted/20 transition-all duration-200;
+}
+
+/* Lógica de Impresión Industrial */
+@media print {
+  /* Ocultar elementos de navegación y UI global */
+  header, 
+  footer, 
+  nav, 
+  aside, 
+  button, 
+  .print-hidden,
+  .print\:hidden,
+  [data-radix-collection-item],
+  [role="status"],
+  [aria-live="polite"] {
+    display: none !important;
+  }
+
+  /* Resetear fondos y márgenes */
+  body, html {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Asegurar que el contenido principal ocupe todo el espacio */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Ocultar sombras y efectos innecesarios */
+  .shadow-premium, .shadow-2xl, .shadow-xl, .shadow-sm, .shadow-md, .shadow-lg {
+    box-shadow: none !important;
+    border-color: #eee !important;
+  }
+
+  /* Clase de utilidad para forzar ocultamiento */
+  .print-hidden {
+    display: none !important;
+  }
+}

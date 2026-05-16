@@ -1,0 +1,98 @@
+import { Invoice } from "@/types/invoice";
+
+export const mockInvoices: Invoice[] = [
+  {
+    id: "inv1",
+    invoiceNumber: "FACT-2024-001",
+    invoiceDate: "2024-03-26",
+    dueDate: "2024-04-26",
+    clientId: "1",
+    clientName: "Textil del Pacífico S.A.",
+    notes: "Facturación de despachos semanales",
+    status: "issued",
+    subtotal: 1320.00,
+    discount: 0,
+    tax: 237.60,
+    retention: 0,
+    total: 1557.60,
+    balancePending: 1557.60,
+    createdAt: "2024-03-26T10:00:00Z",
+    updatedAt: "2024-03-26T10:00:00Z",
+    items: [
+      {
+        id: "ii1",
+        outputId: "out1",
+        outputNumber: "SAL-2024-001",
+        entryId: "e1",
+        entryNumber: "ING-2024-001",
+        lotId: "l1",
+        lotNumber: "LOT-001",
+        garmentType: "Jeans Slim Fit",
+        process: "Stone Wash",
+        washType: "Bio-Lavado",
+        quantityDispatched: 195,
+        quantityToInvoice: 195,
+        quantityPendingInvoice: 0,
+        unitPrice: 3.50,
+        lineTotal: 682.50,
+        status: "invoiced"
+      },
+      {
+        id: "ii2",
+        outputId: "out1",
+        outputNumber: "SAL-2024-001",
+        entryId: "e1",
+        entryNumber: "ING-2024-001",
+        lotId: "l2",
+        lotNumber: "LOT-002",
+        garmentType: "Camisa Denim",
+        process: "Bleach",
+        washType: "Químico",
+        quantityDispatched: 245,
+        quantityToInvoice: 245,
+        quantityPendingInvoice: 0,
+        unitPrice: 2.60,
+        lineTotal: 637.50,
+        status: "invoiced"
+      }
+    ]
+  },
+  {
+    id: "inv2",
+    invoiceNumber: "FACT-2024-002",
+    invoiceDate: "2024-03-27",
+    dueDate: "2024-04-10",
+    clientId: "2",
+    clientName: "Denim World Export",
+    notes: "Factura parcial de lote en proceso",
+    status: "paid",
+    subtotal: 300.00,
+    discount: 0,
+    tax: 54.00,
+    retention: 0,
+    total: 354.00,
+    balancePending: 0,
+    createdAt: "2024-03-27T11:00:00Z",
+    updatedAt: "2024-03-27T15:00:00Z",
+    items: [
+      {
+        id: "ii3",
+        outputId: "out2",
+        outputNumber: "SAL-2024-002",
+        entryId: "e2",
+        entryNumber: "ING-2024-002",
+        lotId: "l3",
+        lotNumber: "LOT-003",
+        garmentType: "Chaqueta Denim",
+        process: "Enzyme Wash",
+        washType: "Ecológico",
+        quantityDispatched: 60,
+        quantityToInvoice: 60,
+        quantityPendingInvoice: 0,
+        unitPrice: 5.00,
+        lineTotal: 300.00,
+        status: "invoiced"
+      }
+    ]
+  }
+];

@@ -1,0 +1,22 @@
+{
+  "placeholderImages": [
+    {
+      "id": "denim-warehouse",
+      "description": "Industrial denim warehouse",
+      "imageUrl": "https://picsum.photos/seed/denim1/1200/800",
+      "imageHint": "industrial denim"
+    },
+    {
+      "id": "quality-control",
+      "description": "Garment quality control station",
+      "imageUrl": "https://picsum.photos/seed/denim2/600/400",
+      "imageHint": "quality control"
+    },
+    {
+      "id": "logo-placeholder",
+      "description": "DenimLab Abstract Logo",
+      "imageUrl": "https://picsum.photos/seed/logo/200/200",
+      "imageHint": "abstract logo"
+    }
+  ]
+}

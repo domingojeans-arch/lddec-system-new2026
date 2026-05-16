@@ -1,0 +1,100 @@
+import { Output } from "@/types/output";
+
+export const mockOutputs: Output[] = [
+  {
+    id: "out1",
+    outputNumber: "SAL-2024-001",
+    outputDate: "2024-03-25",
+    clientId: "1",
+    clientName: "Textil del Pacífico S.A.",
+    responsible: "Ricardo Alva",
+    driver: "Pedro Castillo (Placa: ABC-123)",
+    status: "completed",
+    totalOriginal: 450,
+    totalDispatched: 440,
+    totalSamples: 5,
+    totalMissing: 0,
+    totalDamaged: 5,
+    totalPending: 0,
+    createdAt: "2024-03-25T14:00:00Z",
+    updatedAt: "2024-03-25T16:00:00Z",
+    lines: [
+      {
+        id: "ol1",
+        entryId: "e1",
+        entryNumber: "ING-2024-001",
+        lotId: "l1",
+        lotNumber: "LOT-001",
+        garmentType: "Jeans Slim Fit",
+        process: "Stone Wash",
+        washType: "Bio-Lavado",
+        quantityOriginal: 200,
+        quantityDispatched: 195,
+        quantitySamples: 2,
+        quantityMissing: 0,
+        quantityDamaged: 3,
+        quantityPending: 0,
+        status: "dispatched",
+        deliveryStatus: "delivered",
+        deliveredBy: "Pedro Castillo",
+        deliveryDate: "2024-03-25 17:30"
+      },
+      {
+        id: "ol2",
+        entryId: "e1",
+        entryNumber: "ING-2024-001",
+        lotId: "l2",
+        lotNumber: "LOT-002",
+        garmentType: "Camisa Denim",
+        process: "Bleach",
+        washType: "Químico",
+        quantityOriginal: 250,
+        quantityDispatched: 245,
+        quantitySamples: 3,
+        quantityMissing: 0,
+        quantityDamaged: 2,
+        quantityPending: 0,
+        status: "dispatched",
+        deliveryStatus: "pending"
+      }
+    ]
+  },
+  {
+    id: "out2",
+    outputNumber: "SAL-2024-002",
+    outputDate: "2024-03-26",
+    clientId: "2",
+    clientName: "Denim World Export",
+    responsible: "Sofía Huamán",
+    driver: "Propio - PickUp Blanca",
+    status: "active",
+    totalOriginal: 120,
+    totalDispatched: 60,
+    totalSamples: 0,
+    totalMissing: 0,
+    totalDamaged: 0,
+    totalPending: 60,
+    createdAt: "2024-03-26T09:00:00Z",
+    updatedAt: "2024-03-26T09:00:00Z",
+    lines: [
+      {
+        id: "ol3",
+        entryId: "e2",
+        entryNumber: "ING-2024-002",
+        lotId: "l3",
+        lotNumber: "LOT-003",
+        garmentType: "Chaqueta Denim",
+        process: "Enzyme Wash",
+        washType: "Ecológico",
+        quantityOriginal: 120,
+        quantityDispatched: 60,
+        quantitySamples: 0,
+        quantityMissing: 0,
+        quantityDamaged: 0,
+        quantityPending: 60,
+        status: "partial",
+        deliveryStatus: "pending"
+      }
+    ]
+  }
+];
