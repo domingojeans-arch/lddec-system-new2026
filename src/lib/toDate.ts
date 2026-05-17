@@ -29,6 +29,14 @@ export function toDate(value: any): Date | null {
       const d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0);
       return isNaN(d.getTime()) ? null : d;
     }
+    // Formatos DD/MM/YY (año de 2 dígitos)
+    if (/^\d{2}\/\d{2}\/\d{2}$/.test(value)) {
+      const [day, month, year] = value.split('/');
+      const yearNum = parseInt(year);
+      const fullYear = yearNum + (yearNum < 50 ? 2000 : 1900);
+      const d = new Date(fullYear, parseInt(month) - 1, parseInt(day), 12, 0, 0);
+      return isNaN(d.getTime()) ? null : d;
+    }
   }
 
   const d = new Date(value);

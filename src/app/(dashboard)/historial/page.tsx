@@ -115,6 +115,37 @@ function getInvoiceBadgeInfo(inv: any) {
   return { text: `FACTURA: PENDIENTE`, colors: "text-amber-600 bg-amber-50 border-amber-200" };
 }
 
+/**
+ * Verifica si un pago califica para confirmación automática por antigüedad (9 días o más).
+ * Retorna true si es 'no confirmado', no anulado y han transcurrido 9 días o más desde su fecha de creación.
+ */
+function checkPaymentAutoConfirm(pago: any): { isAutoConfirmed: boolean; daysDiff: number } {
+  if (pago.anulado || pago.confirmado) {
+    return { isAutoConfirmed: false, daysDiff: 0 };
+  }
+
+  // La fecha puede estar en fechaTransaccion, fecha, fechaPago o createdAt
+  const rawDate = pago.fechaTransaccion || pago.fecha || pago.fechaPago || pago.createdAt;
+  if (!rawDate) return { isAutoConfirmed: false, daysDiff: 0 };
+
+  const parsedDate = toDate(rawDate);
+  if (!parsedDate) return { isAutoConfirmed: false, daysDiff: 0 };
+
+  const today = new Date();
+  
+  // Limpiar horas para comparar solo días naturales completos
+  const todayClean = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dateClean = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+
+  const diffTime = todayClean.getTime() - dateClean.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  return {
+    isAutoConfirmed: diffDays >= 9,
+    daysDiff: diffDays
+  };
+}
+
 export default function HistorialPage() {
   const { toast } = useToast();
   const { user: authUser } = useAuth();
@@ -672,32 +703,43 @@ export default function HistorialPage() {
                                   <TableRow><TableHead className="text-[9px] font-black uppercase py-3 pl-6">Fecha Pago</TableHead><TableHead className="text-[9px] font-black uppercase">Tipo / Concepto</TableHead><TableHead className="text-[9px] font-black uppercase text-right">Monto</TableHead><TableHead className="text-[9px] font-black uppercase text-right pr-6">Acción</TableHead></TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {inv.movimientos.map((pago: any, pIdx: number) => (
-                                    <TableRow key={pIdx} className={cn("border-border/50", pago.anulado && "opacity-40 italic")}>
-                                      <TableCell className="pl-6 py-3 text-xs">{formatDateRow(pago.fechaTransaccion)}</TableCell>
-                                      <TableCell className="text-xs uppercase font-bold">
-                                        {pago.tipoTransaccion} 
-                                        {pago.anulado && <span className="text-red-500 ml-2">(ANULADO)</span>}
-                                        {!pago.anulado && pago.confirmado && <span className="text-emerald-600 ml-2 text-[9px]">(CONFIRMADO)</span>}
-                                        {!pago.anulado && !pago.confirmado && <span className="text-amber-600 ml-2 text-[9px]">(NO CONFIRMADO)</span>}
-                                      </TableCell>
-                                      <TableCell className="text-right font-black text-emerald-600">${Number(pago.monto).toFixed(2)}</TableCell>
-                                      <TableCell className="text-right pr-6">
-                                        <div className="flex items-center justify-end gap-2">
-                                          {!pago.anulado && !pago.confirmado && (isCobranzas || isAdmin) && (
-                                            <Button variant="ghost" size="icon" onClick={() => handleConfirmPayment(inv.id, pago.id)} className="h-7 w-7 text-emerald-600 hover:bg-emerald-50" title="Confirmar Pago">
-                                              <CheckCircle2 className="h-4 w-4" />
-                                            </Button>
-                                          )}
-                                          {!pago.anulado && (isAdmin || (isCobranzas && !pago.confirmado)) && (
-                                            <Button variant="ghost" size="icon" onClick={() => handleAnnullPayment(inv.id, pago.id, false, pago.confirmado)} className="h-7 w-7 text-red-500 hover:bg-red-50" title="Eliminar Pago">
-                                              <Trash2 className="h-3.5 w-3.5" />
-                                            </Button>
-                                          )}
-                                        </div>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
+                                 {inv.movimientos.map((pago: any, pIdx: number) => {
+                                   const autoConfirm = checkPaymentAutoConfirm(pago);
+                                   const isAutoConfirmed = autoConfirm.isAutoConfirmed;
+
+                                   return (
+                                     <TableRow key={pIdx} className={cn("border-border/50", pago.anulado && "opacity-40 italic")}>
+                                       <TableCell className="pl-6 py-3 text-xs">{formatDateRow(pago.fechaTransaccion)}</TableCell>
+                                       <TableCell className="text-xs uppercase font-bold">
+                                         {pago.tipoTransaccion} 
+                                         {pago.anulado && <span className="text-red-500 ml-2">(ANULADO)</span>}
+                                         {!pago.anulado && pago.confirmado && <span className="text-emerald-600 ml-2 text-[9px]">(CONFIRMADO)</span>}
+                                         {!pago.anulado && !pago.confirmado && (
+                                           isAutoConfirmed ? (
+                                             <span className="text-emerald-600 ml-2 text-[9px]">(CONFIRMADO AUTOMÁTICAMENTE)</span>
+                                           ) : (
+                                             <span className="text-amber-600 ml-2 text-[9px]">(NO CONFIRMADO)</span>
+                                           )
+                                         )}
+                                       </TableCell>
+                                       <TableCell className="text-right font-black text-emerald-600">${Number(pago.monto).toFixed(2)}</TableCell>
+                                       <TableCell className="text-right pr-6">
+                                         <div className="flex items-center justify-end gap-2">
+                                           {!pago.anulado && !pago.confirmado && !isAutoConfirmed && (isCobranzas || isAdmin) && (
+                                             <Button variant="ghost" size="icon" onClick={() => handleConfirmPayment(inv.id, pago.id)} className="h-7 w-7 text-emerald-600 hover:bg-emerald-50" title="Confirmar Pago">
+                                               <CheckCircle2 className="h-4 w-4" />
+                                             </Button>
+                                           )}
+                                           {!pago.anulado && !isAutoConfirmed && (isAdmin || (isCobranzas && !pago.confirmado)) && (
+                                             <Button variant="ghost" size="icon" onClick={() => handleAnnullPayment(inv.id, pago.id, false, pago.confirmado)} className="h-7 w-7 text-red-500 hover:bg-red-50" title="Eliminar Pago">
+                                               <Trash2 className="h-3.5 w-3.5" />
+                                             </Button>
+                                           )}
+                                         </div>
+                                       </TableCell>
+                                     </TableRow>
+                                   );
+                                 })}
                                 </TableBody>
                               </Table>
                             </div>
@@ -741,32 +783,43 @@ export default function HistorialPage() {
                               <TableRow><TableHead className="text-[9px] font-black uppercase py-4 pl-8">Fecha</TableHead><TableHead className="text-[9px] font-black uppercase">Tipo / Concepto</TableHead><TableHead className="text-[9px] font-black uppercase text-right">Monto</TableHead><TableHead className="text-[9px] font-black uppercase text-right pr-8">Acción</TableHead></TableRow>
                             </TableHeader>
                             <TableBody>
-                              {selectedEvent.movimientos?.map((pago: any, pIdx: number) => (
-                                <TableRow key={pIdx} className={cn(pago.anulado && "opacity-40 italic")}>
-                                  <TableCell className="pl-8 py-4 text-xs">{formatDateRow(pago.fechaTransaccion || pago.fecha)}</TableCell>
-                                  <TableCell className="text-xs uppercase font-bold">
-                                    {pago.tipoTransaccion || "PAGO"} 
-                                    {pago.anulado && <span className="text-red-500 ml-2">(ANULADO)</span>}
-                                    {!pago.anulado && pago.confirmado && <span className="text-emerald-600 ml-2 text-[9px]">(CONFIRMADO)</span>}
-                                    {!pago.anulado && !pago.confirmado && <span className="text-amber-600 ml-2 text-[9px]">(NO CONFIRMADO)</span>}
-                                  </TableCell>
-                                  <TableCell className="text-right font-black text-emerald-600">${Number(pago.monto).toFixed(2)}</TableCell>
-                                  <TableCell className="text-right pr-8">
-                                    <div className="flex items-center justify-end gap-2">
-                                      {!pago.anulado && !pago.confirmado && (isCobranzas || isAdmin) && (
-                                        <Button variant="ghost" size="icon" onClick={() => handleConfirmPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, selectedEvent.type === 'INITIAL_BALANCE_DOC')} className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Confirmar Pago">
-                                          <CheckCircle2 className="h-4 w-4" />
-                                        </Button>
-                                      )}
-                                      {!pago.anulado && (isAdmin || (isCobranzas && !pago.confirmado)) && (
-                                        <Button variant="ghost" size="icon" onClick={() => handleAnnullPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, selectedEvent.type === 'INITIAL_BALANCE_DOC', pago.confirmado)} className="h-8 w-8 text-red-500 hover:bg-red-50" title="Eliminar Pago">
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                              {selectedEvent.movimientos?.map((pago: any, pIdx: number) => {
+                                 const autoConfirm = checkPaymentAutoConfirm(pago);
+                                 const isAutoConfirmed = autoConfirm.isAutoConfirmed;
+
+                                 return (
+                                   <TableRow key={pIdx} className={cn(pago.anulado && "opacity-40 italic")}>
+                                     <TableCell className="pl-8 py-4 text-xs">{formatDateRow(pago.fechaTransaccion || pago.fecha)}</TableCell>
+                                     <TableCell className="text-xs uppercase font-bold">
+                                       {pago.tipoTransaccion || "PAGO"} 
+                                       {pago.anulado && <span className="text-red-500 ml-2">(ANULADO)</span>}
+                                       {!pago.anulado && pago.confirmado && <span className="text-emerald-600 ml-2 text-[9px]">(CONFIRMADO)</span>}
+                                       {!pago.anulado && !pago.confirmado && (
+                                         isAutoConfirmed ? (
+                                           <span className="text-emerald-600 ml-2 text-[9px]">(CONFIRMADO AUTOMÁTICAMENTE)</span>
+                                         ) : (
+                                           <span className="text-amber-600 ml-2 text-[9px]">(NO CONFIRMADO)</span>
+                                         )
+                                       )}
+                                     </TableCell>
+                                     <TableCell className="text-right font-black text-emerald-600">${Number(pago.monto).toFixed(2)}</TableCell>
+                                     <TableCell className="text-right pr-8">
+                                       <div className="flex items-center justify-end gap-2">
+                                         {!pago.anulado && !pago.confirmado && !isAutoConfirmed && (isCobranzas || isAdmin) && (
+                                           <Button variant="ghost" size="icon" onClick={() => handleConfirmPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, selectedEvent.type === 'INITIAL_BALANCE_DOC')} className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Confirmar Pago">
+                                             <CheckCircle2 className="h-4 w-4" />
+                                           </Button>
+                                         )}
+                                         {!pago.anulado && !isAutoConfirmed && (isAdmin || (isCobranzas && !pago.confirmado)) && (
+                                           <Button variant="ghost" size="icon" onClick={() => handleAnnullPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, selectedEvent.type === 'INITIAL_BALANCE_DOC', pago.confirmado)} className="h-8 w-8 text-red-500 hover:bg-red-50" title="Eliminar Pago">
+                                             <Trash2 className="h-4 w-4" />
+                                           </Button>
+                                         )}
+                                       </div>
+                                     </TableCell>
+                                   </TableRow>
+                                 );
+                               })}
                               {(!selectedEvent.movimientos || selectedEvent.movimientos.length === 0) && (
                                 <TableRow><TableCell colSpan={4} className="h-20 text-center text-[10px] font-bold text-muted-foreground/30 uppercase italic">Sin pagos vinculados</TableCell></TableRow>
                               )}
