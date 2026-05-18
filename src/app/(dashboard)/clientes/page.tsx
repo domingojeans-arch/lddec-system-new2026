@@ -38,43 +38,6 @@ export default function ClientesPage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    // MOCK DATA PARA PRUEBAS LOCALES
-    const mockClients: any[] = [
-      {
-        id: "mock1", name: "TEXTILES ANDINOS S.A.", firstName: "", lastName: "",
-        idNumber: "1790011223001", city: "Quito", classification: "socio",
-        phone: "0991234567", baseDebt: 0, email: "contacto@textilesandinos.com",
-        activo: true, createdAt: "2021-05-10T10:00:00Z"
-      },
-      {
-        id: "mock2", name: "CONFECCIONES LA PERLA", firstName: "María", lastName: "Gómez",
-        idNumber: "0912345678001", city: "Guayaquil", classification: "nacional",
-        phone: "0987654321", baseDebt: 150.50, email: "ventas@laperla.com",
-        activo: true, createdAt: "2023-08-21T10:00:00Z"
-      },
-      {
-        id: "mock3", name: "JEANS & MAS CIA. LTDA.", firstName: "", lastName: "",
-        idNumber: "0190022334001", city: "Cuenca", classification: "especial",
-        phone: "0971122334", baseDebt: 0, email: "info@jeansymas.com",
-        activo: true, createdAt: "2022-11-05T10:00:00Z"
-      },
-      {
-        id: "mock4", name: "DISTRIBUIDORA EL VALLE", firstName: "Carlos", lastName: "Ruiz",
-        idNumber: "1801234567001", city: "Ambato", classification: "moroso",
-        phone: "0963344556", baseDebt: 1200.00, email: "carlos.ruiz@elvalle.ec",
-        activo: false, createdAt: "2020-02-15T10:00:00Z"
-      },
-      {
-        id: "mock5", name: "MODA URBANA S.A.", firstName: "", lastName: "",
-        idNumber: "1790033445001", city: "Quito", classification: "socio",
-        phone: "0998877665", baseDebt: 0, email: "gerencia@modaurbana.com",
-        activo: true, createdAt: "2024-01-10T10:00:00Z"
-      }
-    ];
-    setClients(mockClients as Client[]);
-    setLoading(false);
-
-    /*
     if (!db) return;
 
     const q = query(collection(db, "clients"));
@@ -119,7 +82,6 @@ export default function ClientesPage() {
     });
 
     return () => unsubscribe();
-    */
   }, []);
 
   // Bypass de permisos para modo local
@@ -164,10 +126,6 @@ export default function ClientesPage() {
       return;
     }
     
-    // MOCK: Eliminar localmente
-    setClients(prev => prev.filter(c => c.id !== id));
-    toast({ title: "Socio eliminado (Mock)", description: "El registro ha sido retirado de la memoria." });
-    /*
     try {
       await deleteDoc(doc(db, "clients", id));
       toast({ title: "Socio eliminado", description: "El registro ha sido retirado de la base de datos." });
@@ -175,7 +133,6 @@ export default function ClientesPage() {
       console.error("Error deleting client:", error);
       toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el registro." });
     }
-    */
   };
 
   const handleFormSubmit = async (data: ClientInput) => {
@@ -185,27 +142,10 @@ export default function ClientesPage() {
       return;
     }
 
-    // MOCK: Guardar localmente
-    const payload = {
-      ...data,
-      name: `${data.lastName || ''} ${data.firstName || ''}`.trim() || data.name,
-      updatedAt: new Date().toISOString()
-    };
-
-    if (editingClient) {
-      setClients(prev => prev.map(c => c.id === editingClient.id ? { ...c, ...payload } as Client : c));
-      toast({ title: "Cliente Actualizado (Mock)" });
-    } else {
-      setClients(prev => [...prev, { id: `mock-${Date.now()}`, classification: "nacional", ...payload } as Client]);
-      toast({ title: "Cliente Registrado (Mock)" });
-    }
-    setIsSheetOpen(false);
-
-    /*
     try {
       const payload: any = {
         ...data,
-        name: `${data.lastName} ${data.firstName}`.trim(),
+        name: `${data.lastName || ""} ${data.firstName || ""}`.trim() || data.name || "",
         updatedAt: new Date().toISOString()
       };
 
@@ -236,7 +176,6 @@ export default function ClientesPage() {
         description: "Verifique su conexión o permisos de escritura." 
       });
     }
-    */
   };
 
   return (

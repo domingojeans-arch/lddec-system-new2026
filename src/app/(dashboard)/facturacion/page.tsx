@@ -111,8 +111,20 @@ export default function FacturacionPage() {
     });
 
     const unsubClients = onSnapshot(collection(db, "clients"), (snap) => {
-      const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const sorted = raw.sort((a, b) => (a.lastName || "").localeCompare(b.lastName || "", 'es'));
+      const mapped = snap.docs.map(d => {
+        const data = d.data();
+        const firstName = data.firstName || data.nombre || "";
+        const lastName = data.lastName || data.apellido || "";
+        const name = (data.name || `${lastName} ${firstName}`).trim().toUpperCase();
+        return {
+          id: d.id,
+          ...data,
+          firstName,
+          lastName,
+          name: name || "SIN NOMBRE"
+        };
+      });
+      const sorted = mapped.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
       setClients(sorted);
     });
 

@@ -118,7 +118,21 @@ export default function IngresosPage() {
   useEffect(() => {
     if (!db) return;
     const unsubClients = onSnapshot(collection(db, "clients"), (snap) => {
-      setClients(snap.docs.map(d => ({ id: d.id, ...d.data(), name: ((d.data().lastName || "") + " " + (d.data().firstName || "")).trim().toUpperCase() })));
+      const mapped = snap.docs.map(d => {
+        const data = d.data();
+        const firstName = data.firstName || data.nombre || "";
+        const lastName = data.lastName || data.apellido || "";
+        const name = (data.name || `${lastName} ${firstName}`).trim().toUpperCase();
+        return {
+          id: d.id,
+          ...data,
+          firstName,
+          lastName,
+          name: name || "SIN NOMBRE"
+        };
+      });
+      const sorted = mapped.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+      setClients(sorted);
     });
     
     // CARGAR CATÁLOGO DE PRENDAS DESDE NUEVA COLECCIÓN (LDDEC 1.6)
