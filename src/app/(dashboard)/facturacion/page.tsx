@@ -206,7 +206,10 @@ export default function FacturacionPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (isReadOnly || user?.role !== "administrador") {
+    const userRole = (user?.role || "").toLowerCase();
+    const isAdmin = userRole === "admin" || userRole === "administrador";
+
+    if (isReadOnly || !isAdmin) {
       toast({ variant: "destructive", title: "Acceso Denegado" });
       return;
     }

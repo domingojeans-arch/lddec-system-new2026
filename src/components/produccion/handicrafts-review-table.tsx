@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, X, ClipboardList, Edit3, ArrowUp, ArrowDown, ChevronsUpDown, Save, Trash2, ChevronLeft, ChevronRight, Loader2, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Check, X, ClipboardList, Edit3, ArrowUp, ArrowDown, ChevronsUpDown, Save, Trash2, ChevronLeft, ChevronRight, Loader2, AlertTriangle, ShieldAlert, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toDate } from "@/lib/toDate";
@@ -39,7 +39,7 @@ import {
 
 interface HandicraftsReviewTableProps {
   works: any[];
-  onReview: (workId: string, status: 'aprobado' | 'rechazado', price?: number) => void;
+  onReview: (workId: string, status: 'aprobado' | 'rechazado' | 'pendiente', price?: number) => void;
   onUpdate?: (workId: string, data: any) => void;
   onDelete?: (workId: string) => void;
   isHistory?: boolean;
@@ -53,6 +53,16 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
   const isReadOnly = user?.role === "socio";
   const canFullEdit = (user?.role === "administrador" || user?.role === "produccion") && !isReadOnly;
   
+  const handleVolverAprobar = (workId: string) => {
+    if (isReadOnly) return;
+    onReview(workId, 'aprobado');
+  };
+
+  const handleVolverPendiente = (workId: string) => {
+    if (isReadOnly) return;
+    onReview(workId, 'pendiente');
+  };
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedWork, setSelectedWork] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
@@ -187,6 +197,26 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
                             <div className="flex gap-1 mr-2">
                               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-[10px] font-bold px-3 rounded-lg" onClick={() => onReview(work.id, 'aprobado')}>Aprobar</Button>
                               <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 h-8 text-[10px] font-bold px-3 rounded-lg" onClick={() => onReview(work.id, 'rechazado')}>Rechazar</Button>
+                            </div>
+                          )}
+                          {work.estado === 'rechazado' && (
+                            <div className="flex gap-1.5 mr-1 shrink-0">
+                              <Button 
+                                size="sm" 
+                                className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 h-8 text-[10px] font-bold px-3 rounded-lg flex items-center gap-1 transition-colors" 
+                                onClick={() => handleVolverAprobar(work.id)}
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                <span>Aprobar</span>
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                className="bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 h-8 text-[10px] font-bold px-3 rounded-lg flex items-center gap-1 transition-colors" 
+                                onClick={() => handleVolverPendiente(work.id)}
+                              >
+                                <Clock className="h-3.5 w-3.5" />
+                                <span>Pendiente</span>
+                              </Button>
                             </div>
                           )}
                           {(canFullEdit || isHistory) && (

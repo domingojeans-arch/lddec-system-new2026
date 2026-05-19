@@ -101,9 +101,9 @@ export default function ProduccionPage() {
    * MOTOR DE CARGA OPTIMIZADO (GET DOCS)
    * Descarga manualidades del mes y entradas relacionadas para cruce de lotes.
    */
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (silent = false) => {
     if (!db) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       // Ventana de creación de 3 meses para cubrir cualquier registro tardío o a destiempo
       const startQuery = new Date(selectedDate);
@@ -242,7 +242,7 @@ export default function ProduccionPage() {
     });
   }, [manualWorks, activeTab, searchTerm, searchOperator, manualSortKey, manualSortDir, entries]);
 
-  const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'rechazado', price?: number) => {
+  const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'rechazado' | 'pendiente', price?: number) => {
     if (isReadOnly) return;
     
     // 1. Guardar copia del estado previo de manualWorks para posibilitar rollback en caso de fallo
@@ -265,8 +265,8 @@ export default function ProduccionPage() {
           estado: status,
           precioUnitario: precioFinal !== undefined ? precioFinal : m.precioUnitario,
           total: precioFinal !== undefined ? totalFinal : m.total,
-          reviewedBy: user?.displayName || "Sistema",
-          reviewedAt: new Date()
+          reviewedBy: status !== 'pendiente' ? (user?.displayName || "Sistema") : null,
+          reviewedAt: status !== 'pendiente' ? new Date() : null
         };
       }
       return m;
@@ -278,11 +278,18 @@ export default function ProduccionPage() {
     try {
       const updates: any = { 
         estado: status, 
-        updatedAt: serverTimestamp(), 
-        reviewedBy: user?.displayName || "Sistema", 
-        reviewedAt: serverTimestamp(),
-        fechaAprobacion: serverTimestamp() // Guardar la fecha exacta de aprobación por separado
+        updatedAt: serverTimestamp()
       };
+
+      if (status !== 'pendiente') {
+        updates.reviewedBy = user?.displayName || "Sistema";
+        updates.reviewedAt = serverTimestamp();
+        updates.fechaAprobacion = serverTimestamp();
+      } else {
+        updates.reviewedBy = null;
+        updates.reviewedAt = null;
+        updates.fechaAprobacion = null;
+      }
 
       if (status === 'aprobado' && price !== undefined) {
         updates.precioUnitario = price;
@@ -293,7 +300,7 @@ export default function ProduccionPage() {
       updateDoc(doc(db, "manualidades", workId), updates)
         .then(() => {
           // Recargar silenciosamente en fondo para sincronizar con los Timestamps finales del servidor
-          loadData();
+          loadData(true);
         })
         .catch((error) => {
           console.error("Error asincrónico al sincronizar en Firestore:", error);
