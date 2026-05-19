@@ -105,12 +105,15 @@ export default function ProduccionPage() {
     if (!db) return;
     setLoading(true);
     try {
+      // Rango amplio de creación (inicioMes y finMes) para traer todos los lotes del mes unificados
+      const start = Timestamp.fromDate(startOfMonth(selectedDate));
       const end = Timestamp.fromDate(endOfMonth(selectedDate));
       
-      // 1. Cargar todas las manualidades para el estado actual y filtrar en memoria por fecha de origen robusta (toDate)
+      // 1. Consulta unificada: Traer todos los lotes creados en este mes sin importar su estado
       const qManual = query(
         collection(db, "manualidades"), 
-        where("estado", "==", activeTab)
+        where("createdAt", ">=", start),
+        where("createdAt", "<=", end)
       );
       
       const manualSnap = await getDocs(qManual);
@@ -119,6 +122,7 @@ export default function ProduccionPage() {
       const startMs = startOfMonth(selectedDate).getTime();
       const endMs = endOfMonth(selectedDate).getTime();
 
+      // Filtrar y ordenar en memoria por la fecha de origen real
       const manualList = allManualList
         .filter(work => {
           const d = toDate(work.fecha || work.fechaStr || work.workDate || work.createdAt);
@@ -154,7 +158,7 @@ export default function ProduccionPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, selectedDate]);
+  }, [selectedDate]);
 
   useEffect(() => {
     loadData();
@@ -191,7 +195,9 @@ export default function ProduccionPage() {
       return { ...work, loteOriginalCant: originalQty };
     });
 
+    // Dividir los datos y separar en el cliente según activeTab
     const filtered = enriched.filter(m => 
+      m.estado === activeTab &&
       (m.loteNumero?.toLowerCase().includes(s) || m.clienteNombre?.toLowerCase().includes(s)) && 
       m.operarioNombre?.toLowerCase().includes(op)
     );
@@ -219,7 +225,7 @@ export default function ProduccionPage() {
       const strB = String(compB || "").toLowerCase();
       return manualSortDir === "asc" ? strA.localeCompare(strB, 'es') : strB.localeCompare(strA, 'es');
     });
-  }, [manualWorks, searchTerm, searchOperator, manualSortKey, manualSortDir, entries]);
+  }, [manualWorks, activeTab, searchTerm, searchOperator, manualSortKey, manualSortDir, entries]);
 
   const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'rechazado', price?: number) => {
     if (isReadOnly) return;
