@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   BarChart3, 
   TrendingUp, 
@@ -12,19 +12,15 @@ import {
   LayoutDashboard, 
   Shirt, 
   Zap, 
-  Beaker 
+  Beaker,
+  Loader2
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { mockClients } from "@/data/mock-clients";
-import { mockEntries } from "@/data/mock-entries";
-import { mockOutputs } from "@/data/mock-outputs";
-import { mockInvoices } from "@/data/mock-invoices";
-import { mockCollections } from "@/data/mock-collections";
-import { mockManualWorks } from "@/data/mock-manual-works";
-import { mockChemicals } from "@/data/mock-chemicals";
-import { mockChemicalRecipes } from "@/data/mock-chemical-recipes";
 import { calculateOperationalMetrics, filterByRange } from "@/lib/reports-helpers";
 import { ReportFilters } from "@/types/reports";
+import { Entry } from "@/types/lddec";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot } from "firebase/firestore";
 
 import { OperationalSummary } from "@/components/informes/operational-summary";
 import { EntriesReport } from "@/components/informes/entries-report";
@@ -36,6 +32,44 @@ import { ManualWorksReport } from "@/components/informes/manual-works-report";
 import { ChemicalsReport } from "@/components/informes/chemicals-report";
 import { ReportsFilters } from "@/components/informes/reports-filters";
 
+function getVisibleLotNumber(lot: any): string {
+  if (!lot) return "S/L";
+  const candidates = [lot.lotNumber, lot.numeroLote, lot.loteId, lot.lote, lot.loteNumero, lot.numLote, lot.id];
+  for (const val of candidates) {
+    const s = String(val ?? "").trim();
+    if (s && s.length < 25 && s !== "[object Object]" && s.toLowerCase() !== "undefined") return s.toUpperCase();
+  }
+  return "S/L";
+}
+
+function getEntryVisible(item: any, id?: string): string {
+  if (!item) return id && id.length < 18 ? String(id).toUpperCase() : "INGRESO S/N";
+  const candidates = [
+    item.numeroIngreso, 
+    item.entryNumber, 
+    item.numeroIngresoMaestro, 
+    item.numero,
+    item.entryID
+  ];
+  for (const val of candidates) {
+    const v = String(val ?? "").trim();
+    if (v && v.length < 18 && v !== "undefined" && v !== "[object Object]") return v.toUpperCase();
+  }
+  return id && id.length < 18 ? String(id).toUpperCase() : "INGRESO S/N";
+}
+
+function mapFirestoreToEntry(docSnap: any): Entry {
+  const data = docSnap.data();
+  const id = docSnap.id;
+  let entryDate = "";
+  if (data.date?.toDate) entryDate = data.date.toDate().toISOString().split('T')[0];
+  else if (data.entryDate && data.entryDate.includes('-')) entryDate = data.entryDate;
+  const visibleNumber = getEntryVisible(data, id);
+  const mappedLots = (data.lotes || []).map((lot: any) => ({ ...lot, id: lot.id || getVisibleLotNumber(lot), lotNumber: getVisibleLotNumber(lot) }));
+  const totalGarments = mappedLots.reduce((acc: number, lot: any) => acc + (Number(lot.cantidadConfirmada || lot.quantity || 0)), 0);
+  return { id, entryNumber: visibleNumber, clientName: data.clientName || "Socio", entryDate, responsible: data.responsible || "N/A", isSample: !!data.isSample, status: data.status || "active", totalGarments, lots: mappedLots, notes: data.notes || "" } as Entry;
+}
+
 export default function ResumenesPage() {
   const [activeTab, setActiveTab] = useState("resumen");
   const [filters, setFilters] = useState<ReportFilters>({
@@ -45,9 +79,131 @@ export default function ResumenesPage() {
     status: "all"
   });
 
+  const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState<any[]>([]);
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [rawOutputs, setRawOutputs] = useState<any[]>([]);
+  const [rawSalidas, setRawSalidas] = useState<any[]>([]);
+  const [rawMuestras, setRawMuestras] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [collections, setCollections] = useState<any[]>([]);
+  const [manualWorks, setManualWorks] = useState<any[]>([]);
+  const [chemicals, setChemicals] = useState<any[]>([]);
+  const [recipes, setRecipes] = useState<any[]>([]);
+
   const handleFilterChange = (newFilters: Partial<ReportFilters>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   };
+
+  useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribers = [
+      onSnapshot(collection(db, "clients"), (snap) => {
+        setClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.id })));
+      }),
+      onSnapshot(collection(db, "entries"), (snap) => {
+        setEntries(snap.docs.map(mapFirestoreToEntry));
+      }),
+      onSnapshot(collection(db, "outputs"), (snap) => {
+        setRawOutputs(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
+      }),
+      onSnapshot(collection(db, "salidas"), (snap) => {
+        setRawSalidas(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
+      }),
+      onSnapshot(collection(db, "muestras"), (snap) => {
+        setRawMuestras(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
+      }),
+      onSnapshot(collection(db, "facturas"), (snap) => {
+        setInvoices(snap.docs.map(doc => {
+          const data = doc.data();
+          const total = Number(data.totalFactura || data.total || 0);
+          return { id: doc.id, ...data, total, totalFactura: total, clientId: data.clientId || data.clienteId || "" };
+        }));
+      }),
+      onSnapshot(collection(db, "payments"), (snap) => {
+        setCollections(snap.docs.map(doc => {
+          const data = doc.data();
+          const dateStr = data.fechaTransaccion?.toDate ? data.fechaTransaccion.toDate().toISOString().split('T')[0] : data.collectionDate || new Date().toISOString().split('T')[0];
+          const monto = Number(data.monto || data.totalReceived || 0);
+          return {
+            id: doc.id,
+            collectionNumber: data.numeroFactura ? `PAGO-FACT-${data.numeroFactura}` : `PAGO-${doc.id.substring(0,6)}`,
+            collectionDate: dateStr,
+            clientId: data.clienteId || data.clientId || "",
+            clientName: data.clienteNombre || "Socio",
+            paymentMethod: data.metodoPago || "N/A",
+            notes: data.descripcion || "",
+            status: "completed",
+            totalReceived: monto,
+            totalApplied: monto,
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+            ...data
+          };
+        }));
+      }),
+      onSnapshot(collection(db, "manualidades"), (snap) => {
+        setManualWorks(snap.docs.map(doc => {
+          const data = doc.data();
+          const total = Number(data.total || data.totalCost || 0);
+          return { id: doc.id, ...data, totalCost: total, total: total, clientId: data.clienteId || data.clientId || "" };
+        }));
+      }),
+      onSnapshot(collection(db, "quimicos_stock"), (snap) => {
+        setChemicals(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      }),
+      onSnapshot(collection(db, "quimicos_recetas"), (snap) => {
+        setRecipes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setLoading(false);
+      })
+    ];
+
+    return () => unsubscribers.forEach(unsub => unsub());
+  }, []);
+
+  const outputs = useMemo(() => {
+    const combineOutput = (d: any) => {
+      let totalDispatched = 0;
+      if (d.totalDispatched !== undefined) totalDispatched = Number(d.totalDispatched);
+      else if (d.totalDespachadoReal !== undefined) totalDispatched = Number(d.totalDespachadoReal);
+      else if (d.itemsDispatched) {
+        totalDispatched = d.itemsDispatched.reduce((sum: number, it: any) => sum + Number(it.quantityToDispatch || it.quantity || 0), 0);
+      } else if (d.lotes) {
+        totalDispatched = d.lotes.reduce((sum: number, it: any) => sum + Number(it.cantidad || it.quantity || 0), 0);
+      }
+      
+      let outputDate = "";
+      if (d.date?.toDate) outputDate = d.date.toDate().toISOString().split('T')[0];
+      else if (d.fechaSalida?.toDate) outputDate = d.fechaSalida.toDate().toISOString().split('T')[0];
+      else if (d.fecha?.toDate) outputDate = d.fecha.toDate().toISOString().split('T')[0];
+      else if (d.createdAt?.toDate) outputDate = d.createdAt.toDate().toISOString().split('T')[0];
+      
+      if (!outputDate && (d.date || d.fechaSalida || d.fecha)) {
+        try {
+          outputDate = new Date(d.date || d.fechaSalida || d.fecha).toISOString().split('T')[0];
+        } catch (_) {}
+      }
+
+      return {
+        id: d.id,
+        outputNumber: d.numeroSalida || d.outputNumber || d.id,
+        clientId: d.clientId || d.clienteId || "",
+        clientName: d.clientName || d.clienteNombre || "Socio",
+        outputDate,
+        totalDispatched,
+        ...d
+      };
+    };
+
+    return [
+      ...rawOutputs.map(combineOutput),
+      ...rawSalidas.map(combineOutput),
+      ...rawMuestras.map(combineOutput)
+    ];
+  }, [rawOutputs, rawSalidas, rawMuestras]);
 
   const clearFilters = () => {
     setFilters({ dateFrom: "", dateTo: "", clientId: "", status: "all" });
@@ -64,19 +220,19 @@ export default function ResumenesPage() {
     };
 
     return {
-      entries: applyCommonFilters(mockEntries),
-      outputs: applyCommonFilters(mockOutputs),
-      invoices: applyCommonFilters(mockInvoices),
-      collections: applyCommonFilters(mockCollections),
-      manualWorks: applyCommonFilters(mockManualWorks),
-      chemicals: mockChemicals, // Inventory usually isn't date filtered same way
-      recipes: applyCommonFilters(mockChemicalRecipes)
+      entries: applyCommonFilters(entries),
+      outputs: applyCommonFilters(outputs),
+      invoices: applyCommonFilters(invoices),
+      collections: applyCommonFilters(collections),
+      manualWorks: applyCommonFilters(manualWorks),
+      chemicals: chemicals, // Inventory usually isn't date filtered same way
+      recipes: applyCommonFilters(recipes)
     };
-  }, [filters]);
+  }, [filters, entries, outputs, invoices, collections, manualWorks, chemicals, recipes]);
 
   const metrics = useMemo(() => {
     return calculateOperationalMetrics(
-      mockClients,
+      clients,
       filteredData.entries,
       filteredData.outputs,
       filteredData.invoices,
@@ -85,7 +241,16 @@ export default function ResumenesPage() {
       filteredData.chemicals,
       filteredData.recipes
     );
-  }, [filteredData]);
+  }, [clients, filteredData]);
+
+  if (loading) {
+    return (
+      <div className="min-h-[500px] flex flex-col items-center justify-center gap-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary/30" />
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Consolidando Auditoría Financiera y Operativa...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-10 animate-in fade-in duration-700">

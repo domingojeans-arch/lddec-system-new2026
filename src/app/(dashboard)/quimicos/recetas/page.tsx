@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { Search, FlaskConical, SlidersHorizontal, ArrowUpDown, Plus, LayoutGrid, List, Filter } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { Search, FlaskConical, SlidersHorizontal, ArrowUpDown, Plus, LayoutGrid, List, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,15 +13,17 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { ChemicalRecipe, ChemicalRecipeInput, ChemicalRecipeItem } from "@/types/chemical-recipe";
-import { mockChemicalRecipes } from "@/data/mock-chemical-recipes";
 import { RecipeTable } from "@/components/quimicos/recipes/recipe-table";
 import { RecipeCard } from "@/components/quimicos/recipes/recipe-card";
 import { RecipeForm } from "@/components/quimicos/recipes/recipe-form";
 import { RecipeDetail } from "@/components/quimicos/recipes/recipe-detail";
 import { useAuth } from "@/hooks/use-auth";
+import { db } from "@/lib/firebase";
+import { collection, onSnapshot, query, addDoc, updateDoc, doc } from "firebase/firestore";
 
 export default function ChemicalRecipesPage() {
-  const [recipes, setRecipes] = useState<ChemicalRecipe[]>(mockChemicalRecipes);
+  const [recipes, setRecipes] = useState<ChemicalRecipe[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -66,32 +68,58 @@ export default function ChemicalRecipesPage() {
     setIsDetailOpen(true);
   };
 
-  const handleFormSubmit = (data: ChemicalRecipeInput & { items: ChemicalRecipeItem[] }) => {
+  useEffect(() => {
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+    const q = query(collection(db, "quimicos_recetas"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as ChemicalRecipe));
+      const sorted = data.sort((a, b) => {
+        const timeA = new Date(a.recipeDate || a.createdAt || 0).getTime();
+        const timeB = new Date(b.recipeDate || b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+      setRecipes(sorted);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error loading recipes:", error);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleFormSubmit = async (data: ChemicalRecipeInput & { items: ChemicalRecipeItem[] }) => {
+    if (!db) return;
     const totalChemicalCost = data.items.reduce((acc, item) => acc + item.totalCost, 0);
     
-    if (editingRecipe) {
-      setRecipes(prev => prev.map(r => 
-        r.id === editingRecipe.id 
-          ? { 
-              ...r, ...data, 
-              totalChemicalCost,
-              updatedAt: new Date().toISOString() 
-            } 
-          : r
-      ));
-      toast({ title: "Receta Actualizada", description: `La receta ${data.recipeNumber} ha sido guardada.` });
-    } else {
-      const newRecipe: ChemicalRecipe = {
+    try {
+      const payload = {
         ...data,
-        id: Math.random().toString(36).substr(2, 9),
         totalChemicalCost,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
-      setRecipes(prev => [newRecipe, ...prev]);
-      toast({ title: "Receta Creada", description: `Se ha registrado la nueva fórmula técnica ${data.recipeNumber}.` });
+      
+      if (editingRecipe) {
+        await updateDoc(doc(db, "quimicos_recetas", editingRecipe.id), payload);
+        toast({ title: "Receta Actualizada", description: `La receta ${data.recipeNumber} ha sido guardada.` });
+      } else {
+        await addDoc(collection(db, "quimicos_recetas"), {
+          ...payload,
+          createdAt: new Date().toISOString(),
+          createdBy: user?.displayName || "system"
+        });
+        toast({ title: "Receta Creada", description: `Se ha registrado la nueva fórmula técnica ${data.recipeNumber}.` });
+      }
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Error saving recipe:", error);
+      toast({ variant: "destructive", title: "Error al guardar", description: "No se pudo guardar la receta en la base de datos." });
     }
-    setIsFormOpen(false);
   };
 
   return (
@@ -165,25 +193,34 @@ export default function ChemicalRecipesPage() {
 
       {/* Content Rendering */}
       <div className="min-h-[500px]">
-        {viewMode === "list" ? (
-          <div className="hidden lg:block">
-            {filteredRecipes.length > 0 ? (
-              <RecipeTable recipes={filteredRecipes} onView={handleView} onEdit={handleEdit} />
-            ) : (
-              <div className="h-96 rounded-3xl border-2 border-dashed border-muted/30 flex flex-col items-center justify-center text-muted-foreground bg-muted/5">
-                <FlaskConical className="h-16 w-16 mb-6 opacity-10" />
-                <p className="text-lg font-bold">No hay recetas registradas</p>
-                <p className="text-sm">Inicia una nueva receta técnica sobre un lote activo.</p>
-              </div>
-            )}
+        {loading ? (
+          <div className="h-64 flex flex-col items-center justify-center gap-4">
+            <Loader2 className="h-10 w-10 animate-spin text-cyan-600/30" />
+            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estableciendo conexión industrial...</p>
           </div>
-        ) : null}
+        ) : (
+          <>
+            {viewMode === "list" ? (
+              <div className="hidden lg:block">
+                {filteredRecipes.length > 0 ? (
+                  <RecipeTable recipes={filteredRecipes} onView={handleView} onEdit={handleEdit} />
+                ) : (
+                  <div className="h-96 rounded-3xl border-2 border-dashed border-muted/30 flex flex-col items-center justify-center text-muted-foreground bg-muted/5">
+                    <FlaskConical className="h-16 w-16 mb-6 opacity-10" />
+                    <p className="text-lg font-bold">No hay recetas registradas</p>
+                    <p className="text-sm">Inicia una nueva receta técnica sobre un lote activo.</p>
+                  </div>
+                )}
+              </div>
+            ) : null}
 
-        <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" : "lg:hidden grid grid-cols-1 md:grid-cols-2 gap-6"}>
-          {filteredRecipes.map(recipe => (
-            <RecipeCard key={recipe.id} recipe={recipe} onView={handleView} onEdit={handleEdit} />
-          ))}
-        </div>
+            <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" : "lg:hidden grid grid-cols-1 md:grid-cols-2 gap-6"}>
+              {filteredRecipes.map(recipe => (
+                <RecipeCard key={recipe.id} recipe={recipe} onView={handleView} onEdit={handleEdit} />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Modals */}
