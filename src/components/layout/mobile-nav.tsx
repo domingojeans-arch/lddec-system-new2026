@@ -26,14 +26,13 @@ export function MobileNav() {
 
   const isActive = (path: string) => pathname === path || (path !== "/" && pathname.startsWith(path));
 
-  // Filtrar por rol
-  // Bypass de roles para modo local visual
-  const allowedItems = navItems;
-  /*
-  const allowedItems = navItems.filter(item => 
-    user?.role === "administrador" || (item.allowedRoles as string[]).includes(user?.role || "")
-  );
-  */
+  // Filtrar por rol de forma segura
+  const allowedItems = navItems.filter(item => {
+    if (user?.role === "bodega" || user?.role === "bodeguero_quimicos") {
+      return item.title === "Bodega Químicos";
+    }
+    return user?.role === "admin" || (item.allowedRoles as string[]).includes(user?.role || "");
+  });
 
   const mainItemsLimit = 4;
   const mainItems = allowedItems.slice(0, mainItemsLimit);

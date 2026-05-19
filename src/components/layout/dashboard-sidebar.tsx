@@ -55,13 +55,13 @@ export function DashboardSidebar() {
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
-  // Bypass de roles para modo local visual
-  const filteredNav = navItems;
-  /*
-  const filteredNav = navItems.filter(item => 
-    user?.role === "administrador" || (item.allowedRoles as string[]).includes(user?.role || "")
-  );
-  */
+  // Filtrar navegación por rol de forma segura
+  const filteredNav = navItems.filter(item => {
+    if (user?.role === "bodega" || user?.role === "bodeguero_quimicos") {
+      return item.title === "Bodega Químicos";
+    }
+    return user?.role === "admin" || (item.allowedRoles as string[]).includes(user?.role || "");
+  });
 
   const row1Limit = 10;
   const row1Items = filteredNav.slice(0, row1Limit);

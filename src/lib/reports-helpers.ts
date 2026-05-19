@@ -5,6 +5,7 @@ import { Collection } from "@/types/collection";
 import { ManualWork } from "@/types/manual-work";
 import { Chemical, ChemicalRecipe } from "@/types/chemical";
 import { Client } from "@/types/client";
+import { toDate } from "./toDate";
 
 export const calculateOperationalMetrics = (
   clients: Client[],
@@ -62,20 +63,19 @@ export const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-export const filterByRange = <T extends { createdAt?: string; entryDate?: string; outputDate?: string; invoiceDate?: string; collectionDate?: string; workDate?: string; purchaseDate?: string; recipeDate?: string }>(
+export const filterByRange = <T extends { createdAt?: any; entryDate?: string; outputDate?: string; invoiceDate?: string; collectionDate?: string; workDate?: string; purchaseDate?: string; recipeDate?: string; fecha?: any; fechaStr?: string }>(
   items: T[],
   from: string,
   to: string
 ) => {
   if (!from || !to) return items;
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
-  toDate.setHours(23, 59, 59, 999);
+  const fromDate = new Date(from + "T00:00:00");
+  const toDateObj = new Date(to + "T23:59:59");
 
   return items.filter(item => {
-    const dateStr = item.entryDate || item.outputDate || item.invoiceDate || item.collectionDate || item.workDate || item.purchaseDate || item.recipeDate || item.createdAt;
-    if (!dateStr) return true;
-    const itemDate = new Date(dateStr);
-    return itemDate >= fromDate && itemDate <= toDate;
+    const rawDate = (item as any).fecha || (item as any).fechaStr || item.entryDate || item.outputDate || item.invoiceDate || item.collectionDate || item.workDate || item.purchaseDate || item.recipeDate || item.createdAt;
+    if (!rawDate) return true;
+    const itemDate = toDate(rawDate);
+    return itemDate && itemDate >= fromDate && itemDate <= toDateObj;
   });
 };

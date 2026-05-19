@@ -16,11 +16,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Redirección definitiva al login si no hay sesión y terminó de cargar
-    /*
     if (!loading && !user) {
       router.replace("/login");
     }
-    */
   }, [user, loading, router]);
 
   // Heartbeat para estado 'En Línea'
@@ -55,7 +53,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }, [user?.uid]);
 
   // Bloquear renderizado si está cargando o no hay usuario para evitar "flicker"
-  /*
   if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -66,7 +63,6 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  */
 
   return (
     <div className="flex flex-col min-h-screen w-full bg-background pb-20 md:pb-0">

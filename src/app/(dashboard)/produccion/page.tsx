@@ -39,6 +39,7 @@ import { format, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns
 import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
+import { toDate } from "@/lib/toDate";
 
 /**
  * MOTOR DE RESOLUCIÓN DE IDENTIDAD VISIBLE (LOTE)
@@ -104,20 +105,32 @@ export default function ProduccionPage() {
     if (!db) return;
     setLoading(true);
     try {
-      const start = Timestamp.fromDate(startOfMonth(selectedDate));
       const end = Timestamp.fromDate(endOfMonth(selectedDate));
       
-      // 1. Cargar Manualidades del mes y estado actual
+      // 1. Cargar todas las manualidades para el estado actual y filtrar en memoria por fecha de origen robusta (toDate)
       const qManual = query(
         collection(db, "manualidades"), 
-        where("estado", "==", activeTab),
-        where("createdAt", ">=", start),
-        where("createdAt", "<=", end),
-        orderBy("createdAt", "desc")
+        where("estado", "==", activeTab)
       );
       
       const manualSnap = await getDocs(qManual);
-      const manualList = manualSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allManualList = manualSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const startMs = startOfMonth(selectedDate).getTime();
+      const endMs = endOfMonth(selectedDate).getTime();
+
+      const manualList = allManualList
+        .filter(work => {
+          const d = toDate(work.fecha || work.fechaStr || work.workDate || work.createdAt);
+          if (!d) return false;
+          const time = d.getTime();
+          return time >= startMs && time <= endMs;
+        })
+        .sort((a, b) => {
+          const timeA = toDate(a.fecha || a.fechaStr || a.workDate || a.createdAt)?.getTime() || 0;
+          const timeB = toDate(b.fecha || b.fechaStr || b.workDate || b.createdAt)?.getTime() || 0;
+          return timeB - timeA; // orden descendente
+        });
 
       // 2. Cargar Entradas relacionadas para cruce (Ventana de 3 meses para asegurar match)
       const threeMonthsAgo = new Date(selectedDate);
@@ -216,7 +229,8 @@ export default function ProduccionPage() {
         estado: status, 
         updatedAt: serverTimestamp(), 
         reviewedBy: user?.displayName || "Sistema", 
-        reviewedAt: serverTimestamp() 
+        reviewedAt: serverTimestamp(),
+        fechaAprobacion: serverTimestamp() // Guardar la fecha exacta de aprobación por separado
       };
 
       if (status === 'aprobado' && price !== undefined) {

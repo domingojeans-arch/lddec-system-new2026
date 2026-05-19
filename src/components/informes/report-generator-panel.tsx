@@ -28,6 +28,7 @@ import { StatementOfAccountsDetailed } from "./statement-of-accounts-detailed";
 import { EntriesVsBillingReport } from "./entries-vs-billing-report";
 import { BillingVsCollectionsReport } from "./billing-vs-collections-report";
 import { ManualWorksDetailedReport } from "./manual-works-detailed-report";
+import { toDate } from "@/lib/toDate";
 import { OperatorPayoutReport } from "./operator-payout-report";
 import { BankMovementsReport } from "./bank-movements-report";
 import { CollectionsDetailedReport } from "./collections-detailed-report";
@@ -207,9 +208,16 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
       }
 
       if (filters.type.includes("Manualidades") || filters.type.includes("Operarios")) {
-        const q = query(collection(db, "manualidades"), where("createdAt", ">=", from), where("createdAt", "<=", to));
-        const snap = await getDocs(q);
-        data.manualidades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const snap = await getDocs(collection(db, "manualidades"));
+        const allManualidades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        
+        const fromDate = new Date(from + "T00:00:00");
+        const toDateObj = new Date(to + "T23:59:59");
+
+        data.manualidades = allManualidades.filter((work: any) => {
+          const d = toDate(work.fecha || work.fechaStr || work.workDate || work.createdAt);
+          return d && d >= fromDate && d <= toDateObj;
+        });
       }
 
       if (filters.type === "Informe de Movimientos Bancarios") {
