@@ -57,7 +57,19 @@ export function DashboardSidebar() {
 
   // Filtrar navegación por rol de forma segura
   const filteredNav = navItems.filter(item => {
-    if (user?.role === "bodega" || user?.role === "bodeguero_quimicos") {
+    if (user?.role === "bodega") {
+      const allowedTitles = [
+        "Ingresos",
+        "Revisión Lote",
+        "Salidas",
+        "Entregas",
+        "INFORMES",
+        "Faltantes",
+        "Muestras Antiguas"
+      ];
+      return allowedTitles.includes(item.title);
+    }
+    if (user?.role === "bodega_quimicos" || user?.role === "bodeguero_quimicos") {
       return item.title === "Bodega Químicos";
     }
     return user?.role === "admin" || (item.allowedRoles as string[]).includes(user?.role || "");

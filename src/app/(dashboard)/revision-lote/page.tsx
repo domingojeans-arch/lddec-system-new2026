@@ -547,13 +547,27 @@ export default function RevisionLotePage() {
                     </Button>
                   )}
                 </h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-3">
                   {processCatalog.map((process) => {
                     const isSelected = isProcessSelected(process.id);
                     return (
-                      <button key={process.id} onClick={() => toggleProcess(process)} className={cn("flex items-center gap-3 p-4 rounded-2xl border text-left transition-all group", isSelected ? "bg-primary border-primary text-white shadow-lg" : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground")}>
-                        <div className={cn("h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0", isSelected ? "border-white bg-white" : "border-muted-foreground/30")}>{isSelected && <Check className="h-3.5 w-3.5 text-primary" />}</div>
-                        <span className="text-[10px] font-bold uppercase tracking-tighter leading-tight">{process.name}</span>
+                      <button 
+                        key={process.id} 
+                        onClick={() => toggleProcess(process)} 
+                        className={cn(
+                          "flex items-center gap-2 h-10 px-3 rounded-xl border text-left transition-all group shrink-0", 
+                          isSelected 
+                            ? "bg-primary border-primary text-white shadow-md" 
+                            : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                        )}
+                      >
+                        <div className={cn(
+                          "h-4 w-4 rounded-full border flex items-center justify-center shrink-0", 
+                          isSelected ? "border-white bg-white" : "border-muted-foreground/30"
+                        )}>
+                          {isSelected && <Check className="h-2.5 w-2.5 text-primary" />}
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-tighter leading-none">{process.name}</span>
                       </button>
                     );
                   })}

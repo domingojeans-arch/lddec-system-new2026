@@ -92,9 +92,24 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
         <TableBody>
           {sortedEntries.map((entry) => {
             // Formatear fecha para visualización bonita si es YYYY-MM-DD
-            const displayDate = entry.entryDate && entry.entryDate.includes('-') 
-              ? entry.entryDate.split('-').reverse().join('/') 
+            const displayDate = entry.entryDate && entry.entryDate.includes('-')
+              ? entry.entryDate.split('-').reverse().join('/')
               : entry.entryDate;
+
+            // Asegurar la obtención del array de lotes bajo cualquier alias idiomático
+            const currentLots = entry.lots || (entry as any).lotes || [];
+
+            // Lógica de cálculo en tiempo real blindada y definitiva (Priorizando totalPrendas)
+            let totalGarments = 0;
+            if ((entry as any).totalPrendas !== undefined && (entry as any).totalPrendas !== null && (entry as any).totalPrendas !== "") {
+              totalGarments = Number((entry as any).totalPrendas);
+            } else if (Array.isArray(currentLots) && currentLots.length > 0) {
+              totalGarments = currentLots.reduce((sum: number, lote: any) => {
+                return sum + (Number(lote.cantidad || lote.cantidadConfirmada || lote.quantity || lote.total) || 0);
+              }, 0);
+            } else {
+              totalGarments = Number(entry.totalGarments) || Number((entry as any).total) || Number((entry as any).cantidad) || 0;
+            }
 
             return (
               <TableRow key={entry.id} className="border-b border-border hover:bg-muted/10 transition-all duration-200 group">
@@ -106,56 +121,68 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
                     {(entry as any).reconciledBy && <ShieldCheck className="h-3 w-3 text-emerald-500" title="Reconciliado con Salidas" />}
                   </div>
                 </TableCell>
-                
+
                 <TableCell>
                   <span className="text-sm font-bold text-foreground/70">
                     {displayDate}
                   </span>
                 </TableCell>
-                
+
                 <TableCell>
                   <div className="font-black text-sm text-foreground uppercase truncate max-w-[200px]">
                     {entry.clientName}
                   </div>
                   <div className="text-[9px] text-muted-foreground uppercase font-bold mt-0.5 tracking-widest">
-                    {entry.lots?.length || 0} Lotes Registrados
+                    {currentLots.length} Lotes Registrados
                   </div>
                 </TableCell>
-                
+
                 <TableCell className="text-center">
                   <span className="text-xl font-black text-foreground tracking-tighter">
-                    {entry.totalGarments || 0}
+                    {(() => {
+                      const item = entry as any;
+                      // 1. Obtener la suma por campos directos en la raíz
+                      const totalCampos = Number(item.totalPrendas) || Number(item.totalGarments) || Number(item.total) || Number(item.cantidad) || 0;
+
+                      // 2. Si da 0, sumamos el array interno de lotes (soportando lotes y lots, y cantidad/cantidadConfirmada/quantity/total)
+                      const lotesArr = item.lotes || item.lots || [];
+                      const totalLotes = (lotesArr && Array.isArray(lotesArr)) 
+                        ? lotesArr.reduce((sum: number, l: any) => sum + (Number(l.cantidad || l.cantidadConfirmada || l.quantity || l.total) || 0), 0) 
+                        : 0;
+
+                      return totalCampos > 0 ? totalCampos : totalLotes;
+                    })()}
                   </span>
                 </TableCell>
-                
+
                 <TableCell className="text-right pr-8">
                   <div className="flex items-center justify-end gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full"
                       onClick={() => onView(entry)}
                       title="Ver Detalle"
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    
+
                     {canEdit && (
                       <>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 rounded-full" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 rounded-full"
                           onClick={() => onEdit(entry)}
                           title="Modificar"
                         >
                           <Edit3 className="h-4 w-4" />
                         </Button>
 
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-full" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 rounded-full"
                           onClick={() => onPrint?.(entry)}
                           title="Imprimir"
                         >
@@ -164,9 +191,9 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
 
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-full"
                               title="Anular / Eliminar"
                             >
@@ -185,7 +212,7 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
                             </AlertDialogHeader>
                             <AlertDialogFooter className="mt-6">
                               <AlertDialogCancel className="rounded-xl font-bold h-12">Cancelar</AlertDialogCancel>
-                              <AlertDialogAction 
+                              <AlertDialogAction
                                 onClick={() => onDelete(entry.id)}
                                 className="bg-destructive text-white hover:bg-destructive/90 rounded-xl font-bold h-12"
                               >

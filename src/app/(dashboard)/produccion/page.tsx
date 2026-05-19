@@ -105,11 +105,13 @@ export default function ProduccionPage() {
     if (!db) return;
     setLoading(true);
     try {
-      // Rango amplio de creación (inicioMes y finMes) para traer todos los lotes del mes unificados
-      const start = Timestamp.fromDate(startOfMonth(selectedDate));
+      // Ventana de creación de 3 meses para cubrir cualquier registro tardío o a destiempo
+      const startQuery = new Date(selectedDate);
+      startQuery.setMonth(startQuery.getMonth() - 2);
+      const start = Timestamp.fromDate(startOfMonth(startQuery));
       const end = Timestamp.fromDate(endOfMonth(selectedDate));
       
-      // 1. Consulta unificada: Traer todos los lotes creados en este mes sin importar su estado
+      // 1. Consulta unificada: Traer todos los lotes creados en este periodo amplio sin importar su estado
       const qManual = query(
         collection(db, "manualidades"), 
         where("createdAt", ">=", start),
@@ -119,16 +121,29 @@ export default function ProduccionPage() {
       const manualSnap = await getDocs(qManual);
       const allManualList = manualSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      const startMs = startOfMonth(selectedDate).getTime();
-      const endMs = endOfMonth(selectedDate).getTime();
+      // Extraer año y mes seleccionados en el control visual (ej: "05" y "2026")
+      const targetMonthStr = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const targetYearStr = String(selectedDate.getFullYear());
 
       // Filtrar y ordenar en memoria por la fecha de origen real
       const manualList = allManualList
         .filter(work => {
+          const fechaStr = work.fecha || work.fechaStr || "";
+          
+          // Lógica del filtro split para texto "DD/MM/YYYY"
+          if (typeof fechaStr === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(fechaStr)) {
+            const [day, month, year] = fechaStr.split("/");
+            // Comparación estricta de mes y año
+            return month === targetMonthStr && year === targetYearStr;
+          }
+          
+          // Fallback robusto a objeto Date / Timestamp
           const d = toDate(work.fecha || work.fechaStr || work.workDate || work.createdAt);
           if (!d) return false;
-          const time = d.getTime();
-          return time >= startMs && time <= endMs;
+          return (
+            String(d.getMonth() + 1).padStart(2, "0") === targetMonthStr &&
+            String(d.getFullYear()) === targetYearStr
+          );
         })
         .sort((a, b) => {
           const timeA = toDate(a.fecha || a.fechaStr || a.workDate || a.createdAt)?.getTime() || 0;
@@ -230,6 +245,36 @@ export default function ProduccionPage() {
   const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'rechazado', price?: number) => {
     if (isReadOnly) return;
     
+    // 1. Guardar copia del estado previo de manualWorks para posibilitar rollback en caso de fallo
+    const previousManualWorks = [...manualWorks];
+
+    // Calcular valores optimistas
+    let precioFinal = price;
+    const work = manualWorks.find(m => m.id === workId);
+    let totalFinal = work?.total || 0;
+
+    if (status === 'aprobado' && price !== undefined) {
+      totalFinal = price * (work?.cantidad || 0);
+    }
+
+    // 2. ACTUALIZACIÓN OPTIMISTA INSTANTÁNEA (En memoria)
+    setManualWorks(prev => prev.map(m => {
+      if (m.id === workId) {
+        return {
+          ...m,
+          estado: status,
+          precioUnitario: precioFinal !== undefined ? precioFinal : m.precioUnitario,
+          total: precioFinal !== undefined ? totalFinal : m.total,
+          reviewedBy: user?.displayName || "Sistema",
+          reviewedAt: new Date()
+        };
+      }
+      return m;
+    }));
+
+    // Notificación inmediata al usuario
+    toast({ title: `Registro ${status.toUpperCase()}` });
+
     try {
       const updates: any = { 
         estado: status, 
@@ -240,19 +285,35 @@ export default function ProduccionPage() {
       };
 
       if (status === 'aprobado' && price !== undefined) {
-        const work = manualWorks.find(m => m.id === workId);
         updates.precioUnitario = price;
-        updates.total = price * (work?.cantidad || 0);
+        updates.total = totalFinal;
       }
 
-      await updateDoc(doc(db, "manualidades", workId), updates);
-      toast({ title: `Registro ${status.toUpperCase()}` });
-      loadData(); // Recargar datos para reflejar el cambio de pestaña
+      // 3. Ejecución en segundo plano (Background)
+      updateDoc(doc(db, "manualidades", workId), updates)
+        .then(() => {
+          // Recargar silenciosamente en fondo para sincronizar con los Timestamps finales del servidor
+          loadData();
+        })
+        .catch((error) => {
+          console.error("Error asincrónico al sincronizar en Firestore:", error);
+          // Rollback local por fallo de red o permisos
+          setManualWorks(previousManualWorks);
+          toast({ 
+            variant: "destructive", 
+            title: "Error al actualizar en Firestore", 
+            description: "No se pudo sincronizar el cambio. Se revirtió el estado del lote." 
+          });
+        });
+
     } catch (error) {
+      console.error("Error sincrónico al preparar actualización:", error);
+      // Rollback local por cualquier error inesperado
+      setManualWorks(previousManualWorks);
       toast({ 
         variant: "destructive", 
-        title: "Error al actualizar", 
-        description: "No se pudo sincronizar el cambio con Firestore." 
+        title: "Error de ejecución", 
+        description: "Se ha revertido el estado local del lote." 
       });
     }
   };

@@ -109,7 +109,7 @@ export const navItems: NavItem[] = [
     title: "Muestras Antiguas", 
     path: "/muestras", 
     icon: PackageSearch, 
-    allowedRoles: ["admin", "facturacion", "socio"] 
+    allowedRoles: ["admin", "facturacion", "socio", "bodega"] 
   },
   { 
     title: "Mantenimiento", 

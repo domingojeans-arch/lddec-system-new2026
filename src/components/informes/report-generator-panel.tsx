@@ -5,16 +5,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
-import { 
-  FileText, 
-  TrendingUp, 
+import {
+  FileText,
+  TrendingUp,
   Loader2,
   Calendar as CalendarIcon,
   User,
@@ -62,7 +62,7 @@ const ALL_REPORT_TYPES = [
   "Informe Detallado de Movimientos Químicos"
 ];
 
-const normalizeSustancia = (s: string) => 
+const normalizeSustancia = (s: string) =>
   String(s || "").trim().toUpperCase().replace(/\s+/g, " ");
 
 interface ReportGeneratorPanelProps {
@@ -72,12 +72,12 @@ interface ReportGeneratorPanelProps {
 export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
   const { toast } = useToast();
   const { user } = useAuth();
-  
+
   const [loading, setLoading] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
   const [operators, setOperators] = useState<string[]>([]);
   const [chemicalList, setChemicals] = useState<string[]>([]);
-  
+
   const [reportData, setReportData] = useState<any>({
     entries: [],
     outputs: [],
@@ -146,14 +146,14 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
       const from = Timestamp.fromDate(new Date(filters.dateFrom + "T00:00:00"));
       const to = Timestamp.fromDate(new Date(filters.dateTo + "T23:59:59"));
 
-      const data: any = { 
-        entries: [], 
-        outputs: [], 
-        invoices: [], 
-        payments: [], 
-        manualidades: [], 
-        cuentas: [], 
-        bankTransactions: [], 
+      const data: any = {
+        entries: [],
+        outputs: [],
+        invoices: [],
+        payments: [],
+        manualidades: [],
+        cuentas: [],
+        bankTransactions: [],
         chemicalMovements: [],
         chemicalsStock: [],
         allEntries: [],
@@ -181,7 +181,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           getDocs(collection(db, "salidas")),
           getDocs(collection(db, "muestras"))
         ]);
-        
+
         const rawOutputs = [
           ...snapOutputs.docs.map(d => ({ id: d.id, ...d.data() })),
           ...snapSalidas.docs.map(d => ({ id: d.id, ...d.data() })),
@@ -202,19 +202,30 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         data.allInvoices = raw;
         data.invoices = raw.filter((d: any) => {
-           let parsedDate = d.fechaFactura?.toDate ? d.fechaFactura.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.invoiceDate ? new Date(d.invoiceDate) : d.date ? new Date(d.date) : d.timestamp ? new Date(d.timestamp) : null;
-           return parsedDate && parsedDate >= fromDate && parsedDate <= toDateObj;
+          let parsedDate = d.fechaFactura?.toDate ? d.fechaFactura.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.invoiceDate ? new Date(d.invoiceDate) : d.date ? new Date(d.date) : d.timestamp ? new Date(d.timestamp) : null;
+          return parsedDate && parsedDate >= fromDate && parsedDate <= toDateObj;
         });
       }
 
       if (filters.type.includes("Manualidades") || filters.type.includes("Operarios")) {
-        const snap = await getDocs(collection(db, "manualidades"));
+        // 1. Consulta limpia a Firestore filtrando únicamente por estado 'aprobado'
+        const q = query(collection(db, "manualidades"), where("estado", "==", "aprobado"));
+        const snap = await getDocs(q);
         const allManualidades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        
-        const fromDate = new Date(from + "T00:00:00");
-        const toDateObj = new Date(to + "T23:59:59");
 
+        // 2. Filtrado local por fechas en el cliente (JavaScript)
         data.manualidades = allManualidades.filter((work: any) => {
+          const fechaStr = work.fecha || work.fechaStr || "";
+
+          // Si el campo fecha viene en formato texto "DD/MM/YYYY", lo separamos y convertimos
+          if (typeof fechaStr === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(fechaStr)) {
+            const [day, month, year] = fechaStr.split("/");
+            // Crear objeto Date nativo de JS (mediodía para evitar desfases de zona horaria)
+            const workDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0);
+            return workDate >= fromDate && workDate <= toDateObj;
+          }
+
+          // Fallback para Timestamps u otros formatos
           const d = toDate(work.fecha || work.fechaStr || work.workDate || work.createdAt);
           return d && d >= fromDate && d <= toDateObj;
         });
@@ -267,7 +278,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">1. Tipo de Informe</Label>
-            <Select value={filters.type} onValueChange={(v) => { setFilters({...filters, type: v}); setReportGenerated(false); }}>
+            <Select value={filters.type} onValueChange={(v) => { setFilters({ ...filters, type: v }); setReportGenerated(false); }}>
               <SelectTrigger className="erp-input h-12 font-bold"><SelectValue /></SelectTrigger>
               <SelectContent className="rounded-2xl shadow-2xl">
                 {reportTypes.map(t => <SelectItem key={t} value={t} className="text-xs uppercase font-bold">{t}</SelectItem>)}
@@ -286,7 +297,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden border-none shadow-2xl z-[100]" align="start">
-                  <Calendar mode="single" selected={dateFromObj} onSelect={(d) => { setFilters({...filters, dateFrom: d ? format(d, "yyyy-MM-dd") : ""}); setIsFromOpen(false); }} locale={es} initialFocus />
+                  <Calendar mode="single" selected={dateFromObj} onSelect={(d) => { setFilters({ ...filters, dateFrom: d ? format(d, "yyyy-MM-dd") : "" }); setIsFromOpen(false); }} locale={es} initialFocus />
                 </PopoverContent>
               </Popover>
               <Popover open={isToOpen} onOpenChange={setIsToOpen}>
@@ -297,7 +308,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden border-none shadow-2xl z-[100]" align="end">
-                  <Calendar mode="single" selected={dateToObj} onSelect={(d) => { setFilters({...filters, dateTo: d ? format(d, "yyyy-MM-dd") : ""}); setIsToOpen(false); }} locale={es} initialFocus />
+                  <Calendar mode="single" selected={dateToObj} onSelect={(d) => { setFilters({ ...filters, dateTo: d ? format(d, "yyyy-MM-dd") : "" }); setIsToOpen(false); }} locale={es} initialFocus />
                 </PopoverContent>
               </Popover>
             </div>
@@ -308,7 +319,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
               {filters.type === "Liquidación de Pagos a Operarios" ? "3. Operario" : (filters.type.includes("Químicos") ? "3. Sustancia" : "3. Socio Industrial")}
             </Label>
             {filters.type === "Liquidación de Pagos a Operarios" ? (
-              <Select value={filters.operatorName} onValueChange={(v) => setFilters({...filters, operatorName: v})}>
+              <Select value={filters.operatorName} onValueChange={(v) => setFilters({ ...filters, operatorName: v })}>
                 <SelectTrigger className="erp-input h-12 font-bold"><SelectValue placeholder="Todos" /></SelectTrigger>
                 <SelectContent className="rounded-2xl max-h-[300px]">
                   <SelectItem value="all">TODOS LOS OPERARIOS</SelectItem>
@@ -316,7 +327,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
                 </SelectContent>
               </Select>
             ) : filters.type.includes("Químicos") ? (
-              <Select value={filters.chemicalId} onValueChange={(v) => setFilters({...filters, chemicalId: v})}>
+              <Select value={filters.chemicalId} onValueChange={(v) => setFilters({ ...filters, chemicalId: v })}>
                 <SelectTrigger className="erp-input h-12 font-bold"><SelectValue placeholder="Todas" /></SelectTrigger>
                 <SelectContent className="rounded-2xl max-h-[300px]">
                   <SelectItem value="all">TODOS LOS INSUMOS</SelectItem>
@@ -324,7 +335,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
                 </SelectContent>
               </Select>
             ) : (
-              <Select value={filters.clientId} onValueChange={(v) => setFilters({...filters, clientId: v})}>
+              <Select value={filters.clientId} onValueChange={(v) => setFilters({ ...filters, clientId: v })}>
                 <SelectTrigger className="erp-input h-12 font-bold"><SelectValue placeholder="Todos" /></SelectTrigger>
                 <SelectContent className="rounded-2xl max-h-[300px]">
                   <SelectItem value="all">TODOS LOS CLIENTES</SelectItem>
