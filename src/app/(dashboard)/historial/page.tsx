@@ -15,6 +15,7 @@ import {
   Wallet,
   Trash2,
   Edit3,
+  Save,
   AlertTriangle,
   History as HistoryIcon,
   Layers,
@@ -151,6 +152,9 @@ export default function HistorialPage() {
   const { user: authUser } = useAuth();
   const isAdmin = authUser?.role === "administrador" || authUser?.role === "admin" || authUser?.role === "ADMIN";
   const isCobranzas = authUser?.role === "cobranzas" || authUser?.role === "COBRANZAS";
+  // Rol contador: acceso completo a edición y eliminación de cobros en Historial
+  const isContador = authUser?.role === "contador" || authUser?.role === "CONTADOR";
+  const canManagePayments = isAdmin || isCobranzas || isContador;
   
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
@@ -162,6 +166,18 @@ export default function HistorialPage() {
   // Estados para el Modal de Detalles (Ojito)
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+
+  // Estados para el Modal de EDICIÓN de pago (Contador / Admin)
+  const [isEditPaymentOpen, setIsEditPaymentOpen] = useState(false);
+  const [editingPaymentData, setEditingPaymentData] = useState<{
+    docId: string;
+    paymentId: string;
+    isInitialBalance: boolean;
+    monto: number;
+    tipo: string;
+  } | null>(null);
+  const [editPaymentDate, setEditPaymentDate] = useState<Date | undefined>(undefined);
+  const [savingEditPayment, setSavingEditPayment] = useState(false);
 
   useEffect(() => {
     if (!db) return;
@@ -335,8 +351,8 @@ export default function HistorialPage() {
   };
 
   const handleAnnullPayment = async (docId: string, paymentId: string, isInitialBalance = false, pagoConfirmado = false) => {
-    const canDelete = isAdmin || (isCobranzas && !pagoConfirmado);
-
+    // Permiso: admin puede todo; cobranzas y contador pueden anular pagos no confirmados explícitamente
+    const canDelete = isAdmin || ((isCobranzas || isContador) && !pagoConfirmado);
     if (!canDelete) {
       toast({ variant: "destructive", title: "Acceso Denegado", description: "No tienes permisos para eliminar este pago." });
       return;
@@ -346,63 +362,170 @@ export default function HistorialPage() {
 
     try {
       if (isInitialBalance) {
+        // ── SALDO INICIAL DE CLIENTE ──────────────────────────────
         const clientRef = doc(db, "clients", docId);
         const clientSnap = await getDoc(clientRef);
-        if (!clientSnap.exists()) return;
+        if (!clientSnap.exists()) {
+          toast({ variant: "destructive", title: "Error", description: "No se encontró el cliente." });
+          return;
+        }
+        const currentPagos: any[] = clientSnap.data().pagosSaldoInicial || [];
+        const idx = currentPagos.findIndex((p: any) => p.id === paymentId);
+        if (idx === -1) {
+          console.error("[handleAnnullPayment] Pago no encontrado en saldo inicial. paymentId:", paymentId);
+          toast({ variant: "destructive", title: "Error", description: "No se encontró el pago en el saldo inicial." });
+          return;
+        }
+        const updatedPagos = currentPagos.map((p: any) =>
+          p.id === paymentId
+            ? { ...p, anulado: true, anuladoAt: new Date().toISOString(), anuladoPor: authUser?.displayName || "Admin" }
+            : p
+        );
+        await updateDoc(clientRef, { pagosSaldoInicial: updatedPagos, updatedAt: serverTimestamp() });
 
-        const currentPagos = clientSnap.data().pagosSaldoInicial || [];
-        const updatedPagos = currentPagos.map((p: any) => {
-          if (p.id === paymentId) {
-            return { ...p, anulado: true, updatedAt: new Date().toISOString(), anuladoPor: authUser?.displayName || "Admin" };
-          }
-          return p;
-        });
-
-        await updateDoc(clientRef, {
-          pagosSaldoInicial: updatedPagos,
-          updatedAt: serverTimestamp()
-        });
       } else {
+        // ── PAGO VINCULADO A FACTURA ─────────────────────────────
         const invRef = doc(db, "facturas", docId);
         const invSnap = await getDoc(invRef);
-        if (!invSnap.exists()) return;
+        if (!invSnap.exists()) {
+          console.error("[handleAnnullPayment] Factura no encontrada. docId:", docId);
+          toast({ variant: "destructive", title: "Error", description: "No se encontró la factura en la base de datos." });
+          return;
+        }
 
         const data = invSnap.data();
-        const currentPagos = data.pagosYajustes || [];
-        
-        const updatedPagos = currentPagos.map((p: any) => {
-          if (p.id === paymentId) {
-            return { ...p, anulado: true, updatedAt: new Date().toISOString(), anuladoPor: authUser?.displayName || "Admin" };
-          }
-          return p;
-        });
+        const currentPagos: any[] = data.pagosYajustes || [];
 
-        const totalAbonado = updatedPagos.reduce((acc, p) => 
-          p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0)), 0
+        // Verificar que el pago realmente existe antes de modificar
+        const pagoIndex = currentPagos.findIndex((p: any) => p.id === paymentId);
+        if (pagoIndex === -1) {
+          console.error("[handleAnnullPayment] Pago no encontrado. paymentId:", paymentId, "IDs disponibles:", currentPagos.map((p: any) => p.id));
+          toast({ variant: "destructive", title: "Error", description: "No se encontró el pago dentro de la factura. Recarga e inténtalo de nuevo." });
+          return;
+        }
+
+        // Marcar el pago como anulado (soft-delete)
+        const updatedPagos = currentPagos.map((p: any) =>
+          p.id === paymentId
+            ? { ...p, anulado: true, anuladoAt: new Date().toISOString(), anuladoPor: authUser?.displayName || "Admin" }
+            : p
         );
+
+        // ── RECALCULAR SALDO DESDE CERO ──────────────────────────
+        // Solo cuentan pagos cuyo campo `anulado` NO sea truthy
+        const activePagos = updatedPagos.filter((p: any) => !p.anulado);
+        const totalAbonado = activePagos.reduce((acc: number, p: any) =>
+          p.tipoTransaccion === "Reverso"
+            ? acc - Number(p.monto || 0)
+            : acc + Number(p.monto || 0)
+        , 0);
         const originalTotal = Number(data.totalFactura || data.total || 0);
         const nuevoSaldo = Math.max(0, originalTotal - totalAbonado);
 
+        // ── DETERMINAR NUEVO ESTADO DE COBRANZA ─────────────────
+        let nuevoEstado: string;
+        if (nuevoSaldo <= 0.01) {
+          // Factura completamente cubierta por los pagos restantes
+          nuevoEstado = "Pagada";
+        } else if (activePagos.length > 0 && totalAbonado > 0.01) {
+          // Hay pagos activos que cubren parte del total
+          nuevoEstado = "Parcialmente Cobrada";
+        } else {
+          // Sin pagos activos válidos: vuelve a pendiente
+          nuevoEstado = "Por Cobrar";
+        }
+
+        console.log("[handleAnnullPayment] Recálculo →", {
+          docId, paymentId,
+          pagoEliminadoMonto: currentPagos[pagoIndex]?.monto,
+          activePagosRestantes: activePagos.length,
+          totalAbonado, originalTotal, nuevoSaldo, nuevoEstado
+        });
+
+        // ── PERSISTIR EN FIRESTORE ───────────────────────────────
         await updateDoc(invRef, {
           pagosYajustes: updatedPagos,
           saldoPendiente: nuevoSaldo,
-          estadoCobranza: nuevoSaldo <= 0.01 ? "Pagada" : totalAbonado > 0 ? "Parcialmente Cobrada" : "Por Cobrar",
+          estadoCobranza: nuevoEstado,
           updatedAt: serverTimestamp()
         });
       }
 
-      toast({ title: "Movimiento Anulado con Éxito" });
+      toast({
+        title: "✅ Pago eliminado",
+        description: "La factura fue recalculada y actualizada en Firestore."
+      });
       setIsDetailOpen(false);
-      handleGenerateAudit(); 
+      // Esperar el re-fetch completo antes de continuar
+      await handleGenerateAudit();
+
     } catch (error: any) {
-      console.error("Delete Payment Error:", error);
-      toast({ variant: "destructive", title: "Error técnico", description: error.message || "No se pudo anular el pago." });
+      console.error("[handleAnnullPayment] Error:", error?.code, error?.message, error);
+      const msg = error?.code === "permission-denied"
+        ? "Sin permisos de escritura en Firestore. Contacta al administrador."
+        : (error?.message || "No se pudo anular el pago.");
+      toast({ variant: "destructive", title: "Error técnico", description: msg });
+    }
+  };
+
+  // --- EDICIÓN DE FECHA DE PAGO (Contador / Admin) ---
+  const handleOpenEditPayment = (docId: string, paymentId: string, pago: any, isInitialBalance = false) => {
+    const currentDate = toDate(pago.fechaTransaccion || pago.fecha || pago.fechaPago) || new Date();
+    setEditingPaymentData({
+      docId,
+      paymentId,
+      isInitialBalance,
+      monto: Number(pago.monto || 0),
+      tipo: pago.tipoTransaccion || 'Pago'
+    });
+    setEditPaymentDate(currentDate);
+    setIsEditPaymentOpen(true);
+  };
+
+  const handleSaveEditedPayment = async () => {
+    if (!editingPaymentData || !editPaymentDate) return;
+    setSavingEditPayment(true);
+    try {
+      const { docId, paymentId, isInitialBalance } = editingPaymentData;
+      const newTimestamp = Timestamp.fromDate(editPaymentDate);
+
+      if (isInitialBalance) {
+        const clientRef = doc(db, "clients", docId);
+        const clientSnap = await getDoc(clientRef);
+        if (!clientSnap.exists()) return;
+        const updatedPagos = (clientSnap.data().pagosSaldoInicial || []).map((p: any) =>
+          p.id === paymentId
+            ? { ...p, fechaTransaccion: newTimestamp, editadoPor: authUser?.displayName || 'Usuario', editadoAt: new Date().toISOString() }
+            : p
+        );
+        await updateDoc(clientRef, { pagosSaldoInicial: updatedPagos, updatedAt: serverTimestamp() });
+      } else {
+        const invRef = doc(db, "facturas", docId);
+        const invSnap = await getDoc(invRef);
+        if (!invSnap.exists()) return;
+        const updatedPagos = (invSnap.data().pagosYajustes || []).map((p: any) =>
+          p.id === paymentId
+            ? { ...p, fechaTransaccion: newTimestamp, editadoPor: authUser?.displayName || 'Usuario', editadoAt: new Date().toISOString() }
+            : p
+        );
+        await updateDoc(invRef, { pagosYajustes: updatedPagos, updatedAt: serverTimestamp() });
+      }
+
+      toast({ title: "\u2705 Fecha de pago actualizada", description: `Nueva fecha: ${format(editPaymentDate, 'dd/MM/yyyy', { locale: es })}` });
+      setIsEditPaymentOpen(false);
+      setEditingPaymentData(null);
+      handleGenerateAudit();
+    } catch (error: any) {
+      console.error("[handleSaveEditedPayment] Error:", error);
+      toast({ variant: "destructive", title: "Error al editar pago", description: error?.message || "Error técnico." });
+    } finally {
+      setSavingEditPayment(false);
     }
   };
 
   const handleConfirmPayment = async (docId: string, paymentId: string, isInitialBalance = false) => {
-    if (!isCobranzas && !isAdmin) {
-      toast({ variant: "destructive", title: "Acceso Denegado", description: "Solo cobranzas o administradores pueden confirmar pagos." });
+    if (!canManagePayments) {
+      toast({ variant: "destructive", title: "Acceso Denegado", description: "Solo cobranzas, contador o administradores pueden confirmar pagos." });
       return;
     }
 
@@ -725,12 +848,20 @@ export default function HistorialPage() {
                                        <TableCell className="text-right font-black text-emerald-600">${Number(pago.monto).toFixed(2)}</TableCell>
                                        <TableCell className="text-right pr-6">
                                          <div className="flex items-center justify-end gap-2">
-                                           {!pago.anulado && !pago.confirmado && !isAutoConfirmed && (isCobranzas || isAdmin) && (
+                                           {/* Confirmar: roles habilitados, pago no anulado ni confirmado ni auto-confirmado */}
+                                           {!pago.anulado && !pago.confirmado && !isAutoConfirmed && canManagePayments && (
                                              <Button variant="ghost" size="icon" onClick={() => handleConfirmPayment(inv.id, pago.id)} className="h-7 w-7 text-emerald-600 hover:bg-emerald-50" title="Confirmar Pago">
                                                <CheckCircle2 className="h-4 w-4" />
                                              </Button>
                                            )}
-                                           {!pago.anulado && !isAutoConfirmed && (isAdmin || (isCobranzas && !pago.confirmado)) && (
+                                           {/* Editar fecha: admin y contador, incluso en auto-confirmados */}
+                                           {!pago.anulado && (isAdmin || isContador) && (
+                                             <Button variant="ghost" size="icon" onClick={() => handleOpenEditPayment(inv.id, pago.id, pago, false)} className="h-7 w-7 text-blue-500 hover:bg-blue-50" title="Editar Fecha de Pago">
+                                               <Edit3 className="h-3.5 w-3.5" />
+                                             </Button>
+                                           )}
+                                           {/* Eliminar: admin siempre; contador incluso auto-confirmados; cobranzas solo no confirmados y no auto-confirmados */}
+                                           {!pago.anulado && (isAdmin || isContador || (!isAutoConfirmed && isCobranzas && !pago.confirmado)) && (
                                              <Button variant="ghost" size="icon" onClick={() => handleAnnullPayment(inv.id, pago.id, false, pago.confirmado)} className="h-7 w-7 text-red-500 hover:bg-red-50" title="Eliminar Pago">
                                                <Trash2 className="h-3.5 w-3.5" />
                                              </Button>
@@ -805,17 +936,25 @@ export default function HistorialPage() {
                                      <TableCell className="text-right font-black text-emerald-600">${Number(pago.monto).toFixed(2)}</TableCell>
                                      <TableCell className="text-right pr-8">
                                        <div className="flex items-center justify-end gap-2">
-                                         {!pago.anulado && !pago.confirmado && !isAutoConfirmed && (isCobranzas || isAdmin) && (
-                                           <Button variant="ghost" size="icon" onClick={() => handleConfirmPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, selectedEvent.type === 'INITIAL_BALANCE_DOC')} className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Confirmar Pago">
-                                             <CheckCircle2 className="h-4 w-4" />
-                                           </Button>
-                                         )}
-                                         {!pago.anulado && !isAutoConfirmed && (isAdmin || (isCobranzas && !pago.confirmado)) && (
-                                           <Button variant="ghost" size="icon" onClick={() => handleAnnullPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, selectedEvent.type === 'INITIAL_BALANCE_DOC', pago.confirmado)} className="h-8 w-8 text-red-500 hover:bg-red-50" title="Eliminar Pago">
-                                             <Trash2 className="h-4 w-4" />
-                                           </Button>
-                                         )}
-                                       </div>
+                                          {/* Confirmar */}
+                                          {!pago.anulado && !pago.confirmado && !isAutoConfirmed && canManagePayments && (
+                                            <Button variant="ghost" size="icon" onClick={() => handleConfirmPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, selectedEvent.type === 'INITIAL_BALANCE_DOC')} className="h-8 w-8 text-emerald-600 hover:bg-emerald-50" title="Confirmar Pago">
+                                              <CheckCircle2 className="h-4 w-4" />
+                                            </Button>
+                                          )}
+                                          {/* Editar fecha: admin y contador, incluso en auto-confirmados */}
+                                          {!pago.anulado && (isAdmin || isContador) && (
+                                            <Button variant="ghost" size="icon" onClick={() => handleOpenEditPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, pago, selectedEvent.type === 'INITIAL_BALANCE_DOC')} className="h-8 w-8 text-blue-500 hover:bg-blue-50" title="Editar Fecha de Pago">
+                                              <Edit3 className="h-4 w-4" />
+                                            </Button>
+                                          )}
+                                          {/* Eliminar */}
+                                          {!pago.anulado && (isAdmin || isContador || (!isAutoConfirmed && isCobranzas && !pago.confirmado)) && (
+                                            <Button variant="ghost" size="icon" onClick={() => handleAnnullPayment(selectedEvent.type === 'INITIAL_BALANCE_DOC' ? selectedEvent.clientId : selectedEvent.id, pago.id, selectedEvent.type === 'INITIAL_BALANCE_DOC', pago.confirmado)} className="h-8 w-8 text-red-500 hover:bg-red-50" title="Eliminar Pago">
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          )}
+                                        </div>
                                      </TableCell>
                                    </TableRow>
                                  );
@@ -837,6 +976,65 @@ export default function HistorialPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ====== MODAL: EDITAR FECHA DE PAGO (Admin / Contador) ====== */}
+      <Dialog open={isEditPaymentOpen} onOpenChange={(open) => { if (!open) { setIsEditPaymentOpen(false); setEditingPaymentData(null); } }}>
+        <DialogContent className="max-w-sm p-0 rounded-[2.5rem] overflow-hidden border-none shadow-2xl bg-card">
+          <div className="p-8 border-b border-border bg-blue-500/5">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl bg-blue-500 text-white flex items-center justify-center">
+                <Edit3 className="h-6 w-6" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-black uppercase tracking-tight">Editar Fecha de Pago</DialogTitle>
+                <DialogDescription className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
+                  {editingPaymentData ? `${editingPaymentData.tipo} • $${editingPaymentData.monto.toFixed(2)}` : ""}
+                </DialogDescription>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8 space-y-6">
+            <div className="space-y-3">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Nueva Fecha del Pago</Label>
+              <div className="border border-border rounded-2xl overflow-hidden">
+                <Calendar
+                  mode="single"
+                  selected={editPaymentDate}
+                  onSelect={(d) => { if (d) setEditPaymentDate(d); }}
+                  locale={es}
+                  disabled={(date) => date > new Date()}
+                  initialFocus
+                  className="rounded-2xl"
+                />
+              </div>
+              {editPaymentDate && (
+                <p className="text-center text-xs font-black text-primary uppercase tracking-widest">
+                  Fecha seleccionada: {format(editPaymentDate, "dd 'de' MMMM yyyy", { locale: es })}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="p-6 border-t border-border bg-muted/20 flex gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => { setIsEditPaymentOpen(false); setEditingPaymentData(null); }}
+              className="flex-1 rounded-xl h-12 font-bold uppercase text-[10px] tracking-widest"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveEditedPayment}
+              disabled={savingEditPayment || !editPaymentDate}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-12 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-blue-600/20 gap-2"
+            >
+              {savingEditPayment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Guardar Cambio
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

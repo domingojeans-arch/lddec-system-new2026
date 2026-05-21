@@ -155,24 +155,74 @@ export default function DashboardPage() {
         return acc + qty;
       }, 0);
 
-      // 3. Gráficos y Estadísticas Mensuales
       const getMonthlyStats = (isSample: boolean) => {
         const statsArr = [];
-        const invoicedIds = new Set();
+        
+        // Indexar facturación para cruce rápido (Soporte individual, agrupado y por lote)
+        const billedByEntryMap = new Map<string, any>();
+        const billedLotsSet = new Set<string>();
+
         invoicesRaw.forEach(inv => {
-          if (inv.ingresoMaestroId) invoicedIds.add(inv.ingresoMaestroId);
-          (inv.ingresoMaestroIds || []).forEach((id: string) => invoicedIds.add(id));
+          // A. Cruce por ID de ingreso directo
+          if (inv.ingresoMaestroId) {
+            billedByEntryMap.set(String(inv.ingresoMaestroId).toUpperCase(), inv);
+          }
+          
+          // B. Cruce por arreglo de IDs (Facturación agrupada)
+          if (Array.isArray(inv.ingresoMaestroIds)) {
+            inv.ingresoMaestroIds.forEach((id: string) => billedByEntryMap.set(String(id).toUpperCase(), inv));
+          }
+
+          // C. Cruce Granular por Lote (Respaldo definitivo)
+          if (Array.isArray(inv.lotesIncluidos)) {
+            inv.lotesIncluidos.forEach((l: any) => {
+              const lid = typeof l === 'string' ? l : (l.loteId || l.lotNumber || l.id);
+              if (lid) billedLotsSet.add(String(lid).toUpperCase());
+            });
+          }
         });
+
+        // Helper para resolver el nombre de lote visible
+        const getVisibleLotNameLocal = (lote: any): string => {
+          if (!lote) return "S/L";
+          const candidates = [lote.lotNumber, lote.numeroLote, lote.loteId, lote.lote];
+          for (const val of candidates) {
+            if (val && String(val).trim()) return String(val).trim().toUpperCase();
+          }
+          return "S/L";
+        };
 
         for (let i = 0; i < 5; i++) {
           const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
           const label = `${d.toLocaleString('es-ES', { month: 'long' })} ${d.getFullYear()}`.toUpperCase();
+          
           const entriesInMonth = entriesRaw.filter(e => {
             const eDate = toDate(e.date || e.entryDate);
             return eDate && eDate.getMonth() === d.getMonth() && eDate.getFullYear() === d.getFullYear() && (isSample ? e.isSample === true : e.isSample !== true);
           });
+          
           const total = entriesInMonth.length;
-          const billed = entriesInMonth.filter(e => invoicedIds.has(e.id)).length;
+          
+          const billed = entriesInMonth.filter(entry => {
+            const entryId = String(entry.id).toUpperCase();
+            const entryNum = String(entry.entryNumber || "").toUpperCase();
+            
+            // Determinar si está facturado cruzando todas las identidades posibles
+            const invoiceFromId = billedByEntryMap.get(entryId);
+            const invoiceFromNum = billedByEntryMap.get(entryNum);
+            const invoice = invoiceFromId || invoiceFromNum;
+            
+            let isBilled = !!invoice;
+
+            const rawLots = entry.lotes || entry.lots || [];
+            // Si no hay match por ID maestro, verificar si al menos uno de los lotes está facturado
+            if (!isBilled && rawLots.length > 0) {
+              isBilled = rawLots.some((l: any) => billedLotsSet.has(getVisibleLotNameLocal(l)));
+            }
+            
+            return isBilled;
+          }).length;
+
           statsArr.push({ month: label, count: `${billed}/${total}`, pct: total > 0 ? Math.round((billed / total) * 100) : 0 });
         }
         return statsArr;

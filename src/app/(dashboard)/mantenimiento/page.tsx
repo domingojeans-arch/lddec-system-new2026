@@ -335,40 +335,57 @@ export default function MantenimientoPage() {
     const pAdulto = parseFloat(precioAdulto);
     const pNino = parseFloat(precioNino);
 
-    if (!manualidad || isNaN(pAdulto) || isNaN(pNino)) {
-      toast({ variant: "destructive", title: "Datos inválidos", description: "Todos los campos son obligatorios." });
+    if (!manualidad.trim() || isNaN(pAdulto) || isNaN(pNino) || pAdulto < 0 || pNino < 0) {
+      toast({ variant: "destructive", title: "Datos inválidos", description: "Selecciona una manualidad e ingresa precios válidos." });
       return;
     }
 
     try {
-      // ID consistente con versión web
-      const id = manualidad.toUpperCase().trim();
+      // Sanitizar ID: Firestore no permite '/', '.', '..', ni secuencias doble '//' en IDs
+      const sanitizedId = manualidad
+        .toUpperCase()
+        .trim()
+        .replace(/\//g, "-")
+        .replace(/\.{1,2}$/g, "_")
+        .replace(/[#\[\]\*\?]/g, "_");
+
+      const manualidadNormalizada = manualidad.toUpperCase().trim();
+
       const payload = {
-        manualidad: id,
+        manualidad: manualidadNormalizada,
         // Guardar en ambos formatos para máxima compatibilidad
         precioAdulto: pAdulto,
         precioNino: pNino,
-        adultPrice: pAdulto, 
+        adultPrice: pAdulto,
         childPrice: pNino,
+        // Requerido para compatibilidad con filtros del sistema
+        activo: true,
         updatedAt: serverTimestamp()
       };
 
       if (isEditingTariff) {
         await updateDoc(doc(db, "manualidad_tarifas", isEditingTariff), payload);
-        toast({ title: "Tarifa Actualizada" });
+        toast({ title: "✅ Tarifa Actualizada", description: manualidadNormalizada });
       } else {
-        await setDoc(doc(db, "manualidad_tarifas", id), {
+        await setDoc(doc(db, "manualidad_tarifas", sanitizedId), {
           ...payload,
           createdAt: serverTimestamp()
         });
-        toast({ title: "Tarifa Registrada" });
+        toast({ title: "✅ Tarifa Registrada", description: manualidadNormalizada });
       }
 
       setTariffForm({ manualidad: "", precioAdulto: "", precioNino: "" });
       setIsEditingTariff(null);
       loadManualTariffs();
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error al guardar tarifa" });
+    } catch (e: any) {
+      console.error("[handleSaveTariff] Error al guardar tarifa:", e?.code, e?.message, e);
+      toast({
+        variant: "destructive",
+        title: "Error al guardar tarifa",
+        description: e?.code === "permission-denied"
+          ? "Sin permisos. Verifica tu rol en el sistema."
+          : (e?.message || "Error desconocido. Revisa la consola.")
+      });
     }
   };
 
