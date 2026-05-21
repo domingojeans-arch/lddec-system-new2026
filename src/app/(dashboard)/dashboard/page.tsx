@@ -264,12 +264,76 @@ export default function DashboardPage() {
       const topClients = Object.entries(clientMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
       const topGarments = Object.entries(garmentMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
 
-      // 5. Consolidación de Cache
+      // 5. Cálculo Dinámico de "PROMEDIO ENTREGA"
+      let totalDays = 0;
+      let count = 0;
+
+      outputsRaw.forEach(o => {
+        const items = Array.isArray(o.itemsDispatched) ? o.itemsDispatched : (Array.isArray(o.lotes) ? o.lotes : []);
+        
+        if (items.length === 0) {
+          const entryId = o.parentIngresoMaestro || o.entryNumber || o.numeroIngreso;
+          if (entryId) {
+            const parentEntry = entriesRaw.find(e => 
+              String(e.id).toUpperCase() === String(entryId).toUpperCase() || 
+              String(e.entryNumber || "").toUpperCase() === String(entryId).toUpperCase()
+            );
+            if (parentEntry) {
+              const fechaIngreso = toDate(parentEntry.date || parentEntry.entryDate || parentEntry.createdAt);
+              const fechaEntrega = toDate(o.date || o.fechaSalida || o.createdAt);
+              if (fechaIngreso && fechaEntrega) {
+                if (fechaEntrega.getMonth() === currentMonth && fechaEntrega.getFullYear() === currentMonthYear) {
+                  const diffTime = fechaEntrega.getTime() - fechaIngreso.getTime();
+                  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+                  if (diffDays >= 0) {
+                    totalDays += diffDays;
+                    count++;
+                  }
+                }
+              }
+            }
+          }
+          return;
+        }
+
+        items.forEach((item: any) => {
+          if (!item) return;
+          const entryId = item.parentIngresoMaestro || o.parentIngresoMaestro || o.entryNumber || o.numeroIngreso;
+          if (!entryId) return;
+
+          const parentEntry = entriesRaw.find(e => 
+            String(e.id).toUpperCase() === String(entryId).toUpperCase() || 
+            String(e.entryNumber || "").toUpperCase() === String(entryId).toUpperCase()
+          );
+          if (!parentEntry) return;
+
+          const fechaIngreso = toDate(parentEntry.date || parentEntry.entryDate || parentEntry.createdAt);
+          const outDateRaw = item.isClientDelivered && item.clientDeliveryTimestamp 
+            ? item.clientDeliveryTimestamp 
+            : (o.date || o.fechaSalida || o.createdAt);
+          const fechaEntrega = toDate(outDateRaw);
+
+          if (fechaIngreso && fechaEntrega) {
+            if (fechaEntrega.getMonth() === currentMonth && fechaEntrega.getFullYear() === currentMonthYear) {
+              const diffTime = fechaEntrega.getTime() - fechaIngreso.getTime();
+              const diffDays = diffTime / (1000 * 60 * 60 * 24);
+              if (diffDays >= 0) {
+                totalDays += diffDays;
+                count++;
+              }
+            }
+          }
+        });
+      });
+
+      const avgDeliveryCalculated = count > 0 ? Math.round(totalDays / count) : 0;
+
+      // 6. Consolidación de Cache
       const newStats: CachedDashboardStats = {
         metrics: {
           ingresadasMes,
           despachadasMes,
-          avgDelivery: 9, 
+          avgDelivery: avgDeliveryCalculated, 
           billingStats: getMonthlyStats(false),
           sampleStats: getMonthlyStats(true),
           collectionStats: [
@@ -387,9 +451,11 @@ export default function DashboardPage() {
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] group-hover:text-amber-600 transition-colors">PROMEDIO ENTREGA</p>
                 <div className="flex items-baseline gap-2">
                   <h3 className="text-5xl font-black text-foreground tracking-tighter">
-                    {stats.metrics.avgDelivery}
+                    {stats.metrics.avgDelivery > 0 ? stats.metrics.avgDelivery : "-"}
                   </h3>
-                  <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">días</span>
+                  {stats.metrics.avgDelivery > 0 && (
+                    <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">días</span>
+                  )}
                 </div>
               </CardContent>
             </Card>
