@@ -68,56 +68,23 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
       const facturasSnap = await getDocs(collection(db, "facturas"));
       const allInvoices = facturasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // 2. Indexar facturación para cruce rápido
+      // 2. Indexar facturación para cruce rápido por relación directa
       const billedByEntryMap = new Map<string, any>();
-      const billedLotsMap = new Map<string, any>();
 
       allInvoices.forEach(inv => {
-        // A. Por ID de ingreso directo
-        if (inv.ingresoMaestroId) {
-          billedByEntryMap.set(String(inv.ingresoMaestroId).toUpperCase(), inv);
-        }
-        
-        // B. Por arreglo de IDs (Facturación agrupada)
-        if (Array.isArray(inv.ingresoMaestroIds)) {
-          inv.ingresoMaestroIds.forEach((id: string) => {
-            billedByEntryMap.set(String(id).toUpperCase(), inv);
-          });
-        }
-
-        // C. Por arreglo de ingresos (ingresos)
-        if (Array.isArray(inv.ingresos)) {
-          inv.ingresos.forEach((item: any) => {
-            if (item) {
-              const idStr = typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso);
-              if (idStr) {
-                billedByEntryMap.set(String(idStr).toUpperCase(), inv);
-              }
-            }
-          });
-        }
-
-        // D. Por arreglo de ingresosIds (ingresosIds)
-        if (Array.isArray(inv.ingresosIds)) {
-          inv.ingresosIds.forEach((item: any) => {
-            if (item) {
-              const idStr = typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso);
-              if (idStr) {
-                billedByEntryMap.set(String(idStr).toUpperCase(), inv);
-              }
-            }
-          });
-        }
-
-        // E. Por lotes incluidos
-        if (Array.isArray(inv.lotesIncluidos)) {
-          inv.lotesIncluidos.forEach((l: any) => {
-            const lid = typeof l === 'string' ? l : (l.loteId || l.lotNumber || l.id);
-            if (lid) {
-              billedLotsMap.set(String(lid).toUpperCase(), inv);
-            }
-          });
-        }
+        const refs = [
+          inv.ingresoMaestroId,
+          inv.numeroIngreso,
+          inv.entryNumber,
+          inv.referencia,
+          inv.ref,
+          inv.ingresoId
+        ];
+        refs.forEach(r => {
+          if (r) {
+            billedByEntryMap.set(String(r).trim().toUpperCase(), inv);
+          }
+        });
       });
 
       // 3. Identificar ingresos que necesitan actualización
@@ -127,23 +94,10 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
         const entryId = String(entry.id).toUpperCase();
         const entryNum = String(entry.entryNumber || "").toUpperCase();
         
-        // Determinar si está facturado cruzando todas las identidades posibles
+        // Determinar si está facturado cruzando la relación directa
         const invoiceFromId = billedByEntryMap.get(entryId);
         const invoiceFromNum = billedByEntryMap.get(entryNum);
-        let invoice = invoiceFromId || invoiceFromNum;
-
-        // Si no hay match directo, buscar por lotes
-        if (!invoice) {
-          const rawLots = entry.lotes || entry.lots || [];
-          for (const l of rawLots) {
-            const lotName = getVisibleLotName(l);
-            const inv = billedLotsMap.get(lotName);
-            if (inv) {
-              invoice = inv;
-              break;
-            }
-          }
-        }
+        const invoice = invoiceFromId || invoiceFromNum;
 
         if (invoice) {
           const targetEstado = "FACTURADO";
@@ -228,48 +182,23 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
     const from = new Date(dateFrom + "T00:00:00");
     const to = new Date(dateTo + "T23:59:59");
 
-    // Indexar facturación para cruce rápido (Soporte individual, agrupado y por lote)
+    // Indexar facturación para cruce rápido por relación directa
     const billedByEntryMap = new Map<string, any>();
-    const billedLotsSet = new Set<string>();
 
     invoices.forEach(inv => {
-      // A. Cruce por ID de ingreso directo
-      if (inv.ingresoMaestroId) {
-        billedByEntryMap.set(String(inv.ingresoMaestroId).toUpperCase(), inv);
-      }
-      
-      // B. Cruce por arreglo de IDs (Facturación agrupada)
-      if (Array.isArray(inv.ingresoMaestroIds)) {
-        inv.ingresoMaestroIds.forEach((id: string) => billedByEntryMap.set(String(id).toUpperCase(), inv));
-      }
-
-      // C. Cruce por arreglo de ingresos (ingresos)
-      if (Array.isArray(inv.ingresos)) {
-        inv.ingresos.forEach((item: any) => {
-          if (item) {
-            const idStr = typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso);
-            if (idStr) billedByEntryMap.set(String(idStr).toUpperCase(), inv);
-          }
-        });
-      }
-
-      // D. Cruce por arreglo de ingresosIds (ingresosIds)
-      if (Array.isArray(inv.ingresosIds)) {
-        inv.ingresosIds.forEach((item: any) => {
-          if (item) {
-            const idStr = typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso);
-            if (idStr) billedByEntryMap.set(String(idStr).toUpperCase(), inv);
-          }
-        });
-      }
-
-      // E. Cruce Granular por Lote (Respaldo definitivo)
-      if (Array.isArray(inv.lotesIncluidos)) {
-        inv.lotesIncluidos.forEach((l: any) => {
-          const lid = typeof l === 'string' ? l : (l.loteId || l.lotNumber || l.id);
-          if (lid) billedLotsSet.add(String(lid).toUpperCase());
-        });
-      }
+      const refs = [
+        inv.ingresoMaestroId,
+        inv.numeroIngreso,
+        inv.entryNumber,
+        inv.referencia,
+        inv.ref,
+        inv.ingresoId
+      ];
+      refs.forEach(r => {
+        if (r) {
+          billedByEntryMap.set(String(r).trim().toUpperCase(), inv);
+        }
+      });
     });
 
     return entries
@@ -281,23 +210,20 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
         const entryId = String(entry.id).toUpperCase();
         const entryNum = String(entry.entryNumber || "").toUpperCase();
         
-        // Determinar si está facturado cruzando todas las identidades posibles
+        // Determinar si está facturado cruzando la relación directa o por estado previo
         const invoiceFromId = billedByEntryMap.get(entryId);
         const invoiceFromNum = billedByEntryMap.get(entryNum);
         const invoice = invoiceFromId || invoiceFromNum;
         
-        let isBilled = !!invoice;
+        const isBilled = !!invoice || entry.estadoFacturacion === "FACTURADO" || (entry.numeroFactura && entry.numeroFactura !== "-");
+        const invoiceNumberStr = invoice?.numeroFactura || entry.numeroFactura || "FACTURADO";
+        const invoiceValueNum = invoice ? Number(invoice.totalFactura || invoice.total || 0) : Number(entry.valorFactura || 0);
 
         const rawLots = entry.lotes || entry.lots || [];
         const quantity = rawLots.reduce((acc: number, l: any) => {
           const val = l.cantidadConfirmada !== undefined ? l.cantidadConfirmada : (l.quantity || l.cantidad || 0);
           return acc + Number(val || 0);
         }, 0);
-
-        // Si no hay match por ID maestro, verificar si al menos uno de los lotes está facturado
-        if (!isBilled && rawLots.length > 0) {
-          isBilled = rawLots.some((l: any) => billedLotsSet.has(getVisibleLotName(l)));
-        }
 
         return {
           id: entry.id,
@@ -306,8 +232,8 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
           cliente: (entry.clientName || entry.clienteNombre || "Socio").toUpperCase(),
           cantidad: quantity,
           estado: isBilled ? "FACTURADO" : "PENDIENTE",
-          factura: isBilled ? (invoice?.numeroFactura || "FACTURADO (LOTES)") : "-",
-          valorFactura: invoice ? Number(invoice.totalFactura || invoice.total || 0) : 0,
+          factura: isBilled ? invoiceNumberStr : "-",
+          valorFactura: isBilled ? invoiceValueNum : 0,
           isSample: !!entry.isSample
         };
       })
