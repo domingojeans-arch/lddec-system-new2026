@@ -251,19 +251,61 @@ export default function SalidasPage() {
       }
       
       const garmentsSource = lot.garments || lot.prendas || [];
-      const breakdown = garmentsSource.map((g: any) => ({ 
-        id: g.id || Math.random().toString(36).substr(2, 9), 
-        type: (g.garmentType || g.tipo || "VARIOS").toUpperCase(), 
-        original: Number(g.cantidadConfirmada || g.quantity || 0), 
-        toDispatch: Number(g.cantidadConfirmada || g.quantity || 0) 
-      }));
+      const originalTotalQty = garmentsSource.length > 0
+        ? garmentsSource.reduce((acc: number, g: any) => acc + (Number(g.cantidadConfirmada || g.quantity || 0)), 0)
+        : Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || 0);
+
+      // Sumar lo que ya existe agregado en la guía para este lote
+      const existingQtyInGuide = itemsToDispatch
+        .filter((it: any) => getVisibleLotName(it) === term)
+        .reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
+
+      // Bloquear si el lote ya está agregado por completo
+      if (existingQtyInGuide >= originalTotalQty) {
+        toast({
+          variant: "destructive",
+          title: "Acción Bloqueada",
+          description: "El lote ya se encuentra agregado en esta guía o no tiene cantidades pendientes por despachar"
+        });
+        setSearching(false);
+        return;
+      }
+
+      // Pre-calcular el desglose con la cantidad restante disponible
+      const breakdown = garmentsSource.map((g: any) => {
+        const typeUpper = (g.garmentType || g.tipo || "VARIOS").toUpperCase();
+        
+        // Calcular cuánto se ha despachado de este tipo específico en la guía actual
+        const alreadyDispatched = itemsToDispatch
+          .filter((it: any) => getVisibleLotName(it) === term)
+          .flatMap((it: any) => it.prendas || [])
+          .filter((p: any) => (p.garmentType || p.tipo || "").toUpperCase() === typeUpper)
+          .reduce((sum: number, p: any) => sum + (Number(p.quantityToDispatch || p.cantidad || p.quantity || 0)), 0);
+
+        const remaining = Math.max(0, Number(g.cantidadConfirmada || g.quantity || 0) - alreadyDispatched);
+
+        return { 
+          id: g.id || Math.random().toString(36).substr(2, 9), 
+          type: typeUpper, 
+          original: Number(g.cantidadConfirmada || g.quantity || 0), 
+          toDispatch: remaining 
+        };
+      });
 
       if (breakdown.length === 0) {
+        const typeUpper = (lot.garmentType || "VARIOS").toUpperCase();
+        const alreadyDispatched = itemsToDispatch
+          .filter((it: any) => getVisibleLotName(it) === term)
+          .reduce((sum: number, it: any) => sum + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
+
+        const originalVal = Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || 0);
+        const remaining = Math.max(0, originalVal - alreadyDispatched);
+
         breakdown.push({
           id: "legacy",
-          type: (lot.garmentType || "VARIOS").toUpperCase(),
-          original: Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || 0),
-          toDispatch: Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || 0)
+          type: typeUpper,
+          original: originalVal,
+          toDispatch: remaining
         });
       }
 
@@ -289,6 +331,55 @@ export default function SalidasPage() {
     const totalQty = foundLotResult.breakdown.reduce((acc: number, g: any) => acc + (Number(g.toDispatch) || 0), 0);
     if (totalQty <= 0) return;
 
+    // Calcular cuánto ya hay agregado en la guía para este lote
+    const existingQty = itemsToDispatch
+      .filter((it: any) => getVisibleLotName(it) === foundLotResult.lotNumber)
+      .reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch) || 0), 0);
+
+    const originalTotalQty = foundLotResult.breakdown.reduce((acc: number, g: any) => acc + (Number(g.original) || 0), 0);
+
+    // 1. Validar si ya está al límite
+    if (existingQty >= originalTotalQty) {
+      toast({
+        variant: "destructive",
+        title: "Acción Bloqueada",
+        description: "El lote ya se encuentra agregado en esta guía o no tiene cantidades pendientes por despachar"
+      });
+      setIsQtyModalOpen(false);
+      setFoundLotResult(null);
+      setSearchLote("");
+      return;
+    }
+
+    // 2. Validar si la cantidad total supera el límite
+    if (existingQty + totalQty > originalTotalQty) {
+      toast({
+        variant: "destructive",
+        title: "Cantidad Excedida",
+        description: "El lote ya se encuentra agregado en esta guía o no tiene cantidades pendientes por despachar"
+      });
+      return;
+    }
+
+    // 3. Validar límites por tipo de prenda individual
+    for (const g of foundLotResult.breakdown) {
+      const typeUpper = g.type.toUpperCase();
+      const alreadyDispatched = itemsToDispatch
+        .filter((it: any) => getVisibleLotName(it) === foundLotResult.lotNumber)
+        .flatMap((it: any) => it.prendas || [])
+        .filter((p: any) => (p.garmentType || p.tipo || "").toUpperCase() === typeUpper)
+        .reduce((sum: number, p: any) => sum + (Number(p.quantityToDispatch || p.cantidad || p.quantity || 0)), 0);
+
+      if (alreadyDispatched + Number(g.toDispatch) > g.original) {
+        toast({
+          variant: "destructive",
+          title: "Cantidad Excedida",
+          description: `La cantidad de ${g.type} supera el límite disponible en el lote.`
+        });
+        return;
+      }
+    }
+
     const newItem = {
       entryLotNumber: foundLotResult.lotNumber,
       lotNumber: foundLotResult.lotNumber,
@@ -306,7 +397,49 @@ export default function SalidasPage() {
       }))
     };
 
-    setItemsToDispatch([...itemsToDispatch, newItem]);
+    const existingIndex = itemsToDispatch.findIndex((it: any) => getVisibleLotName(it) === foundLotResult.lotNumber);
+
+    if (existingIndex > -1) {
+      // Consolidar (Merge) para evitar filas duplicadas
+      const updatedItems = [...itemsToDispatch];
+      const existingItem = {
+        ...updatedItems[existingIndex],
+        prendas: updatedItems[existingIndex].prendas.map((p: any) => ({ ...p }))
+      };
+      
+      existingItem.quantityToDispatch = (Number(existingItem.quantityToDispatch) || 0) + totalQty;
+      
+      existingItem.prendas = existingItem.prendas.map((p: any) => {
+        const typeUpper = (p.garmentType || p.tipo || "").toUpperCase();
+        const incoming = foundLotResult.breakdown.find((g: any) => g.type.toUpperCase() === typeUpper);
+        if (incoming) {
+          return {
+            ...p,
+            quantityToDispatch: (Number(p.quantityToDispatch) || 0) + incoming.toDispatch
+          };
+        }
+        return p;
+      });
+
+      // Asegurar nuevas prendas en caso atípico
+      foundLotResult.breakdown.forEach((g: any) => {
+        const typeUpper = g.type.toUpperCase();
+        const exists = existingItem.prendas.some((p: any) => (p.garmentType || p.tipo || "").toUpperCase() === typeUpper);
+        if (!exists) {
+          existingItem.prendas.push({
+            garmentType: g.type,
+            quantityToDispatch: g.toDispatch,
+            originalEntryQuantity: g.original
+          });
+        }
+      });
+
+      updatedItems[existingIndex] = existingItem;
+      setItemsToDispatch(updatedItems);
+    } else {
+      setItemsToDispatch([...itemsToDispatch, newItem]);
+    }
+
     setIsQtyModalOpen(false);
     setFoundLotResult(null);
     setSearchLote("");
