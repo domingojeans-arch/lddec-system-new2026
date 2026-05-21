@@ -107,17 +107,17 @@ export default function ProduccionPage() {
     if (!db) return;
     if (!silent) setLoading(true);
     try {
-      // Ventana de creación de 3 meses para cubrir cualquier registro tardío o a destiempo
+      // Ventana de creación: Traer registros creados desde start sin límite superior
+      // Esto asegura que registros creados a destiempo (en meses posteriores) pero cuya
+      // fecha lógica coincida con el mes consultado sean correctamente cargados.
       const startQuery = new Date(selectedDate);
       startQuery.setMonth(startQuery.getMonth() - 2);
       const start = Timestamp.fromDate(startOfMonth(startQuery));
-      const end = Timestamp.fromDate(endOfMonth(selectedDate));
       
       // 1. Consulta unificada: Traer todos los lotes creados en este periodo amplio sin importar su estado
       const qManual = query(
         collection(db, "manualidades"), 
-        where("createdAt", ">=", start),
-        where("createdAt", "<=", end)
+        where("createdAt", ">=", start)
       );
       
       const manualSnap = await getDocs(qManual);
@@ -157,6 +157,7 @@ export default function ProduccionPage() {
       const threeMonthsAgo = new Date(selectedDate);
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 2);
       const startEntries = Timestamp.fromDate(startOfMonth(threeMonthsAgo));
+      const end = Timestamp.fromDate(endOfMonth(selectedDate));
       
       const qEntries = query(
         collection(db, "entries"), 
