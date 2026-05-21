@@ -230,7 +230,7 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
                 className={cn(
                   "px-3 text-[9px] font-bold uppercase rounded-md transition-all",
                   colorImpresion === "azul"
-                    ? "bg-blue-600 text-white shadow-sm"
+                    ? "bg-[#0f172a] text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >

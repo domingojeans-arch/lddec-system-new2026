@@ -140,7 +140,7 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
         height: '29.7cm',
         fontFamily: "Arial, Helvetica, sans-serif",
         fontSize: '10pt',
-        color: colorImpresion === 'azul' ? '#1e40af' : 'black',
+        color: colorImpresion === 'azul' ? '#0f172a' : 'black',
         background: 'white',
         overflow: 'hidden',
         margin: '0',
@@ -150,8 +150,8 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
       <style>{`
         @media print {
           .print-color-azul, .print-color-azul * {
-            color: #1e40af !important;
-            border-color: #1e40af !important;
+            color: #0f172a !important;
+            border-color: #0f172a !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
