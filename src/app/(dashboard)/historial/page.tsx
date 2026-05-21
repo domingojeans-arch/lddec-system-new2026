@@ -212,21 +212,31 @@ export default function HistorialPage() {
       const clientData = clientDoc.data() || {};
       const baseDebt = Number(clientData.baseDebt || clientData.saldoInicial || 0);
 
-      // 1. Obtener todas las facturas y filtrar en memoria por clientId/clienteId
-      const qInvoices = query(collection(db, "facturas"));
-      const invoicesSnap = await getDocs(qInvoices);
-      const allInvoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const clientInvoices = allInvoices.filter((inv: any) => 
-        inv.clientId === selectedClientId || inv.clienteId === selectedClientId
-      );
+      // 1. Obtener facturas filtradas por clientId y clienteId en paralelo
+      const qInvoicesClient = query(collection(db, "facturas"), where("clientId", "==", selectedClientId));
+      const qInvoicesCliente = query(collection(db, "facturas"), where("clienteId", "==", selectedClientId));
+      const [invoicesClientSnap, invoicesClienteSnap] = await Promise.all([
+        getDocs(qInvoicesClient),
+        getDocs(qInvoicesCliente)
+      ]);
+      
+      const invoicesMap = new Map();
+      invoicesClientSnap.docs.forEach(d => invoicesMap.set(d.id, { id: d.id, ...d.data() }));
+      invoicesClienteSnap.docs.forEach(d => invoicesMap.set(d.id, { id: d.id, ...d.data() }));
+      const clientInvoices = Array.from(invoicesMap.values());
 
-      // 2. Hacer lo mismo para ingresos (por si acaso existen como clienteId)
-      const qEntries = query(collection(db, "entries"));
-      const entriesSnap = await getDocs(qEntries);
-      const allEntries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const clientEntries = allEntries.filter((entry: any) => 
-        entry.clientId === selectedClientId || entry.clienteId === selectedClientId
-      );
+      // 2. Obtener ingresos (entries) filtrados por clientId y clienteId en paralelo
+      const qEntriesClient = query(collection(db, "entries"), where("clientId", "==", selectedClientId));
+      const qEntriesCliente = query(collection(db, "entries"), where("clienteId", "==", selectedClientId));
+      const [entriesClientSnap, entriesClienteSnap] = await Promise.all([
+        getDocs(qEntriesClient),
+        getDocs(qEntriesCliente)
+      ]);
+      
+      const entriesMap = new Map();
+      entriesClientSnap.docs.forEach(d => entriesMap.set(d.id, { id: d.id, ...d.data() }));
+      entriesClienteSnap.docs.forEach(d => entriesMap.set(d.id, { id: d.id, ...d.data() }));
+      const clientEntries = Array.from(entriesMap.values());
 
       const timeline: any[] = [];
 
@@ -265,7 +275,7 @@ export default function HistorialPage() {
           return checkIds.includes(targetId) || checkIds.includes(targetVisible);
         });
 
-        const entryDate = entry.date?.toDate ? entry.date.toDate() : new Date(entry.date || entry.entryDate || entry.createdAt);
+        const entryDate = toDate(entry.date || entry.entryDate || entry.createdAt) || new Date();
 
         timeline.push({
           type: "entry",
@@ -274,7 +284,7 @@ export default function HistorialPage() {
           number: entry.entryNumber || entryId,
           data: entry,
           invoices: associatedInvoices.map(inv => {
-            const invDate = inv.fechaFactura?.toDate ? inv.fechaFactura.toDate() : new Date(inv.fechaFactura || inv.createdAt || inv.invoiceDate);
+            const invDate = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate) || new Date();
             return {
               ...inv,
               displayDate: invDate,
@@ -304,7 +314,7 @@ export default function HistorialPage() {
         });
 
         if (!isLinked) {
-          const invDate = inv.fechaFactura?.toDate ? inv.fechaFactura.toDate() : new Date(inv.fechaFactura || inv.createdAt || inv.invoiceDate);
+          const invDate = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate) || new Date();
           timeline.push({
             type: "invoice_standalone",
             date: invDate,
@@ -320,7 +330,12 @@ export default function HistorialPage() {
       if (dateFrom && dateTo) {
         const start = new Date(dateFrom + "T00:00:00");
         const end = new Date(dateTo + "T23:59:59");
-        filteredTimeline = timeline.filter(item => item.date >= start && item.date <= end);
+        const startTime = start.getTime();
+        const endTime = end.getTime();
+        filteredTimeline = timeline.filter(item => {
+          const itemTime = item.date.getTime();
+          return itemTime >= startTime && itemTime <= endTime;
+        });
       }
 
       filteredTimeline.sort((a, b) => b.date.getTime() - a.date.getTime());
@@ -682,34 +697,34 @@ export default function HistorialPage() {
             </Button>
           </div>
 
-          <div className="space-y-12 relative before:absolute before:left-8 before:top-0 before:bottom-0 before:w-0.5 before:bg-muted/50">
+          <div className="space-y-4 relative before:absolute before:left-8 before:top-0 before:bottom-0 before:w-0.5 before:bg-muted/50">
             {auditData.timeline.map((event: any, idx: number) => (
               <div key={idx} className="relative pl-20 group">
                 <div className={cn(
-                  "absolute left-[30px] top-8 h-4 w-4 rounded-full border-4 border-background z-10 transition-transform group-hover:scale-125",
+                  "absolute left-[30px] top-[22px] h-4 w-4 rounded-full border-4 border-background z-10 transition-transform group-hover:scale-125",
                   event.type === 'entry' ? "bg-primary" : 
                   event.type === 'INITIAL_BALANCE_DOC' ? "bg-amber-500" : "bg-primary"
                 )} />
 
-                <div className="space-y-6">
+                <div className="space-y-4">
                   <div className={cn(
-                    "p-8 rounded-[2.5rem] border shadow-premium transition-all",
+                    "py-3.5 px-6 rounded-2xl border shadow-premium transition-all",
                     event.type === 'entry' ? "bg-card border-border" : "bg-amber-50/10 border-amber-200"
                   )}>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                      <div className="flex items-center gap-5">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
                         <div className={cn(
-                          "h-14 w-14 rounded-2xl flex items-center justify-center",
+                          "h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0",
                           event.type === 'entry' ? "bg-primary/5 text-primary" : "bg-amber-500/5 text-amber-600"
                         )}>
-                          {event.type === 'entry' ? <ArrowDownCircle className="h-7 w-7" /> : <Wallet className="h-7 w-7" />}
+                          {event.type === 'entry' ? <ArrowDownCircle className="h-5 w-5" /> : <Wallet className="h-5 w-5" />}
                         </div>
                         <div>
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
                             {event.type === 'entry' ? 'INGRESO MAESTRO' : 'DOCUMENTO VIRTUAL BASE'}
                           </p>
-                          <div className="flex items-center gap-3 mt-0.5">
-                            <h4 className="text-lg font-black text-foreground tracking-tight">
+                          <div className="flex items-center flex-wrap gap-2 mt-0.5">
+                            <h4 className="text-sm font-black text-foreground tracking-tight">
                               {event.number}
                             </h4>
                             {event.type === 'entry' && (!event.invoices || event.invoices.length === 0) && (
@@ -718,7 +733,7 @@ export default function HistorialPage() {
                               </span>
                             )}
                             {event.type === 'entry' && event.invoices && event.invoices.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-wrap gap-1.5">
                                 {event.invoices.map((inv: any) => {
                                   const badge = getInvoiceBadgeInfo(inv);
                                   return (
@@ -730,33 +745,33 @@ export default function HistorialPage() {
                               </div>
                             )}
                             {event.type === 'invoice_standalone' && (
-                              <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-wrap gap-1.5">
                                 <span className={cn("text-[9px] font-black uppercase tracking-widest border px-2 py-0.5 rounded-md", getInvoiceBadgeInfo(event.data).colors)}>
                                   {getInvoiceBadgeInfo(event.data).text}
                                 </span>
                               </div>
                             )}
                           </div>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase mt-1">
+                          <p className="text-[9px] font-bold text-muted-foreground uppercase mt-0.5">
                             {event.date.toLocaleDateString('es-EC', { day: '2-digit', month: 'long', year: 'numeric' })}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
                         {event.type === 'entry' && (
-                          <div className="bg-muted/30 px-6 py-3 rounded-2xl border border-border text-center">
-                            <p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Volumen</p>
-                            <p className="text-lg font-black text-primary">{(event.data.lotes || []).length} <span className="text-xs font-normal">lotes</span></p>
+                          <div className="bg-muted/30 px-4 py-1.5 rounded-xl border border-border text-center flex-shrink-0">
+                            <p className="text-[8px] font-black text-muted-foreground uppercase mb-0.5">Volumen</p>
+                            <p className="text-xs font-black text-primary">{(event.data.lotes || []).length} <span className="text-[10px] font-normal">lotes</span></p>
                           </div>
                         )}
                         <Button 
                           variant="ghost" 
                           size="icon" 
                           onClick={() => { setSelectedEvent(event); setIsDetailOpen(true); }}
-                          className="h-12 w-12 rounded-full hover:bg-muted"
+                          className="h-9 w-9 rounded-full hover:bg-muted"
                         >
-                          <Eye className="h-6 w-6 text-muted-foreground" />
+                          <Eye className="h-[18px] w-[18px] text-muted-foreground" />
                         </Button>
                       </div>
                     </div>
