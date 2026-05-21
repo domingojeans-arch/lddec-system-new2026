@@ -85,7 +85,31 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
           });
         }
 
-        // C. Por lotes incluidos
+        // C. Por arreglo de ingresos (ingresos)
+        if (Array.isArray(inv.ingresos)) {
+          inv.ingresos.forEach((item: any) => {
+            if (item) {
+              const idStr = typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso);
+              if (idStr) {
+                billedByEntryMap.set(String(idStr).toUpperCase(), inv);
+              }
+            }
+          });
+        }
+
+        // D. Por arreglo de ingresosIds (ingresosIds)
+        if (Array.isArray(inv.ingresosIds)) {
+          inv.ingresosIds.forEach((item: any) => {
+            if (item) {
+              const idStr = typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso);
+              if (idStr) {
+                billedByEntryMap.set(String(idStr).toUpperCase(), inv);
+              }
+            }
+          });
+        }
+
+        // E. Por lotes incluidos
         if (Array.isArray(inv.lotesIncluidos)) {
           inv.lotesIncluidos.forEach((l: any) => {
             const lid = typeof l === 'string' ? l : (l.loteId || l.lotNumber || l.id);
@@ -219,7 +243,27 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
         inv.ingresoMaestroIds.forEach((id: string) => billedByEntryMap.set(String(id).toUpperCase(), inv));
       }
 
-      // C. Cruce Granular por Lote (Respaldo definitivo)
+      // C. Cruce por arreglo de ingresos (ingresos)
+      if (Array.isArray(inv.ingresos)) {
+        inv.ingresos.forEach((item: any) => {
+          if (item) {
+            const idStr = typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso);
+            if (idStr) billedByEntryMap.set(String(idStr).toUpperCase(), inv);
+          }
+        });
+      }
+
+      // D. Cruce por arreglo de ingresosIds (ingresosIds)
+      if (Array.isArray(inv.ingresosIds)) {
+        inv.ingresosIds.forEach((item: any) => {
+          if (item) {
+            const idStr = typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso);
+            if (idStr) billedByEntryMap.set(String(idStr).toUpperCase(), inv);
+          }
+        });
+      }
+
+      // E. Cruce Granular por Lote (Respaldo definitivo)
       if (Array.isArray(inv.lotesIncluidos)) {
         inv.lotesIncluidos.forEach((l: any) => {
           const lid = typeof l === 'string' ? l : (l.loteId || l.lotNumber || l.id);

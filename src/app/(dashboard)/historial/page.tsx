@@ -254,7 +254,9 @@ export default function HistorialPage() {
             inv.ref, 
             inv.numeroIngreso, 
             inv.entryNumber,
-            ...(Array.isArray(inv.ingresoMaestroIds) ? inv.ingresoMaestroIds : [])
+            ...(Array.isArray(inv.ingresoMaestroIds) ? inv.ingresoMaestroIds : []),
+            ...(Array.isArray(inv.ingresos) ? inv.ingresos.map((item: any) => typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso)) : []),
+            ...(Array.isArray(inv.ingresosIds) ? inv.ingresosIds.map((item: any) => typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso)) : [])
           ].filter(Boolean).map(String).map(s => s.trim().toUpperCase());
 
           const targetId = String(entryId).trim().toUpperCase();
@@ -289,7 +291,9 @@ export default function HistorialPage() {
           inv.ref, 
           inv.numeroIngreso, 
           inv.entryNumber,
-          ...(Array.isArray(inv.ingresoMaestroIds) ? inv.ingresoMaestroIds : [])
+          ...(Array.isArray(inv.ingresoMaestroIds) ? inv.ingresoMaestroIds : []),
+          ...(Array.isArray(inv.ingresos) ? inv.ingresos.map((item: any) => typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso)) : []),
+          ...(Array.isArray(inv.ingresosIds) ? inv.ingresosIds.map((item: any) => typeof item === 'string' ? item : (item.id || item.ingresoId || item.entryNumber || item.idIngreso)) : [])
         ].filter(Boolean).map(String).map(s => s.trim().toUpperCase());
 
         const isLinked = clientEntries.some(e => {
