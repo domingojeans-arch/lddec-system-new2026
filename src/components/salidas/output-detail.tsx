@@ -66,6 +66,7 @@ function getVisibleLotName(lote: any): string {
 export function OutputDetail({ output, onClose }: OutputDetailProps) {
   const [startLine, setStartLine] = useState("1");
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+  const [colorImpresion, setColorImpresion] = useState<"negro" | "azul">("negro");
 
   const getFecha = (raw: any) => {
     if (!raw) return "---";
@@ -93,11 +94,17 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
   const handlePrint = () => {
     if (!output) return;
     const itemsToPrint = selectedIndices.length > 0
-      ? items.filter((_, idx) => selectedIndices.includes(idx))
+      ? items.filter((_: any, idx: number) => selectedIndices.includes(idx))
       : items;
 
     const outputToPrint = { ...output, itemsDispatched: itemsToPrint };
-    const html = renderToStaticMarkup(<SalidaPrintContent salida={outputToPrint} startAtLine={parseInt(startLine)} />);
+    const html = renderToStaticMarkup(
+      <SalidaPrintContent 
+        salida={outputToPrint} 
+        startAtLine={parseInt(startLine)} 
+        colorImpresion={colorImpresion} 
+      />
+    );
     printHtml(html);
   };
 
@@ -193,7 +200,7 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
 
       {/* SECTION 3: PRINT CONTROL COMPACT */}
       <div className="p-4 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 bg-muted/5 mt-4 rounded-b-2xl">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="space-y-1">
             <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Renglón Inicial</p>
             <Select value={startLine} onValueChange={setStartLine}>
@@ -201,6 +208,37 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
               <SelectContent className="max-h-48 rounded-xl shadow-xl">{Array.from({ length: 21 }, (_, i) => (<SelectItem key={i + 1} value={(i + 1).toString()} className="text-[10px] font-bold">Línea {i + 1}</SelectItem>))}</SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-1">
+            <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Color de Impresión</p>
+            <div className="flex bg-background border border-border rounded-lg p-0.5 h-8">
+              <button
+                type="button"
+                onClick={() => setColorImpresion("negro")}
+                className={cn(
+                  "px-3 text-[9px] font-bold uppercase rounded-md transition-all",
+                  colorImpresion === "negro"
+                    ? "bg-foreground text-background shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Negro
+              </button>
+              <button
+                type="button"
+                onClick={() => setColorImpresion("azul")}
+                className={cn(
+                  "px-3 text-[9px] font-bold uppercase rounded-md transition-all",
+                  colorImpresion === "azul"
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Azul
+              </button>
+            </div>
+          </div>
+
           {selectedIndices.length > 0 && <p className="text-[9px] font-black text-primary uppercase">Parcial ({selectedIndices.length} lotes)</p>}
         </div>
         <div className="flex gap-2 w-full sm:w-auto">

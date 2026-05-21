@@ -5,6 +5,7 @@ import React from 'react';
 interface SalidaPrintContentProps {
   salida: any;
   startAtLine?: number;
+  colorImpresion?: "negro" | "azul";
 }
 
 /**
@@ -12,7 +13,7 @@ interface SalidaPrintContentProps {
  * Procesa cada sublote como una fila independiente.
  * Recupera procesos específicos de cada prenda evitando duplicaciones.
  */
-export function SalidaPrintContent({ salida, startAtLine = 1 }: SalidaPrintContentProps) {
+export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "negro" }: SalidaPrintContentProps) {
   // 1. Date Resolution
   const rawDate = salida.date || salida.fechaSalida || salida.fecha || salida.createdAt;
   let dateObj: Date;
@@ -68,7 +69,7 @@ export function SalidaPrintContent({ salida, startAtLine = 1 }: SalidaPrintConte
         if (!subProcess) {
           const globalProc = (item.process || item.proceso || "").toString();
           if (globalProc.includes("|")) {
-            const parts = globalProc.split("|").map(p => p.trim());
+            const parts = globalProc.split("|").map((p: string) => p.trim());
             subProcess = parts[subIdx] || "";
           } else {
             subProcess = globalProc;
@@ -131,18 +132,31 @@ export function SalidaPrintContent({ salida, startAtLine = 1 }: SalidaPrintConte
   const totalGeneral = lines.reduce((acc, curr) => acc + curr.cant, 0);
 
   return (
-    <div style={{
-      position: 'relative',
-      width: '21cm',
-      height: '29.7cm',
-      fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: '10pt',
-      color: 'black',
-      background: 'white',
-      overflow: 'hidden',
-      margin: '0',
-      padding: '0'
-    }}>
+    <div 
+      className={colorImpresion === 'azul' ? 'print-color-azul' : ''}
+      style={{
+        position: 'relative',
+        width: '21cm',
+        height: '29.7cm',
+        fontFamily: "Arial, Helvetica, sans-serif",
+        fontSize: '10pt',
+        color: colorImpresion === 'azul' ? '#1e40af' : 'black',
+        background: 'white',
+        overflow: 'hidden',
+        margin: '0',
+        padding: '0'
+      }}
+    >
+      <style>{`
+        @media print {
+          .print-color-azul, .print-color-azul * {
+            color: #1e40af !important;
+            border-color: #1e40af !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        }
+      `}</style>
       {/* COORDENADAS CABECERA - AJUSTADAS (+0.5CM TOP / -0.3CM LEFT) */}
       {startAtLine === 1 && (
         <>
