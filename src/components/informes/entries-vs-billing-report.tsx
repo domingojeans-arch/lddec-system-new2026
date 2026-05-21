@@ -14,10 +14,15 @@ import {
   Shirt,
   TrendingUp,
   FileText,
-  FileWarning
+  FileWarning,
+  RefreshCw,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toDate } from "@/lib/toDate";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, writeBatch, doc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 interface EntriesVsBillingReportProps {
   entries: any[];
@@ -41,10 +46,158 @@ function getVisibleLotName(lote: any): string {
 export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: EntriesVsBillingReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
   const [isPrintingOnlyPending, setIsPrintingOnlyPending] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
   }, []);
+
+  const handleRepairLinks = async () => {
+    setIsRepairing(true);
+    try {
+      toast({
+        title: "Iniciando reparación...",
+        description: "Obteniendo datos de Firestore para cruce masivo.",
+      });
+
+      // 1. Obtener todos los ingresos y facturas del sistema
+      const entriesSnap = await getDocs(collection(db, "entries"));
+      const allEntries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      const facturasSnap = await getDocs(collection(db, "facturas"));
+      const allInvoices = facturasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // 2. Indexar facturación para cruce rápido
+      const billedByEntryMap = new Map<string, any>();
+      const billedLotsMap = new Map<string, any>();
+
+      allInvoices.forEach(inv => {
+        // A. Por ID de ingreso directo
+        if (inv.ingresoMaestroId) {
+          billedByEntryMap.set(String(inv.ingresoMaestroId).toUpperCase(), inv);
+        }
+        
+        // B. Por arreglo de IDs (Facturación agrupada)
+        if (Array.isArray(inv.ingresoMaestroIds)) {
+          inv.ingresoMaestroIds.forEach((id: string) => {
+            billedByEntryMap.set(String(id).toUpperCase(), inv);
+          });
+        }
+
+        // C. Por lotes incluidos
+        if (Array.isArray(inv.lotesIncluidos)) {
+          inv.lotesIncluidos.forEach((l: any) => {
+            const lid = typeof l === 'string' ? l : (l.loteId || l.lotNumber || l.id);
+            if (lid) {
+              billedLotsMap.set(String(lid).toUpperCase(), inv);
+            }
+          });
+        }
+      });
+
+      // 3. Identificar ingresos que necesitan actualización
+      const updates: { id: string; fields: any }[] = [];
+
+      allEntries.forEach((entry: any) => {
+        const entryId = String(entry.id).toUpperCase();
+        const entryNum = String(entry.entryNumber || "").toUpperCase();
+        
+        // Determinar si está facturado cruzando todas las identidades posibles
+        const invoiceFromId = billedByEntryMap.get(entryId);
+        const invoiceFromNum = billedByEntryMap.get(entryNum);
+        let invoice = invoiceFromId || invoiceFromNum;
+
+        // Si no hay match directo, buscar por lotes
+        if (!invoice) {
+          const rawLots = entry.lotes || entry.lots || [];
+          for (const l of rawLots) {
+            const lotName = getVisibleLotName(l);
+            const inv = billedLotsMap.get(lotName);
+            if (inv) {
+              invoice = inv;
+              break;
+            }
+          }
+        }
+
+        if (invoice) {
+          const targetEstado = "FACTURADO";
+          const targetNumeroFactura = invoice.numeroFactura || "FACTURADO";
+          const targetFacturaId = invoice.id || "";
+
+          // Comparar con el estado actual
+          if (
+            entry.estadoFacturacion !== targetEstado ||
+            entry.numeroFactura !== targetNumeroFactura ||
+            entry.facturaId !== targetFacturaId
+          ) {
+            updates.push({
+              id: entry.id,
+              fields: {
+                estadoFacturacion: targetEstado,
+                numeroFactura: targetNumeroFactura,
+                facturaId: targetFacturaId,
+                updatedAt: new Date()
+              }
+            });
+          }
+        }
+      });
+
+      if (updates.length === 0) {
+        toast({
+          title: "Sincronización Completa",
+          description: "No se encontraron enlaces de ingreso-factura desactualizados o rotos.",
+        });
+        return;
+      }
+
+      toast({
+        title: "Procesando cambios",
+        description: `Se actualizarán ${updates.length} ingresos. Por favor espere.`,
+      });
+
+      // 4. Escribir cambios en Firestore en batches de 450
+      const batchLimit = 450;
+      let currentBatch = writeBatch(db);
+      let batchCount = 0;
+      let totalUpdated = 0;
+
+      for (const update of updates) {
+        const docRef = doc(db, "entries", update.id);
+        currentBatch.update(docRef, update.fields);
+        batchCount++;
+
+        if (batchCount >= batchLimit) {
+          await currentBatch.commit();
+          totalUpdated += batchCount;
+          currentBatch = writeBatch(db);
+          batchCount = 0;
+        }
+      }
+
+      if (batchCount > 0) {
+        await currentBatch.commit();
+        totalUpdated += batchCount;
+      }
+
+      toast({
+        title: "¡Éxito!",
+        description: `Se han reparado correctamente ${totalUpdated} ingresos. Por favor, vuelva a generar el reporte para ver los datos actualizados.`,
+      });
+
+    } catch (error: any) {
+      console.error("Error al reparar enlaces ingreso-factura:", error);
+      toast({
+        variant: "destructive",
+        title: "Error de Reparación",
+        description: error.message || "Ocurrió un error inesperado al actualizar Firestore.",
+      });
+    } finally {
+      setIsRepairing(false);
+    }
+  };
 
   // 1. MOTOR DE CRUCE Y NORMALIZACIÓN LDDEC 1.1 - MEJORADO
   const reportData = useMemo(() => {
@@ -193,6 +346,21 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
 
       {/* TOOLBAR */}
       <div className="flex justify-end gap-3 print-hidden">
+        <Button 
+          onClick={handleRepairLinks} 
+          disabled={isRepairing}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest h-11 px-8 rounded-xl gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95 duration-200 animate-in fade-in"
+        >
+          {isRepairing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin mr-1" /> Reparando...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4 mr-1 animate-in spin-in-180 duration-500" /> Reparar Enlaces Ingreso-Factura
+            </>
+          )}
+        </Button>
         <Button 
           onClick={handlePrintOnlyPending} 
           className="bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] tracking-widest h-11 px-8 rounded-xl gap-2 shadow-lg shadow-amber-600/20"
