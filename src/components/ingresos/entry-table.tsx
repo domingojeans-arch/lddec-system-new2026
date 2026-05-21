@@ -86,6 +86,9 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
             <TableHead onClick={() => handleSort("totalGarments")} className="cursor-pointer text-[11px] font-black uppercase tracking-widest text-muted-foreground text-center">
               <div className="flex items-center justify-center">Total <SortIcon colKey="totalGarments" /></div>
             </TableHead>
+            <TableHead className="text-[11px] font-black uppercase tracking-widest text-muted-foreground text-center">
+              <div className="flex items-center justify-center">Total Calculado</div>
+            </TableHead>
             <TableHead className="text-[11px] font-black uppercase tracking-widest text-muted-foreground text-right pr-8">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -151,6 +154,21 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
                         : 0;
 
                       return totalCampos > 0 ? totalCampos : totalLotes;
+                    })()}
+                  </span>
+                </TableCell>
+
+                <TableCell className="text-center">
+                  <span className="text-xl font-black text-primary tracking-tighter">
+                    {(() => {
+                      const currentLots = entry.lots || (entry as any).lotes || [];
+                      return currentLots.reduce((acc: number, lot: any) => {
+                        const garments = lot.garments || lot.prendas || [];
+                        if (garments.length > 0) {
+                          return acc + garments.reduce((gAcc: number, g: any) => gAcc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0);
+                        }
+                        return acc + Number(lot.cantidad || lot.cantidadConfirmada || lot.quantity || lot.total || 0);
+                      }, 0);
                     })()}
                   </span>
                 </TableCell>
