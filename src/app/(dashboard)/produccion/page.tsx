@@ -13,7 +13,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  RefreshCcw
+  RefreshCcw,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,8 @@ import {
   where,
   limit,
   serverTimestamp,
-  getDocs
+  getDocs,
+  writeBatch
 } from "firebase/firestore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns";
@@ -353,6 +355,98 @@ export default function ProduccionPage() {
     }
   };
 
+  const [syncingTariffs, setSyncingTariffs] = useState(false);
+
+  const handleSyncTariffs = async () => {
+    if (!db) return;
+    setSyncingTariffs(true);
+    try {
+      // 1. Obtener todas las tarifas
+      const tariffSnap = await getDocs(collection(db, "manualidad_tarifas"));
+      const tariffsList = tariffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      if (tariffsList.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Sincronización cancelada",
+          description: "No se encontraron tarifas registradas en 'manualidad_tarifas'."
+        });
+        setSyncingTariffs(false);
+        return;
+      }
+
+      // 2. Obtener todos los registros de manualidades que estén pendientes
+      const q = query(collection(db, "manualidades"), where("estado", "==", "pendiente"));
+      const manualSnap = await getDocs(q);
+      
+      let updatedCount = 0;
+      let skippedCount = 0;
+      const batch = writeBatch(db);
+
+      for (const docSnap of manualSnap.docs) {
+        const data = docSnap.data();
+        const price = Number(data.precioUnitario || 0);
+        const total = Number(data.total || 0);
+
+        if (price === 0 || total === 0) {
+          const proceso = String(data.proceso || "").trim().toUpperCase();
+          const tipoPrenda = String(data.tipoPrenda || "Adulto").trim();
+          
+          const tariff = tariffsList.find(t => 
+            String(t.manualidad || t.processName || t.id).trim().toUpperCase() === proceso
+          );
+
+          if (tariff) {
+            const isAdult = tipoPrenda.toLowerCase() === "adulto";
+            const currentPrice = isAdult 
+              ? Number(tariff.precioAdulto ?? tariff.adultPrice ?? 0)
+              : Number(tariff.precioNino ?? tariff.childPrice ?? 0);
+            
+            const qty = Number(data.cantidad || 0);
+            const newTotal = currentPrice * qty;
+
+            batch.update(doc(db, "manualidades", docSnap.id), {
+              precioUnitario: currentPrice,
+              total: newTotal,
+              updatedAt: serverTimestamp(),
+              lastEditedBy: "Sistema (Sincronización)"
+            });
+            updatedCount++;
+          } else {
+            skippedCount++;
+          }
+        }
+      }
+
+      if (updatedCount > 0) {
+        await batch.commit();
+        toast({
+          title: "Sincronización Completada",
+          description: `Se actualizaron ${updatedCount} lotes con sus tarifas. (${skippedCount} sin tarifa encontrada)`
+        });
+        loadData();
+      } else {
+        toast({
+          title: "Sin cambios",
+          description: "No se encontraron lotes pendientes con costo $0.00 que requieran actualización."
+        });
+      }
+    } catch (error: any) {
+      console.error("Error al sincronizar tarifas:", error);
+      toast({
+        variant: "destructive",
+        title: "Error de Sincronización",
+        description: error.message || "Ocurrió un error inesperado al actualizar Firestore."
+      });
+    } finally {
+      setSyncingTariffs(false);
+    }
+  };
+
+  const pendingZeroCostCount = useMemo(() => {
+    return manualWorks.filter(m => m.estado === "pendiente" && (Number(m.precioUnitario || 0) === 0 || Number(m.total || 0) === 0)).length;
+  }, [manualWorks]);
+
   const handlePrevMonth = () => setSelectedDate(prev => subMonths(prev, 1));
   const handleNextMonth = () => setSelectedDate(prev => addMonths(prev, 1));
 
@@ -403,7 +497,40 @@ export default function ProduccionPage() {
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
             Consultar
           </Button>
+          {!isReadOnly && (
+            <>
+              <div className="w-px h-8 bg-border mx-2" />
+              <Button
+                onClick={handleSyncTariffs}
+                disabled={loading || syncingTariffs}
+                className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-widest gap-2 rounded-xl border-none shadow-md shadow-emerald-500/10"
+              >
+                {syncingTariffs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                Sincronizar Tarifas
+              </Button>
+            </>
+          )}
         </div>
+
+        {!isReadOnly && pendingZeroCostCount > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-[1.5rem] p-4 flex flex-col sm:flex-row items-center justify-between gap-4 animate-pulse">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+              <div className="space-y-0.5">
+                <p className="text-xs font-black uppercase text-amber-800">Lotes Pendientes sin Costo</p>
+                <p className="text-[11px] text-amber-700 font-medium">Hay {pendingZeroCostCount} lotes en este periodo con precio o total en $0.00. Sincroniza las tarifas para corregirlos.</p>
+              </div>
+            </div>
+            <Button
+              onClick={handleSyncTariffs}
+              disabled={loading || syncingTariffs}
+              className="w-full sm:w-auto h-9 px-4 bg-amber-600 hover:bg-amber-700 text-white font-black text-[9px] uppercase tracking-widest gap-2 rounded-xl border-none shadow-md shadow-amber-500/10 shrink-0"
+            >
+              {syncingTariffs ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+              Sincronizar Ahora
+            </Button>
+          </div>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
           <TabsList className="bg-card border border-border p-1 h-12 w-fit rounded-xl gap-2">
