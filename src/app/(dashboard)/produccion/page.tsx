@@ -107,17 +107,10 @@ export default function ProduccionPage() {
     if (!db) return;
     if (!silent) setLoading(true);
     try {
-      // Ventana de creación: Traer registros creados desde start sin límite superior
-      // Esto asegura que registros creados a destiempo (en meses posteriores) pero cuya
-      // fecha lógica coincida con el mes consultado sean correctamente cargados.
-      const startQuery = new Date(selectedDate);
-      startQuery.setMonth(startQuery.getMonth() - 2);
-      const start = Timestamp.fromDate(startOfMonth(startQuery));
-      
-      // 1. Consulta unificada: Traer todos los lotes creados en este periodo amplio sin importar su estado
+      // 1. Consulta unificada: Traer todos los lotes de manualidades sin límites físicos de fecha de creación
+      // Esto asegura que cualquier lote ingresado con fecha lógica en el mes seleccionado sea visible.
       const qManual = query(
-        collection(db, "manualidades"), 
-        where("createdAt", ">=", start)
+        collection(db, "manualidades")
       );
       
       const manualSnap = await getDocs(qManual);
@@ -127,15 +120,20 @@ export default function ProduccionPage() {
       const targetMonthStr = String(selectedDate.getMonth() + 1).padStart(2, "0");
       const targetYearStr = String(selectedDate.getFullYear());
 
-      // Filtrar y ordenar en memoria por la fecha de origen real
+      // Filtrar y ordenar en memoria estrictamente por la fecha de origen real
       const manualList = allManualList
         .filter(work => {
           const fechaStr = work.fecha || work.fechaStr || "";
           
+          // Lógica del filtro split para texto "yyyy-MM-dd"
+          if (typeof fechaStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) {
+            const [year, month, day] = fechaStr.split("-");
+            return month === targetMonthStr && year === targetYearStr;
+          }
+
           // Lógica del filtro split para texto "DD/MM/YYYY"
           if (typeof fechaStr === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(fechaStr)) {
             const [day, month, year] = fechaStr.split("/");
-            // Comparación estricta de mes y año
             return month === targetMonthStr && year === targetYearStr;
           }
           
@@ -221,17 +219,27 @@ export default function ProduccionPage() {
     );
 
     return filtered.sort((a, b) => {
-      const valA = a[manualSortKey];
-      const valB = b[manualSortKey];
-      
-      const getComparable = (v: any) => {
-        if (!v) return "";
-        if (v && typeof v === 'object' && v.seconds !== undefined) return v.seconds; 
-        return v;
-      };
+      let compA: any;
+      let compB: any;
 
-      const compA = getComparable(valA);
-      const compB = getComparable(valB);
+      if (manualSortKey === "createdAt") {
+        const dRestoredA = toDate(a.fecha || a.fechaStr || a.workDate || a.createdAt);
+        const dRestoredB = toDate(b.fecha || b.fechaStr || b.workDate || b.createdAt);
+        compA = dRestoredA ? dRestoredA.getTime() : 0;
+        compB = dRestoredB ? dRestoredB.getTime() : 0;
+      } else {
+        const valA = a[manualSortKey];
+        const valB = b[manualSortKey];
+        
+        const getComparable = (v: any) => {
+          if (!v) return "";
+          if (v && typeof v === 'object' && v.seconds !== undefined) return v.seconds; 
+          return v;
+        };
+
+        compA = getComparable(valA);
+        compB = getComparable(valB);
+      }
 
       const numA = Number(compA);
       const numB = Number(compB);
