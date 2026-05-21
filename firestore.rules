@@ -41,7 +41,7 @@ service cloud.firestore {
     // CLIENTES
     match /clients/{clientId} {
       allow read: if true; 
-      allow write: if isAdmin() || hasRole('facturacion') || hasRole('cobranzas') || hasRole('contador');
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('cobranzas') || hasRole('contador') || isBodega();
     }
 
     // CATÁLOGOS MAESTROS (LDDEC 1.6)

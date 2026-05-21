@@ -59,6 +59,7 @@ export function DashboardSidebar() {
   const filteredNav = navItems.filter(item => {
     if (user?.role === "bodega") {
       const allowedTitles = [
+        "Clientes",
         "Ingresos",
         "Revisión Lote",
         "Salidas",

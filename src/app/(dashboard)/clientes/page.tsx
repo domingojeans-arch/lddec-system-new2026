@@ -84,11 +84,20 @@ export default function ClientesPage() {
     return () => unsubscribe();
   }, []);
 
-  // Bypass de permisos para modo local
-  const canEdit = true;
-  /*
-  const canEdit = user?.role === "administrador" || user?.role === "facturacion" || user?.role === "cobranzas" || user?.role === "contador";
-  */
+  const isBodeguero = user?.role === "bodega";
+
+  const canEdit = useMemo(() => {
+    if (!user) return false;
+    const allowed = ["admin", "administrador", "facturacion", "cobranzas", "contador", "socio", "bodega"];
+    return allowed.includes(user.role || "");
+  }, [user]);
+
+  const canDelete = useMemo(() => {
+    if (!user) return false;
+    return user.role === "admin" || user.role === "administrador";
+  }, [user]);
+
+  const hideFinancials = isBodeguero;
 
   const filteredClients = useMemo(() => {
     return clients.filter(c => 
@@ -121,8 +130,8 @@ export default function ClientesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!canEdit) {
-      toast({ variant: "destructive", title: "Acceso Denegado" });
+    if (!canDelete) {
+      toast({ variant: "destructive", title: "Acceso Denegado", description: "No tiene permisos para eliminar registros." });
       return;
     }
     
@@ -217,7 +226,15 @@ export default function ClientesPage() {
             <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sincronizando con Firestore...</p>
           </div>
         ) : filteredClients.length > 0 ? (
-          <ClientTable clients={filteredClients} onEdit={handleEdit} onView={handleView} onPrint={() => window.print()} onDelete={handleDelete} />
+          <ClientTable 
+            clients={filteredClients} 
+            onEdit={handleEdit} 
+            onView={handleView} 
+            onPrint={() => window.print()} 
+            onDelete={handleDelete} 
+            hideFinancials={hideFinancials}
+            canDelete={canDelete}
+          />
         ) : (
           <div className="h-64 rounded-xl border border-dashed border-border flex flex-col items-center justify-center text-muted-foreground bg-muted/10">
             <Building2 className="h-12 w-12 mb-4 opacity-20" />
@@ -243,6 +260,7 @@ export default function ClientesPage() {
                 initialData={editingClient} 
                 onSubmit={handleFormSubmit} 
                 onCancel={() => setIsSheetOpen(false)} 
+                hideFinancials={hideFinancials}
               />
             </div>
           </div>

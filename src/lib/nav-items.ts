@@ -25,7 +25,7 @@ export const navItems: NavItem[] = [
     title: "Clientes", 
     path: "/clientes", 
     icon: Users, 
-    allowedRoles: ["admin", "facturacion", "cobranzas", "contador", "socio"] 
+    allowedRoles: ["admin", "facturacion", "cobranzas", "contador", "socio", "bodega"] 
   },
   { 
     title: "Ingresos", 

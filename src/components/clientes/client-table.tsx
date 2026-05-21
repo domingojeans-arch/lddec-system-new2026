@@ -33,6 +33,8 @@ interface ClientTableProps {
   onView: (client: Client) => void;
   onPrint: (client: Client) => void;
   onDelete: (id: string) => void;
+  hideFinancials?: boolean;
+  canDelete?: boolean;
 }
 
 const classificationMap = {
@@ -42,7 +44,7 @@ const classificationMap = {
   moroso: { label: "Moroso", color: "bg-red-500/10 text-red-600 dark:text-red-400" },
 };
 
-export function ClientTable({ clients, onEdit, onView, onPrint, onDelete }: ClientTableProps) {
+export function ClientTable({ clients, onEdit, onView, onPrint, onDelete, hideFinancials = false, canDelete = true }: ClientTableProps) {
   // ORDENAR POR APELLIDO POR DEFECTO
   const [sortKey, setSortKey] = useState<string>("lastName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -90,11 +92,14 @@ export function ClientTable({ clients, onEdit, onView, onPrint, onDelete }: Clie
             <TableHead onClick={() => handleSort("lastName")} className="cursor-pointer text-[11px] font-black uppercase tracking-widest text-muted-foreground">
               <div className="flex items-center">Socio / Razón Social <SortIcon colKey="lastName" /></div>
             </TableHead>
-            <TableHead className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Clasificación</TableHead>
+            {!hideFinancials && <TableHead className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Clasificación</TableHead>}
             <TableHead className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Contacto</TableHead>
-            <TableHead onClick={() => handleSort("baseDebt")} className="cursor-pointer text-right text-[11px] font-black uppercase tracking-widest text-muted-foreground">
-              <div className="flex items-center justify-end">Saldo Base <SortIcon colKey="baseDebt" /></div>
-            </TableHead>
+            {hideFinancials && <TableHead className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Dirección</TableHead>}
+            {!hideFinancials && (
+              <TableHead onClick={() => handleSort("baseDebt")} className="cursor-pointer text-right text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+                <div className="flex items-center justify-end">Saldo Base <SortIcon colKey="baseDebt" /></div>
+              </TableHead>
+            )}
             <TableHead className="text-right pr-8 text-[11px] font-black uppercase tracking-widest text-muted-foreground">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -114,18 +119,27 @@ export function ClientTable({ clients, onEdit, onView, onPrint, onDelete }: Clie
                   <div className="font-bold text-sm text-foreground uppercase">{client.lastName} {client.firstName}</div>
                   <div className="text-[10px] text-muted-foreground mt-0.5 uppercase">Apertura: {client.openingDate}</div>
                 </TableCell>
-                <TableCell>
-                  <Badge className={cn("text-[9px] font-black uppercase border-none", badgeConfig.color)}>
-                    {badgeConfig.label}
-                  </Badge>
-                </TableCell>
+                {!hideFinancials && (
+                  <TableCell>
+                    <Badge className={cn("text-[9px] font-black uppercase border-none", badgeConfig.color)}>
+                      {badgeConfig.label}
+                    </Badge>
+                  </TableCell>
+                )}
                 <TableCell>
                   <div className="text-xs font-semibold text-foreground">{client.phone}</div>
                   <div className="text-[10px] text-muted-foreground">{client.email}</div>
                 </TableCell>
-                <TableCell className="text-right">
-                  <span className="text-sm font-black text-emerald-600">${client.baseDebt?.toFixed(2) || "0.00"}</span>
-                </TableCell>
+                {hideFinancials && (
+                  <TableCell>
+                    <span className="text-xs font-medium text-foreground uppercase">{client.address || "SIN DIRECCIÓN"}</span>
+                  </TableCell>
+                )}
+                {!hideFinancials && (
+                  <TableCell className="text-right">
+                    <span className="text-sm font-black text-emerald-600">${client.baseDebt?.toFixed(2) || "0.00"}</span>
+                  </TableCell>
+                )}
                 <TableCell className="text-right pr-8">
                   <div className="flex items-center justify-end gap-1">
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => onView(client)}>
@@ -138,37 +152,39 @@ export function ClientTable({ clients, onEdit, onView, onPrint, onDelete }: Clie
                       <Edit3 className="h-4 w-4" />
                     </Button>
                     
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="bg-card border-border rounded-[2rem]">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5 text-destructive" />
-                            Confirmar eliminación
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            ¿Estás seguro de que deseas eliminar al socio industrial <strong>{client.lastName} {client.firstName}</strong>? Esta acción no se puede deshacer.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel className="rounded-xl font-bold">Cancelar</AlertDialogCancel>
-                          <AlertDialogAction 
-                            onClick={() => onDelete(client.id)}
-                            className="bg-destructive text-white hover:bg-destructive/90 rounded-xl font-bold"
+                    {canDelete && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
                           >
-                            Eliminar
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-card border-border rounded-[2rem]">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                              <AlertTriangle className="h-5 w-5 text-destructive" />
+                              Confirmar eliminación
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              ¿Estás seguro de que deseas eliminar al socio industrial <strong>{client.lastName} {client.firstName}</strong>? Esta acción no se puede deshacer.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="rounded-xl font-bold">Cancelar</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => onDelete(client.id)}
+                              className="bg-destructive text-white hover:bg-destructive/90 rounded-xl font-bold"
+                            >
+                              Eliminar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

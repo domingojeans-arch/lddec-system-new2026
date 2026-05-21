@@ -48,9 +48,10 @@ interface ClientFormProps {
   initialData?: Client;
   onSubmit: (data: ClientInput) => void;
   onCancel: () => void;
+  hideFinancials?: boolean;
 }
 
-export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps) {
+export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = false }: ClientFormProps) {
   const { user } = useAuth();
   const isContador = user?.role === "contador";
 
@@ -131,29 +132,31 @@ export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps)
           </div>
         </div>
 
-        <FormField
-          control={form.control}
-          name="classification"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clasificación</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger className="erp-input h-11 text-sm font-bold">
-                    <SelectValue placeholder="Seleccione clasificación" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="nacional">Cliente Nacional</SelectItem>
-                  <SelectItem value="socio">Socio</SelectItem>
-                  <SelectItem value="especial">Cliente Especial</SelectItem>
-                  <SelectItem value="moroso">Morosos</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {!hideFinancials && (
+          <FormField
+            control={form.control}
+            name="classification"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Clasificación</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="erp-input h-11 text-sm font-bold">
+                      <SelectValue placeholder="Seleccione clasificación" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="nacional">Cliente Nacional</SelectItem>
+                    <SelectItem value="socio">Socio</SelectItem>
+                    <SelectItem value="especial">Cliente Especial</SelectItem>
+                    <SelectItem value="moroso">Morosos</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="space-y-4">
           <FormField
@@ -196,63 +199,65 @@ export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps)
           />
         </div>
 
-        <div className="bg-muted/30 p-6 rounded-xl border border-border space-y-6">
-          <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">SALDO INICIAL 2026</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="baseDebt"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-[9px] font-black uppercase text-muted-foreground">Deuda Base original ($)</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Wallet className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                      <Input 
-                        type="number" 
-                        step="0.01" 
-                        className="pl-8 erp-input h-10 text-xs font-black text-emerald-600 disabled:opacity-50" 
-                        disabled={isContador}
-                        {...field} 
-                      />
-                    </div>
-                  </FormControl>
-                  {isContador && <p className="text-[8px] text-amber-600 font-bold uppercase">Solo lectura para Contador</p>}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="openingDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-[9px] font-black uppercase text-muted-foreground">Fecha apertura</FormLabel>
-                  <FormControl>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="w-full h-10 erp-input bg-background justify-start text-left font-bold text-xs rounded-xl">
-                          <CalendarIcon className="mr-2 h-3.5 w-3.5 text-primary" />
-                          {openingDateObj && isValid(openingDateObj) ? format(openingDateObj, "dd/MM/yyyy") : "Fecha..."}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden shadow-2xl border-none z-[100]" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={openingDateObj}
-                          onSelect={(d) => field.onChange(d ? format(d, "yyyy-MM-dd") : "")}
-                          locale={es}
-                          initialFocus
+        {!hideFinancials && (
+          <div className="bg-muted/30 p-6 rounded-xl border border-border space-y-6">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">SALDO INICIAL 2026</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="baseDebt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-[9px] font-black uppercase text-muted-foreground">Deuda Base original ($)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Wallet className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          className="pl-8 erp-input h-10 text-xs font-black text-emerald-600 disabled:opacity-50" 
+                          disabled={isContador}
+                          {...field} 
                         />
-                      </PopoverContent>
-                    </Popover>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      </div>
+                    </FormControl>
+                    {isContador && <p className="text-[8px] text-amber-600 font-bold uppercase">Solo lectura para Contador</p>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="openingDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-[9px] font-black uppercase text-muted-foreground">Fecha apertura</FormLabel>
+                    <FormControl>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full h-10 erp-input bg-background justify-start text-left font-bold text-xs rounded-xl">
+                            <CalendarIcon className="mr-2 h-3.5 w-3.5 text-primary" />
+                            {openingDateObj && isValid(openingDateObj) ? format(openingDateObj, "dd/MM/yyyy") : "Fecha..."}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden shadow-2xl border-none z-[100]" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={openingDateObj}
+                            onSelect={(d) => field.onChange(d ? format(d, "yyyy-MM-dd") : "")}
+                            locale={es}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -291,25 +296,41 @@ export function ClientForm({ initialData, onSubmit, onCancel }: ClientFormProps)
 
         <FormField
           control={form.control}
-          name="status"
+          name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Estado Maestro</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger className="erp-input h-11 text-sm font-bold">
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="active">Activo</SelectItem>
-                  <SelectItem value="inactive">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Dirección</FormLabel>
+              <FormControl>
+                <Input placeholder="Dirección completa del cliente..." className="erp-input h-11 text-sm font-bold" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
+
+        {!hideFinancials && (
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Estado Maestro</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger className="erp-input h-11 text-sm font-bold">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="active">Activo</SelectItem>
+                    <SelectItem value="inactive">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <div className="pt-6 border-t border-border flex gap-3">
           <Button type="button" variant="outline" className="flex-1 font-bold h-12" onClick={onCancel}>
