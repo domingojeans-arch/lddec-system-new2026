@@ -69,7 +69,13 @@ function mapFirestoreToEntry(docSnap: any): Entry {
   else if (data.entryDate && data.entryDate.includes('-')) entryDate = data.entryDate;
   const visibleNumber = getEntryVisible(data, id);
   const mappedLots = (data.lotes || []).map((lot: any) => ({ ...lot, id: lot.id || getVisibleLotNumber(lot), lotNumber: getVisibleLotNumber(lot) }));
-  const totalGarments = mappedLots.reduce((acc: number, lot: any) => acc + (Number(lot.cantidadConfirmada || lot.quantity || 0)), 0);
+  const totalGarments = mappedLots.reduce((acc: number, lot: any) => {
+    const garments = lot.garments || lot.prendas || [];
+    if (garments.length > 0) {
+      return acc + garments.reduce((gAcc: number, g: any) => gAcc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0);
+    }
+    return acc + Number(lot.cantidad || lot.cantidadConfirmada || lot.quantity || lot.total || 0);
+  }, 0);
   return { id, entryNumber: visibleNumber, clientName: data.clientName || "Socio", entryDate, responsible: data.responsible || "N/A", isSample: !!data.isSample, status: data.status || "active", totalGarments, lots: mappedLots, notes: data.notes || "" } as Entry;
 }
 

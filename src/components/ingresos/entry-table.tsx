@@ -86,9 +86,6 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
             <TableHead onClick={() => handleSort("totalGarments")} className="cursor-pointer text-[11px] font-black uppercase tracking-widest text-muted-foreground text-center">
               <div className="flex items-center justify-center">Total <SortIcon colKey="totalGarments" /></div>
             </TableHead>
-            <TableHead className="text-[11px] font-black uppercase tracking-widest text-muted-foreground text-center">
-              <div className="flex items-center justify-center">Total Calculado</div>
-            </TableHead>
             <TableHead className="text-[11px] font-black uppercase tracking-widest text-muted-foreground text-right pr-8">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -102,17 +99,7 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
             // Asegurar la obtención del array de lotes bajo cualquier alias idiomático
             const currentLots = entry.lots || (entry as any).lotes || [];
 
-            // Lógica de cálculo en tiempo real blindada y definitiva (Priorizando totalPrendas)
-            let totalGarments = 0;
-            if ((entry as any).totalPrendas !== undefined && (entry as any).totalPrendas !== null && (entry as any).totalPrendas !== "") {
-              totalGarments = Number((entry as any).totalPrendas);
-            } else if (Array.isArray(currentLots) && currentLots.length > 0) {
-              totalGarments = currentLots.reduce((sum: number, lote: any) => {
-                return sum + (Number(lote.cantidad || lote.cantidadConfirmada || lote.quantity || lote.total) || 0);
-              }, 0);
-            } else {
-              totalGarments = Number(entry.totalGarments) || Number((entry as any).total) || Number((entry as any).cantidad) || 0;
-            }
+
 
             return (
               <TableRow key={entry.id} className="border-b border-border hover:bg-muted/10 transition-all duration-200 group">
@@ -138,24 +125,6 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
                   <div className="text-[9px] text-muted-foreground uppercase font-bold mt-0.5 tracking-widest">
                     {currentLots.length} Lotes Registrados
                   </div>
-                </TableCell>
-
-                <TableCell className="text-center">
-                  <span className="text-xl font-black text-foreground tracking-tighter">
-                    {(() => {
-                      const item = entry as any;
-                      // 1. Obtener la suma por campos directos en la raíz
-                      const totalCampos = Number(item.totalPrendas) || Number(item.totalGarments) || Number(item.total) || Number(item.cantidad) || 0;
-
-                      // 2. Si da 0, sumamos el array interno de lotes (soportando lotes y lots, y cantidad/cantidadConfirmada/quantity/total)
-                      const lotesArr = item.lotes || item.lots || [];
-                      const totalLotes = (lotesArr && Array.isArray(lotesArr)) 
-                        ? lotesArr.reduce((sum: number, l: any) => sum + (Number(l.cantidad || l.cantidadConfirmada || l.quantity || l.total) || 0), 0) 
-                        : 0;
-
-                      return totalCampos > 0 ? totalCampos : totalLotes;
-                    })()}
-                  </span>
                 </TableCell>
 
                 <TableCell className="text-center">
