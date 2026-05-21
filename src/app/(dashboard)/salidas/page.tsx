@@ -840,7 +840,7 @@ export default function SalidasPage() {
       </Dialog>
 
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="max-w-3xl p-0 rounded-2xl overflow-hidden bg-card border-none shadow-2xl [&>button]:hidden">
+        <DialogContent className="max-w-3xl p-0 rounded-2xl overflow-hidden bg-card border-none shadow-2xl" hideCloseButton>
           <DialogHeader className="sr-only">
             <DialogTitle>Detalle Guía</DialogTitle>
             <DialogDescription>Visualización compacta de despacho</DialogDescription>
