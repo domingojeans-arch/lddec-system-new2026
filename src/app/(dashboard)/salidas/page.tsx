@@ -158,6 +158,7 @@ export default function SalidasPage() {
 
   // Estados para Lote Manual (Contingencia)
   const [clients, setClients] = useState<any[]>([]);
+  const [isManualFormOpen, setIsManualFormOpen] = useState(false);
   const [manualLotForm, setManualLotForm] = useState({
     lotNumber: "",
     entryNumber: "",
@@ -705,53 +706,66 @@ export default function SalidasPage() {
             </Card>
 
             {/* Agregar Lote Manual (Contingencia) */}
-            <Card className="rounded-2xl border border-border shadow-sm p-5 space-y-4 bg-card">
-              <div className="border-b border-border pb-2 flex items-center gap-1.5">
-                <Plus className="h-4 w-4 text-primary" />
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-primary">Agregar Lote Manual</h4>
-              </div>
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-[9px] font-black uppercase ml-1">N° Lote</Label>
-                    <Input placeholder="LOTE..." value={manualLotForm.lotNumber} onChange={e => setManualLotForm({...manualLotForm, lotNumber: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[9px] font-black uppercase ml-1">N° Ingreso</Label>
-                    <Input placeholder="INGRESO..." value={manualLotForm.entryNumber} onChange={e => setManualLotForm({...manualLotForm, entryNumber: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs" />
-                  </div>
+            <Card className="rounded-2xl border border-border shadow-sm overflow-hidden bg-card transition-all">
+              <button 
+                type="button"
+                onClick={() => setIsManualFormOpen(!isManualFormOpen)} 
+                className="w-full p-5 py-4 flex items-center justify-between text-left hover:bg-muted/5 transition-colors focus:outline-none"
+              >
+                <div className="flex items-center gap-2">
+                  <Plus className={cn("h-4 w-4 text-primary transition-transform duration-200", isManualFormOpen && "rotate-45")} />
+                  <h4 className="text-xs font-black uppercase tracking-wider text-primary">Agregar Lote Manual</h4>
                 </div>
-
-                <div className="space-y-1">
-                  <Label className="text-[9px] font-black uppercase ml-1">Socio Industrial</Label>
-                  <Select value={manualLotForm.clientId} onValueChange={v => setManualLotForm({...manualLotForm, clientId: v})}>
-                    <SelectTrigger className="erp-input h-9 text-xs font-bold"><SelectValue placeholder="Seleccionar Socio..." /></SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {clients.map(c => <SelectItem key={c.id} value={c.id} className="text-xs uppercase font-bold">{(c.name || c.nombre || "").toUpperCase()}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                <div className="text-muted-foreground flex items-center gap-1">
+                  <span className="text-[10px] font-bold uppercase">{isManualFormOpen ? "Ocultar" : "Mostrar"}</span>
+                  <span className="text-xs font-bold">{isManualFormOpen ? "[-]" : "[+]"}</span>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-[9px] font-black uppercase ml-1">Tipo de Prenda</Label>
-                    <Input placeholder="PRENDA..." value={manualLotForm.garmentType} onChange={e => setManualLotForm({...manualLotForm, garmentType: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
+              </button>
+              
+              {isManualFormOpen && (
+                <div className="p-5 pt-0 space-y-4 border-t border-border/50 animate-in slide-in-from-top-2 duration-200">
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] font-black uppercase ml-1">N° Lote</Label>
+                      <Input placeholder="LOTE..." value={manualLotForm.lotNumber} onChange={e => setManualLotForm({...manualLotForm, lotNumber: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] font-black uppercase ml-1">N° Ingreso</Label>
+                      <Input placeholder="INGRESO..." value={manualLotForm.entryNumber} onChange={e => setManualLotForm({...manualLotForm, entryNumber: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs" />
+                    </div>
                   </div>
+
                   <div className="space-y-1">
-                    <Label className="text-[9px] font-black uppercase ml-1">Proceso</Label>
-                    <Input placeholder="PROCESO..." value={manualLotForm.process} onChange={e => setManualLotForm({...manualLotForm, process: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
+                    <Label className="text-[9px] font-black uppercase ml-1">Socio Industrial</Label>
+                    <Select value={manualLotForm.clientId} onValueChange={v => setManualLotForm({...manualLotForm, clientId: v})}>
+                      <SelectTrigger className="erp-input h-9 text-xs font-bold"><SelectValue placeholder="Seleccionar Socio..." /></SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {clients.map(c => <SelectItem key={c.id} value={c.id} className="text-xs uppercase font-bold">{(c.name || c.nombre || "").toUpperCase()}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
 
-                <div className="space-y-1">
-                  <Label className="text-[9px] font-black uppercase ml-1">Cantidad</Label>
-                  <Input type="number" min="1" placeholder="CANTIDAD..." value={manualLotForm.quantity} onChange={e => setManualLotForm({...manualLotForm, quantity: e.target.value})} className="erp-input h-9 text-xs font-bold text-primary" />
-                </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-[9px] font-black uppercase ml-1">Tipo de Prenda</Label>
+                      <Input placeholder="PRENDA..." value={manualLotForm.garmentType} onChange={e => setManualLotForm({...manualLotForm, garmentType: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[9px] font-black uppercase ml-1">Proceso</Label>
+                      <Input placeholder="PROCESO..." value={manualLotForm.process} onChange={e => setManualLotForm({...manualLotForm, process: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
+                    </div>
+                  </div>
 
-                <Button onClick={handleAddManualLot} className="w-full h-9 bg-primary hover:bg-primary/90 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all active:scale-95">
-                  Añadir Lote Manual
-                </Button>
-              </div>
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase ml-1">Cantidad</Label>
+                    <Input type="number" min="1" placeholder="CANTIDAD..." value={manualLotForm.quantity} onChange={e => setManualLotForm({...manualLotForm, quantity: e.target.value})} className="erp-input h-9 text-xs font-bold text-primary" />
+                  </div>
+
+                  <Button onClick={handleAddManualLot} className="w-full h-9 bg-primary hover:bg-primary/90 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all active:scale-95">
+                    Añadir Lote Manual
+                  </Button>
+                </div>
+              )}
             </Card>
 
             <Button onClick={() => setIsSampleModalOpen(true)} disabled={isSaving || itemsToDispatch.length === 0} className="w-full h-12 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-lg transition-all active:scale-95">
