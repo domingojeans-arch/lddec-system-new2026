@@ -155,6 +155,17 @@ export default function SalidasPage() {
   const [searchLote, setSearchLote] = useState("");
   const [searching, setSearching] = useState(false);
   const [foundLotResult, setFoundLotResult] = useState<any | null>(null);
+
+  // Estados para Lote Manual (Contingencia)
+  const [clients, setClients] = useState<any[]>([]);
+  const [manualLotForm, setManualLotForm] = useState({
+    lotNumber: "",
+    entryNumber: "",
+    clientId: "",
+    garmentType: "",
+    process: "",
+    quantity: ""
+  });
   
   const [editingDoc, setEditingDoc] = useState<{ id: string, collection: string, createdAt: any } | null>(null);
 
@@ -216,6 +227,18 @@ export default function SalidasPage() {
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(collection(db, "clients"), (snap) => {
+      setClients(
+        snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a: any, b: any) => (a.name || a.nombre || "").localeCompare(b.name || b.nombre || ""))
+      );
+    });
+    return () => unsub();
+  }, []);
 
   const recentOutputs = useMemo(() => {
     const allNormalized = [...outputsRaw.map(x => normalizarSalida(x, "outputs")), ...salidasRaw.map(x => normalizarSalida(x, "salidas")), ...muestrasRaw.map(x => normalizarSalida(x, "muestras"))];
@@ -445,6 +468,103 @@ export default function SalidasPage() {
     setSearchLote("");
   };
 
+  const handleAddManualLot = () => {
+    if (isReadOnly) return;
+    const { lotNumber, entryNumber, clientId, garmentType, process, quantity } = manualLotForm;
+    
+    if (!lotNumber.trim()) {
+      toast({ variant: "destructive", title: "Campos requeridos", description: "Por favor, ingrese el Número de Lote." });
+      return;
+    }
+    if (!entryNumber.trim()) {
+      toast({ variant: "destructive", title: "Campos requeridos", description: "Por favor, ingrese el Número de Ingreso." });
+      return;
+    }
+    if (!clientId) {
+      toast({ variant: "destructive", title: "Campos requeridos", description: "Por favor, seleccione un Socio Industrial." });
+      return;
+    }
+    if (!garmentType.trim()) {
+      toast({ variant: "destructive", title: "Campos requeridos", description: "Por favor, ingrese el Tipo de Prenda." });
+      return;
+    }
+    if (!process.trim()) {
+      toast({ variant: "destructive", title: "Campos requeridos", description: "Por favor, ingrese el Proceso." });
+      return;
+    }
+    const qtyNum = Number(quantity);
+    if (isNaN(qtyNum) || qtyNum <= 0) {
+      toast({ variant: "destructive", title: "Cantidad inválida", description: "La cantidad debe ser un número mayor a 0." });
+      return;
+    }
+
+    const selectedClient = clients.find(c => c.id === clientId);
+    const clientName = selectedClient ? (selectedClient.name || selectedClient.nombre || "SOCIO").toUpperCase() : "SOCIO";
+
+    // Requisito 3: Identificador visual concatenando " (Manual)"
+    const manualLotName = `${lotNumber.trim().toUpperCase()} (Manual)`;
+
+    const newItem = {
+      entryLotNumber: manualLotName,
+      lotNumber: manualLotName,
+      parentIngresoMaestro: `manual-${Date.now()}`,
+      parentIngresoNumber: entryNumber.trim().toUpperCase(),
+      clientName: clientName,
+      garmentType: garmentType.trim().toUpperCase(),
+      processType: process.trim().toUpperCase(),
+      process: process.trim().toUpperCase(),
+      quantityToDispatch: qtyNum,
+      isManual: true,
+      prendas: [
+        {
+          garmentType: garmentType.trim().toUpperCase(),
+          quantityToDispatch: qtyNum,
+          originalEntryQuantity: qtyNum
+        }
+      ]
+    };
+
+    const existingIndex = itemsToDispatch.findIndex((it: any) => getVisibleLotName(it) === manualLotName);
+
+    if (existingIndex > -1) {
+      const updatedItems = [...itemsToDispatch];
+      const existingItem = {
+        ...updatedItems[existingIndex],
+        prendas: updatedItems[existingIndex].prendas.map((p: any) => ({ ...p }))
+      };
+
+      existingItem.quantityToDispatch = (Number(existingItem.quantityToDispatch) || 0) + qtyNum;
+      
+      const pIdx = existingItem.prendas.findIndex((p: any) => (p.garmentType || "").toUpperCase() === garmentType.trim().toUpperCase());
+      if (pIdx > -1) {
+        existingItem.prendas[pIdx].quantityToDispatch = (Number(existingItem.prendas[pIdx].quantityToDispatch) || 0) + qtyNum;
+      } else {
+        existingItem.prendas.push({
+          garmentType: garmentType.trim().toUpperCase(),
+          quantityToDispatch: qtyNum,
+          originalEntryQuantity: qtyNum
+        });
+      }
+
+      updatedItems[existingIndex] = existingItem;
+      setItemsToDispatch(updatedItems);
+    } else {
+      setItemsToDispatch([...itemsToDispatch, newItem]);
+    }
+
+    // Resetear formulario
+    setManualLotForm({
+      lotNumber: "",
+      entryNumber: "",
+      clientId: "",
+      garmentType: "",
+      process: "",
+      quantity: ""
+    });
+
+    toast({ title: "Lote Manual Agregado", description: `El lote manual ${manualLotName} ha sido agregado con éxito.` });
+  };
+
   const handleSaveOutput = async () => {
     if (isReadOnly) return;
     const term = guideInfo.numeroSalida.trim().toUpperCase();
@@ -584,6 +704,56 @@ export default function SalidasPage() {
               </div>
             </Card>
 
+            {/* Agregar Lote Manual (Contingencia) */}
+            <Card className="rounded-2xl border border-border shadow-sm p-5 space-y-4 bg-card">
+              <div className="border-b border-border pb-2 flex items-center gap-1.5">
+                <Plus className="h-4 w-4 text-primary" />
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-primary">Agregar Lote Manual</h4>
+              </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase ml-1">N° Lote</Label>
+                    <Input placeholder="LOTE..." value={manualLotForm.lotNumber} onChange={e => setManualLotForm({...manualLotForm, lotNumber: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase ml-1">N° Ingreso</Label>
+                    <Input placeholder="INGRESO..." value={manualLotForm.entryNumber} onChange={e => setManualLotForm({...manualLotForm, entryNumber: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs" />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[9px] font-black uppercase ml-1">Socio Industrial</Label>
+                  <Select value={manualLotForm.clientId} onValueChange={v => setManualLotForm({...manualLotForm, clientId: v})}>
+                    <SelectTrigger className="erp-input h-9 text-xs font-bold"><SelectValue placeholder="Seleccionar Socio..." /></SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {clients.map(c => <SelectItem key={c.id} value={c.id} className="text-xs uppercase font-bold">{(c.name || c.nombre || "").toUpperCase()}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase ml-1">Tipo de Prenda</Label>
+                    <Input placeholder="PRENDA..." value={manualLotForm.garmentType} onChange={e => setManualLotForm({...manualLotForm, garmentType: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[9px] font-black uppercase ml-1">Proceso</Label>
+                    <Input placeholder="PROCESO..." value={manualLotForm.process} onChange={e => setManualLotForm({...manualLotForm, process: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-[9px] font-black uppercase ml-1">Cantidad</Label>
+                  <Input type="number" min="1" placeholder="CANTIDAD..." value={manualLotForm.quantity} onChange={e => setManualLotForm({...manualLotForm, quantity: e.target.value})} className="erp-input h-9 text-xs font-bold text-primary" />
+                </div>
+
+                <Button onClick={handleAddManualLot} className="w-full h-9 bg-primary hover:bg-primary/90 text-white font-black uppercase text-[9px] tracking-widest rounded-xl transition-all active:scale-95">
+                  Añadir Lote Manual
+                </Button>
+              </div>
+            </Card>
+
             <Button onClick={() => setIsSampleModalOpen(true)} disabled={isSaving || itemsToDispatch.length === 0} className="w-full h-12 bg-primary text-white font-black uppercase text-[10px] tracking-widest rounded-xl shadow-lg transition-all active:scale-95">
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingDoc ? "ACTUALIZAR SALIDA" : "GUARDAR Y CERRAR SALIDA")}
             </Button>
@@ -613,7 +783,14 @@ export default function SalidasPage() {
                   <TableRow key={idx} className="border-b border-border hover:bg-muted/5 transition-colors">
                     <TableCell className="py-3 pl-5">
                       <div className="flex flex-col">
-                        <span className="font-black text-xs text-primary">{getVisibleLotName(item)}</span>
+                        <span className="font-black text-xs text-primary flex items-center gap-1.5">
+                          {getVisibleLotName(item)}
+                          {(item.isManual || String(getVisibleLotName(item)).endsWith(" (Manual)")) && (
+                            <span className="text-[9px] font-bold uppercase text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-md">
+                              Manual
+                            </span>
+                          )}
+                        </span>
                         <span className="text-[9px] font-bold text-muted-foreground uppercase">ING: {item.parentIngresoNumber || item.numeroIngreso || "S/I"}</span>
                       </div>
                     </TableCell>
