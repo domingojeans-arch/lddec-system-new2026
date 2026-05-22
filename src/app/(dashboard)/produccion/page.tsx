@@ -255,13 +255,76 @@ export default function ProduccionPage() {
 
   const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'rechazado' | 'pendiente', price?: number) => {
     if (isReadOnly) return;
+
+    const work = manualWorks.find(m => m.id === workId);
+    if (!work) return;
+
+    // VALIDACIÓN DE SEGURIDAD CONTRA DUPLICADOS ANTES DE APROBAR
+    if (status === 'aprobado') {
+      try {
+        // 1. Consulta rápida a Firestore buscando registros aprobados del mismo lote y proceso
+        const q = query(
+          collection(db, "manualidades"),
+          where("loteNumero", "==", work.loteNumero),
+          where("proceso", "==", work.proceso),
+          where("estado", "==", "aprobado")
+        );
+        const querySnapshot = await getDocs(q);
+        const approvedDocs = querySnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as any))
+          .filter(doc => doc.id !== workId);
+
+        // 2. Comprobar también en la lista cargada en memoria local para máxima reactividad
+        const localApproved = manualWorks.filter(m =>
+          m.id !== workId &&
+          m.estado === "aprobado" &&
+          String(m.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase() &&
+          String(m.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase()
+        );
+
+        // 3. Unificar por id
+        const allApprovedMap = new Map<string, any>();
+        approvedDocs.forEach(d => allApprovedMap.set(d.id, d));
+        localApproved.forEach(d => allApprovedMap.set(d.id, d));
+        const combinedApproved = Array.from(allApprovedMap.values());
+
+        // 4. Buscar coincidencia exacta: Cliente, Cantidad, Proceso/Manualidad y Lote
+        const isDuplicate = combinedApproved.some(d => {
+          const sameLot = String(d.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase();
+          const sameProcess = String(d.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase();
+          const sameQty = Number(d.cantidad) === Number(work.cantidad);
+          
+          const dClient = String(d.clienteId || d.clienteNombre || d.cliente || "").trim().toUpperCase();
+          const wClient = String(work.clienteId || work.clienteNombre || work.cliente || "").trim().toUpperCase();
+          const sameClient = dClient === wClient && dClient !== "";
+
+          return sameLot && sameProcess && sameQty && sameClient;
+        });
+
+        if (isDuplicate) {
+          toast({
+            variant: "destructive",
+            title: "Error de Aprobación",
+            description: "Error: Este lote ya está registrado con la misma manualidad y cantidad."
+          });
+          return; // DETIENE POR COMPLETO LA ACCIÓN
+        }
+      } catch (error) {
+        console.error("Error en validación de seguridad de duplicados:", error);
+        toast({
+          variant: "destructive",
+          title: "Error de validación",
+          description: "No se pudo completar la verificación de duplicados de seguridad."
+        });
+        return;
+      }
+    }
     
     // 1. Guardar copia del estado previo de manualWorks para posibilitar rollback en caso de fallo
     const previousManualWorks = [...manualWorks];
 
     // Calcular valores optimistas
     let precioFinal = price;
-    const work = manualWorks.find(m => m.id === workId);
     let totalFinal = work?.total || 0;
 
     if (status === 'aprobado' && price !== undefined) {
