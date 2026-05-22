@@ -25,7 +25,7 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
   const prodPrendas = prodEntries.reduce((acc, e) => {
     const rawLots = e.lotes || e.lots || [];
     return acc + rawLots.reduce((lotAcc: number, lot: any) => {
-      const val = lot.cantidadConfirmada !== undefined ? lot.cantidadConfirmada : (lot.quantity || lot.cantidad || 0);
+      const val = lot.cantidad || lot.quantity || lot.cantidadConfirmada || 0;
       return lotAcc + Number(val || 0);
     }, 0);
   }, 0);
@@ -33,7 +33,7 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
   const samplePrendas = sampleEntries.reduce((acc, e) => {
     const rawLots = e.lotes || e.lots || [];
     return acc + rawLots.reduce((lotAcc: number, lot: any) => {
-      const val = lot.cantidadConfirmada !== undefined ? lot.cantidadConfirmada : (lot.quantity || lot.cantidad || 0);
+      const val = lot.cantidad || lot.quantity || lot.cantidadConfirmada || 0;
       return lotAcc + Number(val || 0);
     }, 0);
   }, 0);
@@ -129,7 +129,7 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
                   {prodEntries.length > 0 ? prodEntries.map((e) => {
                     const rawLots = e.lotes || e.lots || [];
                     const qty = rawLots.reduce((acc: number, l: any) => {
-                      const val = l.cantidadConfirmada !== undefined ? l.cantidadConfirmada : (l.quantity || l.cantidad || 0);
+                      const val = l.cantidad || l.quantity || l.cantidadConfirmada || 0;
                       return acc + Number(val || 0);
                     }, 0);
                     return (
@@ -168,7 +168,7 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
                   {sampleEntries.length > 0 ? sampleEntries.map((e) => {
                     const rawLots = e.lotes || e.lots || [];
                     const qty = rawLots.reduce((acc: number, l: any) => {
-                      const val = l.cantidadConfirmada !== undefined ? l.cantidadConfirmada : (l.quantity || l.cantidad || 0);
+                      const val = l.cantidad || l.quantity || l.cantidadConfirmada || 0;
                       return acc + Number(val || 0);
                     }, 0);
                     return (

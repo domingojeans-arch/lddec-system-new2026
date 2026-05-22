@@ -221,7 +221,7 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
 
         const rawLots = entry.lotes || entry.lots || [];
         const quantity = rawLots.reduce((acc: number, l: any) => {
-          const val = l.cantidadConfirmada !== undefined ? l.cantidadConfirmada : (l.quantity || l.cantidad || 0);
+          const val = l.cantidad || l.quantity || l.cantidadConfirmada || 0;
           return acc + Number(val || 0);
         }, 0);
 

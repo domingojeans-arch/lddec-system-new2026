@@ -23,12 +23,12 @@ const FECHA_BASE_2026 = new Date("2026-01-01T00:00:00");
  */
 function getNormalizedQty(item: any): number {
   if (!item) return 0;
-  const val = item.quantityToDispatch ?? 
-              item.cantidadConfirmada ?? 
-              item.quantity ?? 
-              item.cantidad ?? 
-              item.totalPrendas ?? 
-              item.total ?? 0;
+  const val = item.quantityToDispatch || 
+              item.cantidadConfirmada || 
+              item.quantity || 
+              item.cantidad || 
+              item.totalPrendas || 
+              item.total || 0;
   
   const num = Number(val);
   return isNaN(num) || !isFinite(num) ? 0 : num;

@@ -94,7 +94,7 @@ export function ProductionReport({ entries }: ProductionReportProps) {
                 <TableCell className="text-sm print:text-black">{lot.clientName}</TableCell>
                 <TableCell className="text-sm text-muted-foreground print:text-black">{lot.garmentType}</TableCell>
                 <TableCell className="text-sm font-medium print:text-black">{lot.process}</TableCell>
-                <TableCell className="text-center font-black text-primary print:text-black">{lot.quantity}</TableCell>
+                <TableCell className="text-center font-black text-primary print:text-black">{lot.cantidad || lot.quantity || lot.cantidadConfirmada || 0}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className={`text-[10px] uppercase font-black border-none print:text-black print:border-black ${(statusMap[lot.status as keyof typeof statusMap] || statusMap.pending).color}`}>
                     {(statusMap[lot.status as keyof typeof statusMap] || statusMap.pending).label}
