@@ -165,9 +165,16 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
       const fromDate = from.toDate();
       const toDateObj = to.toDate();
 
+      const hasClientFilter = filters.type !== "Liquidación de Pagos a Operarios" && !filters.type.includes("Químicos");
+
       if (filters.type.includes("Ingresos") || filters.type === "Resumen Operativo Mes a Mes") {
         const snap = await getDocs(collection(db, "entries"));
-        const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        if (hasClientFilter && filters.clientId !== "all") {
+          raw = raw.filter((d: any) => d.clientId === filters.clientId || d.clienteId === filters.clientId);
+        }
+
         data.allEntries = raw;
         data.entries = raw.filter((d: any) => {
           let parsedDate = d.date?.toDate ? d.date.toDate() : d.entryDate?.toDate ? d.entryDate.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.fecha ? new Date(d.fecha) : null;
@@ -182,11 +189,15 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           getDocs(collection(db, "muestras"))
         ]);
 
-        const rawOutputs = [
+        let rawOutputs = [
           ...snapOutputs.docs.map(d => ({ id: d.id, ...d.data() })),
           ...snapSalidas.docs.map(d => ({ id: d.id, ...d.data() })),
           ...snapMuestras.docs.map(d => ({ id: d.id, ...d.data() }))
         ];
+
+        if (hasClientFilter && filters.clientId !== "all") {
+          rawOutputs = rawOutputs.filter((d: any) => d.clientId === filters.clientId || d.clienteId === filters.clientId);
+        }
 
         data.allOutputs = rawOutputs;
 
@@ -199,7 +210,12 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
 
       if (filters.type.includes("Facturación") || filters.type.includes("Ventas") || filters.type.includes("Cuenta") || filters.type.includes("Cobranzas") || filters.type === "Resumen Operativo Mes a Mes") {
         const snap = await getDocs(collection(db, "facturas"));
-        const raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        if (hasClientFilter && filters.clientId !== "all") {
+          raw = raw.filter((d: any) => d.clientId === filters.clientId || d.clienteId === filters.clientId);
+        }
+
         data.allInvoices = raw;
         data.invoices = raw.filter((d: any) => {
           let parsedDate = d.fechaFactura?.toDate ? d.fechaFactura.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.invoiceDate ? new Date(d.invoiceDate) : d.date ? new Date(d.date) : d.timestamp ? new Date(d.timestamp) : null;
@@ -211,7 +227,11 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         // 1. Consulta limpia a Firestore filtrando únicamente por estado 'aprobado'
         const q = query(collection(db, "manualidades"), where("estado", "==", "aprobado"));
         const snap = await getDocs(q);
-        const allManualidades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let allManualidades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        if (hasClientFilter && filters.clientId !== "all") {
+          allManualidades = allManualidades.filter((d: any) => d.clienteId === filters.clientId || d.clientId === filters.clientId);
+        }
 
         // 2. Filtrado local por fechas en el cliente (JavaScript)
         data.manualidades = allManualidades.filter((work: any) => {
@@ -364,7 +384,15 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           {filters.type === "Liquidación de Pagos a Operarios" && <OperatorPayoutReport manualWorks={reportData.manualidades} dateFrom={filters.dateFrom} dateTo={filters.dateTo} selectedOperator={filters.operatorName} />}
           {filters.type === "Informe Detallado de Movimientos Químicos" && <ChemicalMovementsDetailedReport movements={reportData.chemicalMovements} chemicals={reportData.chemicalsStock} dateFrom={filters.dateFrom} dateTo={filters.dateTo} selectedSubstance={filters.chemicalId} />}
           {filters.type === "Informe de Movimientos Bancarios" && <BankMovementsReport accounts={reportData.cuentas} transactions={reportData.bankTransactions} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
-          {filters.type === "Estado de Cuentas por Cliente a Fecha de Corte" && <StatementOfAccountsReport clients={clients} invoices={reportData.allInvoices || reportData.invoices} payments={[]} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
+          {filters.type === "Estado de Cuentas por Cliente a Fecha de Corte" && (
+            <StatementOfAccountsReport 
+              clients={filters.clientId === "all" ? clients : clients.filter(c => c.id === filters.clientId)} 
+              invoices={reportData.allInvoices || reportData.invoices} 
+              payments={[]} 
+              dateFrom={filters.dateFrom} 
+              dateTo={filters.dateTo} 
+            />
+          )}
           {filters.type === "Estado de Cuenta Detallado (Formato Contable)" && <StatementOfAccountsDetailed client={clients.find(c => c.id === filters.clientId) || {}} invoices={reportData.allInvoices || reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Informe Detallado de Cobranzas" && <CollectionsDetailedReport collections={reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} client={filters.clientId === "all" ? null : clients.find(c => c.id === filters.clientId)} />}
         </div>
