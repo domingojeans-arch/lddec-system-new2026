@@ -417,7 +417,7 @@ export default function ProduccionPage() {
 
   const handleDeleteManualWork = async (workId: string) => {
     if (isReadOnly) return;
-    if (!window.confirm("¿Seguro que deseas eliminar este registro?")) return;
+    if (!window.confirm("¿Está seguro de eliminar este registro de lote de forma permanente?")) return;
     try {
       await deleteDoc(doc(db, "manualidades", workId));
       toast({ title: "Registro eliminado" });

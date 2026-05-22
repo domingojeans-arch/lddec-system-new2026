@@ -222,18 +222,13 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
                           {(canFullEdit || isHistory) && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => handleOpenEditDialog(work)}><Edit3 className="h-3.5 w-3.5" /></Button>
                           )}
-                          {onDelete && (canFullEdit || isTotalDup || isPartialDup) && (
+                          {onDelete && canFullEdit && (
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className={cn(
-                                "h-8 w-8 rounded-lg transition-colors", 
-                                (isTotalDup || isPartialDup) 
-                                  ? "text-red-600 hover:text-red-700 hover:bg-red-100" 
-                                  : "text-muted-foreground hover:text-red-600 hover:bg-red-50"
-                              )} 
+                              className="h-8 w-8 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors" 
                               onClick={() => onDelete(work.id)} 
-                              title={(isTotalDup || isPartialDup) ? "Eliminar duplicado definitivamente" : "Eliminar registro definitivamente"}
+                              title="Eliminar registro de lote de forma permanente"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
