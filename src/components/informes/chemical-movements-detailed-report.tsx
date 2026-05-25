@@ -40,12 +40,21 @@ export function ChemicalMovementsDetailedReport({ movements, chemicals, dateFrom
     });
   }, [movements]);
 
-  // 2. MÉTRICAS DEL PERIODO FILTRADO
+  // 2. FILTRADO POR SUSTANCIA SELECCIONADA
+  const filteredMovements = useMemo(() => {
+    if (!selectedSubstance || selectedSubstance === "all" || selectedSubstance === "Todas") {
+      return sortedMovements;
+    }
+    const target = normalizeSustancia(selectedSubstance);
+    return sortedMovements.filter(m => normalizeSustancia(m.quimico) === target);
+  }, [sortedMovements, selectedSubstance]);
+
+  // 3. MÉTRICAS DEL PERIODO FILTRADO
   const periodMetrics = useMemo(() => {
     let ingresos = 0;
     let consumos = 0; 
 
-    movements.forEach(m => {
+    filteredMovements.forEach(m => {
       const qty = Number(m.cant || 0);
       const normalizedQty = (m.unit === "gramos" || m.unit === "g") ? qty / 1000 : qty;
 
@@ -54,7 +63,7 @@ export function ChemicalMovementsDetailedReport({ movements, chemicals, dateFrom
     });
 
     return { ingresos, consumos, saldo: ingresos - consumos };
-  }, [movements]);
+  }, [filteredMovements]);
 
   // 3. MÉTRICAS DE CUPO ANUAL Y ARRASTRE
   const quotaMetrics = useMemo(() => {
@@ -105,7 +114,7 @@ export function ChemicalMovementsDetailedReport({ movements, chemicals, dateFrom
   };
 
   const handleExportExcel = () => {
-    const dataForExcel = sortedMovements.map(m => {
+    const dataForExcel = filteredMovements.map(m => {
       const date = toDate(m.fecha || m.createdAt);
       return {
         "Fecha": date ? format(date, 'dd/MM/yyyy HH:mm') : "---",
@@ -287,7 +296,7 @@ export function ChemicalMovementsDetailedReport({ movements, chemicals, dateFrom
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedMovements.map((m, idx) => {
+              {filteredMovements.map((m, idx) => {
                 const date = toDate(m.fecha || m.createdAt);
                 const isIngreso = m.tipo === "INGRESO";
                 const isAjuste = m.tipo === "AJUSTE";
@@ -327,7 +336,7 @@ export function ChemicalMovementsDetailedReport({ movements, chemicals, dateFrom
                   </TableRow>
                 );
               })}
-              {sortedMovements.length === 0 && (
+              {filteredMovements.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="h-40 text-center text-muted-foreground italic uppercase text-[10px] font-black opacity-30">
                     <Package className="h-10 w-10 mx-auto mb-2" />
