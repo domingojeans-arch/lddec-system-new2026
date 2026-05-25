@@ -610,7 +610,122 @@ export default function HistorialPage() {
   const dateToObj = dateTo ? parseISO(dateTo) : undefined;
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-10 animate-in fade-in duration-700 pb-20">
+    <div className="max-w-[1400px] mx-auto space-y-10 animate-in fade-in duration-700 pb-20 main-history-container">
+      <style>{`
+        @media print {
+          @page {
+            size: portrait;
+            margin: 15mm !important;
+          }
+          
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Ocultar barra lateral, cabeceras, botones y elementos no imprimibles */
+          aside, nav, header, footer, button,
+          .print-hidden,
+          [class*="print:hidden"],
+          [class*="sidebar"],
+          [class*="navbar"],
+          [class*="navigation"] {
+            display: none !important;
+          }
+          
+          /* Ajustar contenedor principal al ancho completo */
+          body {
+            background: white !important;
+            color: black !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          .main-history-container {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          
+          /* Cuadrícula limpia 2x2 para las 4 tarjetas superiores de saldos */
+          .print-grid-2x2 {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            gap: 12px !important;
+            margin-bottom: 20px !important;
+          }
+          
+          .print-grid-2x2 > div {
+            padding: 12px !important;
+            border-radius: 12px !important;
+            border: 1px solid #cbd5e1 !important;
+            background: #ffffff !important;
+            box-shadow: none !important;
+            text-align: center !important;
+          }
+          
+          .print-grid-2x2 p {
+            font-size: 8pt !important;
+          }
+          
+          .print-grid-2x2 .text-3xl,
+          .print-grid-2x2 .text-4xl {
+            font-size: 15pt !important;
+          }
+          
+          /* Línea de tiempo operativa optimizada para no cortarse entre hojas */
+          .print-timeline-container {
+            before {
+              border-color: #cbd5e1 !important;
+            }
+          }
+          
+          .print-timeline-item {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            margin-bottom: 15px !important;
+            padding-left: 45px !important;
+          }
+          
+          .print-timeline-dot {
+            left: 18px !important;
+          }
+          
+          /* Acomodar bloques en horizontal para aprovechar el ancho de la hoja */
+          .print-flex-row {
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            width: 100% !important;
+            gap: 12px !important;
+          }
+          
+          .print-flex-row > div:first-child {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 12px !important;
+            text-align: left !important;
+          }
+          
+          .print-flex-row .flex-wrap {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 4px !important;
+          }
+          
+          .print-flex-row button, 
+          .print-flex-row .h-9.w-9 {
+            display: none !important; /* ocultar botón del ojo en impresión */
+          }
+        }
+      `}</style>
       
       <div className="space-y-1">
         <h1 className="text-5xl font-black tracking-tighter uppercase">Historial de Auditoría</h1>
@@ -685,7 +800,7 @@ export default function HistorialPage() {
 
       {auditData && (
         <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 print-grid-2x2">
             <div className="bg-card p-8 rounded-[2rem] border border-border text-center space-y-1 shadow-sm">
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Saldo Inicial Base</p>
               <p className="text-3xl font-black text-foreground">{formatCurrency(auditData.summary.baseDebt)}</p>
@@ -714,11 +829,11 @@ export default function HistorialPage() {
             </Button>
           </div>
 
-          <div className="space-y-4 relative before:absolute before:left-8 before:top-0 before:bottom-0 before:w-0.5 before:bg-muted/50">
+          <div className="space-y-4 relative before:absolute before:left-8 before:top-0 before:bottom-0 before:w-0.5 before:bg-muted/50 print-timeline-container">
             {auditData.timeline.map((event: any, idx: number) => (
-              <div key={idx} className="relative pl-20 group">
+              <div key={idx} className="relative pl-20 group print-timeline-item">
                 <div className={cn(
-                  "absolute left-[30px] top-[22px] h-4 w-4 rounded-full border-4 border-background z-10 transition-transform group-hover:scale-125",
+                  "absolute left-[30px] top-[22px] h-4 w-4 rounded-full border-4 border-background z-10 transition-transform group-hover:scale-125 print-timeline-dot",
                   event.type === 'entry' ? "bg-primary" : 
                   event.type === 'INITIAL_BALANCE_DOC' ? "bg-amber-500" : "bg-primary"
                 )} />
@@ -728,7 +843,7 @@ export default function HistorialPage() {
                     "py-3.5 px-6 rounded-2xl border shadow-premium transition-all",
                     event.type === 'entry' ? "bg-card border-border" : "bg-amber-50/10 border-amber-200"
                   )}>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print-flex-row">
                       <div className="flex items-center gap-4">
                         <div className={cn(
                           "h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0",
