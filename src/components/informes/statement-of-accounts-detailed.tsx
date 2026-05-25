@@ -31,21 +31,28 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
     const from = new Date(dateFrom + "T00:00:00");
     const to = new Date(dateTo + "T23:59:59");
 
-    return invoices
+    const clientInvoices = Array.isArray(invoices) ? invoices : [];
+
+    return clientInvoices
       .filter(inv => {
+        if (!inv) return false;
         const d = toDate(inv.fechaFactura || inv.date);
         const belongsToClient = !client?.id || inv.clientId === client.id || inv.clienteId === client.id;
         return d && d >= from && d <= to && belongsToClient;
       })
       .map(inv => {
+        if (!inv) return null;
         const totalFactura = Number(inv.totalFactura || inv.total || 0);
         const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : [];
         
         const totalHaber = movimientos.reduce((acc: number, p: any) => {
+          if (!p) return acc;
           if (p.anulado) return acc;
           const payDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
           if (!payDate || payDate < from || payDate > to) return acc;
-          return p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0);
+          return p.tipoTransaccion === 'Reverso' || p.tipo === 'Reverso'
+            ? acc - Number(p.monto || 0) 
+            : acc + Number(p.monto || 0);
         }, 0);
 
         const saldo = Math.max(0, totalFactura - totalHaber);
@@ -57,7 +64,7 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
 
         return {
           tipDoc: inv.tipoComprobante === "Nota de Venta" ? "NV" : "FC",
-          documento: inv.numeroFactura || inv.numero || inv.id,
+          documento: String(inv.numeroFactura || inv.numero || inv.id || ""),
           emision: emissionDate.toLocaleDateString('es-EC'),
           vence: emissionDate.toLocaleDateString('es-EC'), // CAMPO PENDIENTE EN BD (Vencimiento específico)
           vend: "00001", // CAMPO PENDIENTE EN BD (Código Vendedor)
@@ -69,19 +76,20 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
           retencion: "" // CAMPO PENDIENTE EN BD (Número de Retención asociado)
         };
       })
-      .sort((a, b) => a.documento.localeCompare(b.documento));
-  }, [invoices, dateFrom, dateTo]);
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      .sort((a, b) => String(a.documento || "").localeCompare(String(b.documento || "")));
+  }, [invoices, dateFrom, dateTo, client]);
 
   const totals = useMemo(() => {
-    const debe = reportRows.reduce((acc, curr) => acc + curr.debe, 0);
-    const haber = reportRows.reduce((acc, curr) => acc + curr.haber, 0);
+    const debe = reportRows.reduce((acc, curr) => acc + (curr?.debe || 0), 0);
+    const haber = reportRows.reduce((acc, curr) => acc + (curr?.haber || 0), 0);
     const saldoAnteriorVal = Number(client?.baseDebt || client?.saldoInicial || 0);
     const saldoFinal = (saldoAnteriorVal + debe) - haber;
     return { debe, haber, saldo: saldoFinal };
   }, [reportRows, client]);
 
   const portfolioSummary = useMemo(() => {
-    const vencido = reportRows.reduce((acc, curr) => curr.diasV > 30 ? acc + curr.saldo : acc, 0);
+    const vencido = reportRows.reduce((acc, curr) => (curr?.diasV || 0) > 30 ? acc + (curr?.saldo || 0) : acc, 0);
     const alDia = Math.max(0, totals.saldo - vencido);
     const pctVencido = totals.saldo > 0 ? (vencido / totals.saldo) * 100 : 0;
     
