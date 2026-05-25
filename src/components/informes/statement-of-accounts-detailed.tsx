@@ -20,6 +20,7 @@ interface StatementOfAccountsDetailedProps {
  */
 export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo }: StatementOfAccountsDetailedProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
+  const saldoAnterior = Number(client?.baseDebt || client?.saldoInicial || 0);
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
@@ -70,12 +71,12 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
   }, [invoices, dateFrom, dateTo]);
 
   const totals = useMemo(() => {
-    return reportRows.reduce((acc, curr) => ({
-      debe: acc.debe + curr.debe,
-      haber: acc.haber + curr.haber,
-      saldo: acc.saldo + curr.saldo
-    }), { debe: 0, haber: 0, saldo: 0 });
-  }, [reportRows]);
+    const debe = reportRows.reduce((acc, curr) => acc + curr.debe, 0);
+    const haber = reportRows.reduce((acc, curr) => acc + curr.haber, 0);
+    const saldoAnteriorVal = Number(client?.baseDebt || client?.saldoInicial || 0);
+    const saldoFinal = (saldoAnteriorVal + debe) - haber;
+    return { debe, haber, saldo: saldoFinal };
+  }, [reportRows, client]);
 
   const portfolioSummary = useMemo(() => {
     const vencido = reportRows.reduce((acc, curr) => curr.diasV > 30 ? acc + curr.saldo : acc, 0);
@@ -160,6 +161,11 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
             <p>Saldo sin sustento: 0.00</p>
             <p className="text-lg font-black">Saldo con sustento: {formatNum(totals.saldo)}</p>
           </div>
+        </div>
+
+        {/* LÍNEA INFORMATIVA DE SALDO ANTERIOR */}
+        <div className="mb-4 text-xs font-bold text-black border-l-4 border-black pl-3 py-1 uppercase tracking-wider">
+          Saldo Anterior Arrastrado: ${formatNum(saldoAnterior)}
         </div>
 
         {/* 3. TABLA PRINCIPAL */}
