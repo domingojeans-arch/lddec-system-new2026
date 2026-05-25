@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Button } from "@/components/ui/button";
 import { Printer, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { calculateClientAccountingMetrics } from "@/lib/accounting-motor";
+import { toDate } from "@/lib/toDate";
 
 interface StatementOfAccountsReportProps {
   clients: any[];
@@ -45,7 +46,8 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
       });
       
       const clientRows = groupClients.map(client => {
-        const clientInvoices = invoices.filter(inv => inv.clientId === client.id || inv.clienteId === client.id || inv.clientName === client.name);
+        if (!client) return null;
+        const clientInvoices = invoices.filter(inv => inv && (inv.clientId === client.id || inv.clienteId === client.id || inv.clientName === client.name));
         
         const saldoAnterior = Number(client.baseDebt || client.saldoInicial || 0);
         
@@ -53,17 +55,19 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         const toDateObj = new Date(dateTo + "T23:59:59");
 
         const invoicesInPeriod = clientInvoices.filter(inv => {
+          if (!inv) return false;
           const d = toDate(inv.fechaFactura || inv.date);
           return d && d >= fromDate && d <= toDateObj;
         });
 
-        const totalDebe = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
+        const totalDebe = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv?.totalFactura || inv?.total || 0), 0);
 
         let totalHaber = 0;
         invoicesInPeriod.forEach(inv => {
+          if (!inv) return;
           const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
           movimientos.forEach((m: any) => {
-            if (!m.anulado) {
+            if (m && !m.anulado) {
               if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
                 totalHaber -= Number(m.monto || 0);
               } else {
@@ -76,7 +80,7 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         const saldoActual = (saldoAnterior + totalDebe) - totalHaber;
 
         return {
-          name: (client.name || `${client.firstName} ${client.lastName}`).toUpperCase(),
+          name: (client.name || `${client.firstName || ""} ${client.lastName || ""}`).toUpperCase().trim(),
           saldoAnterior,
           facturacion: totalDebe,
           nd: 0,
@@ -86,25 +90,25 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
           saldoActual,
           hasMovement: Math.abs(saldoAnterior) > 0.01 || Math.abs(totalDebe) > 0.01 || Math.abs(totalHaber) > 0.01
         };
-      });
+      }).filter((r): r is NonNullable<typeof r> => r !== null);
 
-      const visibleClients = clientRows.filter(c => c.hasMovement || Math.abs(c.saldoActual) > 0.01);
+      const visibleClients = clientRows.filter(c => c && (c.hasMovement || Math.abs(c.saldoActual) > 0.01));
 
       const sortedClients = [...visibleClients].sort((a, b) => {
         const valA = a[sortKey];
         const valB = b[sortKey];
         if (typeof valA === 'string' && typeof valB === 'string') return sortDir === "asc" ? valA.localeCompare(valB, 'es') : valB.localeCompare(valA, 'es');
-        return sortDir === "asc" ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
+        return sortDir === "asc" ? Number(valA || 0) - Number(valB || 0) : Number(valB || 0) - Number(valA || 0);
       });
 
       const groupTotals = visibleClients.reduce((acc, curr) => ({
-        saldoAnterior: acc.saldoAnterior + curr.saldoAnterior,
-        facturacion: acc.facturacion + curr.facturacion,
-        nd: acc.nd + curr.nd,
-        nc: acc.nc + curr.nc,
-        retencion: acc.retencion + curr.retencion,
-        cobro: acc.cobro + curr.cobro,
-        saldoActual: acc.saldoActual + curr.saldoActual,
+        saldoAnterior: acc.saldoAnterior + (curr?.saldoAnterior || 0),
+        facturacion: acc.facturacion + (curr?.facturacion || 0),
+        nd: acc.nd + (curr?.nd || 0),
+        nc: acc.nc + (curr?.nc || 0),
+        retencion: acc.retencion + (curr?.retencion || 0),
+        cobro: acc.cobro + (curr?.cobro || 0),
+        saldoActual: acc.saldoActual + (curr?.saldoActual || 0),
       }), { saldoAnterior: 0, facturacion: 0, nd: 0, nc: 0, retencion: 0, cobro: 0, saldoActual: 0 });
 
       return { ...group, clients: sortedClients, totals: groupTotals };
