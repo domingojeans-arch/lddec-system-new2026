@@ -43,6 +43,8 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
         
         const totalHaber = movimientos.reduce((acc: number, p: any) => {
           if (p.anulado) return acc;
+          const payDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
+          if (!payDate || payDate < from || payDate > to) return acc;
           return p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0);
         }, 0);
 
