@@ -4,8 +4,8 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
-import { calculateClientAccountingMetrics } from "@/lib/accounting-motor";
+import { collection, getDocs } from "firebase/firestore";
+import { toDate } from "@/lib/toDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 
 function PrintContent() {
@@ -24,19 +24,14 @@ function PrintContent() {
       if (!db || !dateFrom || !dateTo) return;
       
       try {
-        const fromTs = Timestamp.fromDate(new Date(dateFrom + "T00:00:00"));
-        const toTs = Timestamp.fromDate(new Date(dateTo + "T23:59:59"));
-
-        // Carga paralela de colecciones
-        const [clientsSnap, invoicesSnap, paymentsSnap] = await Promise.all([
+        // Carga paralela de colecciones completas
+        const [clientsSnap, invoicesSnap] = await Promise.all([
           getDocs(collection(db, "clients")),
-          getDocs(query(collection(db, "facturas"), where("fechaFactura", ">=", fromTs), where("fechaFactura", "<=", toTs))),
-          getDocs(query(collection(db, "payments"), where("fechaTransaccion", ">=", fromTs), where("fechaTransaccion", "<=", toTs)))
+          getDocs(collection(db, "facturas"))
         ]);
 
-        const clients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const invoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const payments = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const clients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+        const invoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
 
         const groups = [
           { id: "nacional", label: "CLIENTE NACIONAL" },
@@ -53,17 +48,45 @@ function PrintContent() {
 
           const rows = groupClients.map(client => {
             const cInvoices = invoices.filter(inv => inv.clientId === client.id || inv.clienteId === client.id);
-            const cPayments = payments.filter(p => p.clienteId === client.id || p.clientId === client.id);
+            
+            const saldoAnterior = Number(client.baseDebt || client.saldoInicial || 0);
+            
+            const fromDate = new Date(dateFrom + "T00:00:00");
+            const toDateObj = new Date(dateTo + "T23:59:59");
 
-            const m = calculateClientAccountingMetrics(
-              Number(client.baseDebt || client.saldoInicial || 0),
-              dateFrom,
-              dateTo,
-              cInvoices,
-              cPayments
-            );
+            const invoicesInPeriod = cInvoices.filter(inv => {
+              const d = toDate(inv.fechaFactura || inv.date);
+              return d && d >= fromDate && d <= toDateObj;
+            });
 
-            return { name: (client.name || client.firstName || "").toUpperCase().trim(), ...m };
+            const totalDebe = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
+
+            let totalHaber = 0;
+            invoicesInPeriod.forEach(inv => {
+              const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+              movimientos.forEach((m: any) => {
+                if (!m.anulado) {
+                  if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
+                    totalHaber -= Number(m.monto || 0);
+                  } else {
+                    totalHaber += Number(m.monto || 0);
+                  }
+                }
+              });
+            });
+
+            const saldoActual = (saldoAnterior + totalDebe) - totalHaber;
+
+            return {
+              name: (client.name || client.firstName || "").toUpperCase().trim(),
+              saldoAnterior,
+              facturacion: totalDebe,
+              nd: 0,
+              nc: 0,
+              retencion: 0,
+              cobro: totalHaber,
+              saldoActual
+            };
           }).filter(r => Math.abs(r.saldoAnterior) > 0.01 || Math.abs(r.facturacion) > 0.01 || Math.abs(r.cobro) > 0.01 || Math.abs(r.saldoActual) > 0.01);
 
           /**

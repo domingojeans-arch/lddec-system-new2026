@@ -47,38 +47,44 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
       const clientRows = groupClients.map(client => {
         const clientInvoices = invoices.filter(inv => inv.clientId === client.id || inv.clienteId === client.id || inv.clientName === client.name);
         
-        // Extraer los pagos/cobranzas incrustados dentro de las facturas (misma lógica del Informe Detallado de Cobranzas)
-        const embeddedPayments: any[] = [];
-        clientInvoices.forEach(inv => {
+        const saldoAnterior = Number(client.baseDebt || client.saldoInicial || 0);
+        
+        const fromDate = new Date(dateFrom + "T00:00:00");
+        const toDateObj = new Date(dateTo + "T23:59:59");
+
+        const invoicesInPeriod = clientInvoices.filter(inv => {
+          const d = toDate(inv.fechaFactura || inv.date);
+          return d && d >= fromDate && d <= toDateObj;
+        });
+
+        const totalDebe = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
+
+        let totalHaber = 0;
+        invoicesInPeriod.forEach(inv => {
           const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
           movimientos.forEach((m: any) => {
             if (!m.anulado) {
-              embeddedPayments.push({
-                ...m,
-                clientId: client.id,
-                fechaTransaccion: m.fechaTransaccion || m.fecha || inv.fechaFactura || inv.date,
-                tipoTransaccion: m.tipoTransaccion || m.tipo || "PAGO",
-                monto: m.monto || 0
-              });
+              if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
+                totalHaber -= Number(m.monto || 0);
+              } else {
+                totalHaber += Number(m.monto || 0);
+              }
             }
           });
         });
 
-        const directPayments = payments.filter(p => p.clienteId === client.id || p.clientId === client.id);
-        const allClientPayments = [...directPayments, ...embeddedPayments];
-
-        const metrics = calculateClientAccountingMetrics(
-          Number(client.baseDebt || client.saldoInicial || 0),
-          dateFrom,
-          dateTo,
-          clientInvoices,
-          allClientPayments
-        );
+        const saldoActual = (saldoAnterior + totalDebe) - totalHaber;
 
         return {
           name: (client.name || `${client.firstName} ${client.lastName}`).toUpperCase(),
-          ...metrics,
-          hasMovement: Math.abs(metrics.saldoAnterior) > 0.01 || Math.abs(metrics.facturacion) > 0.01 || Math.abs(metrics.cobro) > 0.01
+          saldoAnterior,
+          facturacion: totalDebe,
+          nd: 0,
+          nc: 0,
+          retencion: 0,
+          cobro: totalHaber,
+          saldoActual,
+          hasMovement: Math.abs(saldoAnterior) > 0.01 || Math.abs(totalDebe) > 0.01 || Math.abs(totalHaber) > 0.01
         };
       });
 

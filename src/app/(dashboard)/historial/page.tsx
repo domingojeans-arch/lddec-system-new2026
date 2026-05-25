@@ -340,35 +340,32 @@ export default function HistorialPage() {
 
       filteredTimeline.sort((a, b) => b.date.getTime() - a.date.getTime());
 
-      // Extraer los pagos/cobranzas incrustados dentro de las facturas (misma lógica robusta de Estado de Cuentas)
-      const embeddedPayments: any[] = [];
-      clientInvoices.forEach(inv => {
+      const fromDate = new Date((dateFrom || "2026-01-01") + "T00:00:00");
+      const toDateObj = new Date((dateTo || new Date().toISOString().split('T')[0]) + "T23:59:59");
+
+      // Filtrar facturas dentro del rango
+      const invoicesInPeriod = clientInvoices.filter(inv => {
+        const d = toDate(inv.fechaFactura || inv.date);
+        return d && d >= fromDate && d <= toDateObj;
+      });
+
+      const totalFacturado = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
+
+      let totalCobrado = 0;
+      invoicesInPeriod.forEach(inv => {
         const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
         movimientos.forEach((m: any) => {
           if (!m.anulado) {
-            embeddedPayments.push({
-              ...m,
-              clientId: selectedClientId,
-              fechaTransaccion: m.fechaTransaccion || m.fecha || inv.fechaFactura || inv.date,
-              tipoTransaccion: m.tipoTransaccion || m.tipo || "PAGO",
-              monto: m.monto || 0
-            });
+            if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
+              totalCobrado -= Number(m.monto || 0);
+            } else {
+              totalCobrado += Number(m.monto || 0);
+            }
           }
         });
       });
 
-      const metrics = calculateClientAccountingMetrics(
-        baseDebt,
-        dateFrom || "2026-01-01",
-        dateTo || new Date().toISOString().split('T')[0],
-        clientInvoices,
-        embeddedPayments,
-        undefined // Evitamos pasar clientData para evitar arrastrar o duplicar pagos de saldo inicial en el periodo cobrado
-      );
-
-      const totalFacturado = metrics.facturacion;
-      const totalCobrado = metrics.cobro + metrics.retencion + metrics.nc;
-      const saldoPendienteGeneral = (baseDebt + totalFacturado + metrics.nd) - totalCobrado;
+      const saldoPendienteGeneral = (baseDebt + totalFacturado) - totalCobrado;
 
       setAuditData({
         client: clientData,
