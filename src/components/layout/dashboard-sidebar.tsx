@@ -76,9 +76,10 @@ export function DashboardSidebar() {
     return user?.role === "admin" || (item.allowedRoles as string[]).includes(user?.role || "");
   });
 
-  const row1Limit = 10;
-  const row1Items = filteredNav.slice(0, row1Limit);
-  const row2Items = filteredNav.slice(row1Limit);
+  const halfLimit = Math.ceil(filteredNav.length / 2);
+  const row1Items = filteredNav.slice(0, halfLimit);
+  const row2Items = filteredNav.slice(halfLimit);
+  const gridCols = Math.max(row1Items.length, row2Items.length || 1);
 
   return (
     <>
@@ -194,7 +195,10 @@ export function DashboardSidebar() {
         </div>
 
         <nav className="hidden md:flex flex-col gap-2 w-full">
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-1">
+          <div 
+            className="grid gap-2 w-full"
+            style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
+          >
             {row1Items.map((item) => {
               const active = isActive(item.path);
               return (
@@ -202,20 +206,23 @@ export function DashboardSidebar() {
                   key={item.path}
                   href={item.path}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all whitespace-nowrap shrink-0",
+                    "flex items-center justify-center gap-2 px-2 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap overflow-hidden text-ellipsis w-full text-center",
                     active 
                       ? "bg-primary text-white shadow-lg shadow-primary/20" 
                       : "text-muted-foreground hover:text-foreground hover:bg-muted"
                   )}
                 >
-                  <item.icon className={cn("h-4 w-4", active ? "text-white" : "text-muted-foreground")} />
-                  {item.title}
+                  <item.icon className={cn("h-4 w-4 shrink-0", active ? "text-white" : "text-muted-foreground")} />
+                  <span className="truncate">{item.title}</span>
                 </Link>
               );
             })}
           </div>
           {row2Items.length > 0 && (
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            <div 
+              className="grid gap-2 w-full"
+              style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}
+            >
               {row2Items.map((item) => {
                 const active = isActive(item.path);
                 return (
@@ -223,14 +230,14 @@ export function DashboardSidebar() {
                     key={item.path}
                     href={item.path}
                     className={cn(
-                      "flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all whitespace-nowrap shrink-0",
+                      "flex items-center justify-center gap-2 px-2 py-2.5 rounded-full text-xs font-bold transition-all whitespace-nowrap overflow-hidden text-ellipsis w-full text-center",
                       active 
                         ? "bg-primary text-white shadow-lg shadow-primary/20" 
                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
                     )}
                   >
-                    <item.icon className={cn("h-4 w-4", active ? "text-white" : "text-muted-foreground")} />
-                    {item.title}
+                    <item.icon className={cn("h-4 w-4 shrink-0", active ? "text-white" : "text-muted-foreground")} />
+                    <span className="truncate">{item.title}</span>
                   </Link>
                 );
               })}
