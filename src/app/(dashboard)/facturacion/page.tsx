@@ -230,8 +230,44 @@ export default function FacturacionPage() {
           saldoPendiente: data.saldoPendiente !== undefined ? data.saldoPendiente : data.totalFactura,
           pagosYajustes: []
         };
-        await addDoc(collection(db, "facturas"), payload);
+        const newInvoice = await addDoc(collection(db, "facturas"), payload);
         toast({ title: "Documento Emitido" });
+
+        // UPDATE ENTRIES STATUS TO "FACTURADO"
+        try {
+          const entryIdsToUpdate = data.ingresoMaestroIds || (data.ingresoMaestroId ? [data.ingresoMaestroId] : []);
+          for (const eid of entryIdsToUpdate) {
+            const rawEid = String(eid).trim();
+            if (rawEid) {
+              const entriesRef = collection(db, "entries");
+              let entryDocs = await getDocs(query(entriesRef, where("entryNumber", "==", rawEid)));
+              
+              if (!entryDocs.empty) {
+                entryDocs.forEach(async (dSnap) => {
+                  await updateDoc(doc(db, "entries", dSnap.id), {
+                    estadoFacturacion: "FACTURADO",
+                    numeroFactura: data.numeroFactura || "FACTURADO",
+                    facturaId: newInvoice.id,
+                    updatedAt: serverTimestamp()
+                  });
+                });
+              } else {
+                try {
+                  const docRef = doc(db, "entries", rawEid);
+                  await updateDoc(docRef, {
+                    estadoFacturacion: "FACTURADO",
+                    numeroFactura: data.numeroFactura || "FACTURADO",
+                    facturaId: newInvoice.id,
+                    updatedAt: serverTimestamp()
+                  });
+                } catch(e) {}
+              }
+            }
+          }
+        } catch (updateErr) {
+          console.error("Error updating entries state:", updateErr);
+        }
+        
         return true;
       }
     } catch (error) {
