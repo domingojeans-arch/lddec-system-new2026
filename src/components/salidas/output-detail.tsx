@@ -63,6 +63,48 @@ function getVisibleLotName(lote: any): string {
   return "S/L";
 }
 
+export function cleanClientNames(nameStr: string): string {
+  if (!nameStr) return "";
+  const parts = nameStr.split(",").map(p => p.trim()).filter(Boolean);
+  const seenSignatures = new Set<string>();
+  const uniqueParts: string[] = [];
+
+  for (const part of parts) {
+    const words = part.split(/\s+/).filter(Boolean);
+    const cleanWords: string[] = [];
+    for (let i = 0; i < words.length; i++) {
+      if (i === 0 || words[i].toUpperCase() !== words[i - 1].toUpperCase()) {
+        cleanWords.push(words[i]);
+      }
+    }
+    const cleanPart = cleanWords.join(" ");
+    const signature = cleanWords
+      .map(w => w.toUpperCase())
+      .sort()
+      .join(" ");
+
+    if (signature && !seenSignatures.has(signature)) {
+      seenSignatures.add(signature);
+      uniqueParts.push(cleanPart);
+    }
+  }
+
+  const result = uniqueParts.join(", ");
+  const finalWords = result.split(/\s+/).filter(Boolean);
+  const finalCleanWords: string[] = [];
+  for (let i = 0; i < finalWords.length; i++) {
+    const currentWordClean = finalWords[i].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase();
+    const prevWordClean = i > 0 ? finalWords[i - 1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase() : "";
+    if (i === 0 || currentWordClean !== prevWordClean) {
+      finalCleanWords.push(finalWords[i]);
+    }
+  }
+  
+  let finalStr = finalCleanWords.join(" ");
+  finalStr = finalStr.replace(/,\s*,/g, ",").replace(/,\s*$/, "").trim();
+  return finalStr;
+}
+
 export function OutputDetail({ output, onClose }: OutputDetailProps) {
   const [startLine, setStartLine] = useState("1");
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
@@ -89,7 +131,12 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
   const totalMuestras = Number(output?.numeroMuestras || 0);
   const totalGeneral = totalDespachado + totalMuestras;
 
-  const clientName = (output?.containedClientNames?.[0] || output?.clienteNombre || output?.clientName || "SOCIO INDUSTRIAL").toString().toUpperCase();
+  let rawClientName = output?.clienteNombre || output?.cliente || output?.clientName || "";
+  if (!rawClientName) {
+    const clientNamesArray = Array.isArray(output?.containedClientNames) ? output.containedClientNames : [];
+    rawClientName = clientNamesArray.length > 0 ? clientNamesArray.join(", ") : "SOCIO INDUSTRIAL";
+  }
+  const clientName = cleanClientNames(rawClientName.toString().toUpperCase());
 
   const handlePrint = () => {
     if (!output) return;

@@ -13,6 +13,48 @@ interface SalidaPrintContentProps {
  * Procesa cada sublote como una fila independiente.
  * Recupera procesos específicos de cada prenda evitando duplicaciones.
  */
+export function cleanClientNames(nameStr: string): string {
+  if (!nameStr) return "";
+  const parts = nameStr.split(",").map(p => p.trim()).filter(Boolean);
+  const seenSignatures = new Set<string>();
+  const uniqueParts: string[] = [];
+
+  for (const part of parts) {
+    const words = part.split(/\s+/).filter(Boolean);
+    const cleanWords: string[] = [];
+    for (let i = 0; i < words.length; i++) {
+      if (i === 0 || words[i].toUpperCase() !== words[i - 1].toUpperCase()) {
+        cleanWords.push(words[i]);
+      }
+    }
+    const cleanPart = cleanWords.join(" ");
+    const signature = cleanWords
+      .map(w => w.toUpperCase())
+      .sort()
+      .join(" ");
+
+    if (signature && !seenSignatures.has(signature)) {
+      seenSignatures.add(signature);
+      uniqueParts.push(cleanPart);
+    }
+  }
+
+  const result = uniqueParts.join(", ");
+  const finalWords = result.split(/\s+/).filter(Boolean);
+  const finalCleanWords: string[] = [];
+  for (let i = 0; i < finalWords.length; i++) {
+    const currentWordClean = finalWords[i].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase();
+    const prevWordClean = i > 0 ? finalWords[i - 1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase() : "";
+    if (i === 0 || currentWordClean !== prevWordClean) {
+      finalCleanWords.push(finalWords[i]);
+    }
+  }
+  
+  let finalStr = finalCleanWords.join(" ");
+  finalStr = finalStr.replace(/,\s*,/g, ",").replace(/,\s*$/, "").trim();
+  return finalStr;
+}
+
 export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "negro" }: SalidaPrintContentProps) {
   // 1. Date Resolution
   const rawDate = salida.date || salida.fechaSalida || salida.fecha || salida.createdAt;
@@ -26,14 +68,16 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
     : dateObj.toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   // 2. Client Resolution
-  const clientNamesArray = Array.isArray(salida.containedClientNames) ? salida.containedClientNames : [];
-  const uniqueNames = Array.from(new Set(
-    clientNamesArray.map((n: any) => String(n || "").trim().toUpperCase())
-  )).filter(Boolean);
+  let clienteStr = salida.clienteNombre || salida.cliente || salida.clientName || "";
+  if (!clienteStr) {
+    const clientNamesArray = Array.isArray(salida.containedClientNames) ? salida.containedClientNames : [];
+    const uniqueNames = Array.from(new Set(
+      clientNamesArray.map((n: any) => String(n || "").trim().toUpperCase())
+    )).filter(Boolean);
+    clienteStr = uniqueNames.length > 0 ? uniqueNames.join(", ") : "S/D";
+  }
 
-  const clienteStr = uniqueNames.length > 0
-    ? uniqueNames.join(", ")
-    : (salida.clienteNombre || salida.clientName || salida.cliente || "S/D").toString().trim().toUpperCase();
+  clienteStr = cleanClientNames(clienteStr.toString().trim().toUpperCase());
 
   // 3. Data Processing (Main Garment Type & Rows)
   const lines: any[] = [];

@@ -131,18 +131,69 @@ function getVisibleLotName(lote: any): string {
   return "S/L";
 }
 
+export function cleanClientNames(nameStr: string): string {
+  if (!nameStr) return "";
+  const parts = nameStr.split(",").map(p => p.trim()).filter(Boolean);
+  const seenSignatures = new Set<string>();
+  const uniqueParts: string[] = [];
+
+  for (const part of parts) {
+    const words = part.split(/\s+/).filter(Boolean);
+    const cleanWords: string[] = [];
+    for (let i = 0; i < words.length; i++) {
+      if (i === 0 || words[i].toUpperCase() !== words[i - 1].toUpperCase()) {
+        cleanWords.push(words[i]);
+      }
+    }
+    const cleanPart = cleanWords.join(" ");
+    const signature = cleanWords
+      .map(w => w.toUpperCase())
+      .sort()
+      .join(" ");
+
+    if (signature && !seenSignatures.has(signature)) {
+      seenSignatures.add(signature);
+      uniqueParts.push(cleanPart);
+    }
+  }
+
+  const result = uniqueParts.join(", ");
+  const finalWords = result.split(/\s+/).filter(Boolean);
+  const finalCleanWords: string[] = [];
+  for (let i = 0; i < finalWords.length; i++) {
+    const currentWordClean = finalWords[i].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase();
+    const prevWordClean = i > 0 ? finalWords[i - 1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase() : "";
+    if (i === 0 || currentWordClean !== prevWordClean) {
+      finalCleanWords.push(finalWords[i]);
+    }
+  }
+  
+  let finalStr = finalCleanWords.join(" ");
+  finalStr = finalStr.replace(/,\s*,/g, ",").replace(/,\s*$/, "").trim();
+  return finalStr;
+}
+
 const normalizarSalida = (item: any, origen: string) => {
   const numeroSalida = (item.numeroSalida ?? item.numeroGuia ?? item.outputNumber ?? item.numero ?? item.id ?? "S/N").toString().toUpperCase();
   const fechaDate = toDateSafe(item.date ?? item.fechaSalida ?? item.fecha ?? item.createdAt);
   const fechaMs = fechaDate ? fechaDate.getTime() : 0;
-  let socioIndustrial = "S/D";
-  if (Array.isArray(item.containedClientNames) && item.containedClientNames.length > 0) {
+  
+  let socioIndustrial = "";
+  const singleCleanClient = item.clienteNombre || item.cliente || item.clientName;
+  if (singleCleanClient) {
+    socioIndustrial = singleCleanClient;
+  } else if (Array.isArray(item.containedClientNames) && item.containedClientNames.length > 0) {
     socioIndustrial = Array.from(new Set(item.containedClientNames.map((n: string) => n.trim().toUpperCase()))).join(", ");
-  } else socioIndustrial = item.clienteNombre ?? item.clientName ?? item.cliente ?? "S/D";
+  } else {
+    socioIndustrial = "S/D";
+  }
+  
+  socioIndustrial = cleanClientNames(socioIndustrial).toUpperCase();
+  
   let prendas = 0;
   if (Array.isArray(item.itemsDispatched)) prendas = item.itemsDispatched.reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
   else prendas = Number(item.totalPrendas ?? item.total ?? 0);
-  return { id: item.id, numeroSalida, fecha: fechaDate, fechaMs, socioIndustrial: socioIndustrial.toUpperCase(), prendas, origenColeccion: origen, raw: item };
+  return { id: item.id, numeroSalida, fecha: fechaDate, fechaMs, socioIndustrial, prendas, origenColeccion: origen, raw: item };
 };
 
 export default function SalidasPage() {

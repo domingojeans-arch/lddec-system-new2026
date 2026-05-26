@@ -10,6 +10,48 @@ interface SalidaPrintContentProps {
  * Usa coordenadas exactas en CM para coincidir con la papelería física.
  * Soporta múltiples esquemas de datos (Transicional y 2026).
  */
+export function cleanClientNames(nameStr: string): string {
+  if (!nameStr) return "";
+  const parts = nameStr.split(",").map(p => p.trim()).filter(Boolean);
+  const seenSignatures = new Set<string>();
+  const uniqueParts: string[] = [];
+
+  for (const part of parts) {
+    const words = part.split(/\s+/).filter(Boolean);
+    const cleanWords: string[] = [];
+    for (let i = 0; i < words.length; i++) {
+      if (i === 0 || words[i].toUpperCase() !== words[i - 1].toUpperCase()) {
+        cleanWords.push(words[i]);
+      }
+    }
+    const cleanPart = cleanWords.join(" ");
+    const signature = cleanWords
+      .map(w => w.toUpperCase())
+      .sort()
+      .join(" ");
+
+    if (signature && !seenSignatures.has(signature)) {
+      seenSignatures.add(signature);
+      uniqueParts.push(cleanPart);
+    }
+  }
+
+  const result = uniqueParts.join(", ");
+  const finalWords = result.split(/\s+/).filter(Boolean);
+  const finalCleanWords: string[] = [];
+  for (let i = 0; i < finalWords.length; i++) {
+    const currentWordClean = finalWords[i].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase();
+    const prevWordClean = i > 0 ? finalWords[i - 1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase() : "";
+    if (i === 0 || currentWordClean !== prevWordClean) {
+      finalCleanWords.push(finalWords[i]);
+    }
+  }
+  
+  let finalStr = finalCleanWords.join(" ");
+  finalStr = finalStr.replace(/,\s*,/g, ",").replace(/,\s*$/, "").trim();
+  return finalStr;
+}
+
 export function SalidaPrintContent({ salida, startAtLine = 1 }: SalidaPrintContentProps) {
   // 1. Resolución de fecha (Timestamp, String o Date)
   const rawDate = salida.date || salida.fechaSalida || salida.fecha || salida.createdAt;
@@ -27,9 +69,13 @@ export function SalidaPrintContent({ salida, startAtLine = 1 }: SalidaPrintConte
     : dateObj.toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   // 2. Resolución de cliente (Array o String)
-  const clienteStr = (Array.isArray(salida.containedClientNames) && salida.containedClientNames.length > 0
-    ? salida.containedClientNames.join(", ")
-    : (salida.clienteNombre || salida.clientName || salida.cliente || "S/D")).toUpperCase();
+  let clienteStr = salida.clienteNombre || salida.cliente || salida.clientName || "";
+  if (!clienteStr) {
+    const clientNamesArray = Array.isArray(salida.containedClientNames) ? salida.containedClientNames : [];
+    clienteStr = clientNamesArray.length > 0 ? clientNamesArray.join(", ") : "S/D";
+  }
+
+  clienteStr = cleanClientNames(clienteStr.toString().trim().toUpperCase());
 
   // 3. Procesamiento de ítems (Lotes)
   const items = Array.isArray(salida.itemsDispatched) ? salida.itemsDispatched : [];

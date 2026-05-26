@@ -27,11 +27,55 @@ function getGuiaVisible(item: any): string {
   return "GUÍA S/N";
 }
 
-function getClientVisible(item: any): string {
-  if (Array.isArray(item?.containedClientNames) && item.containedClientNames.length > 0) {
-    return item.containedClientNames.join(", ");
+export function cleanClientNames(nameStr: string): string {
+  if (!nameStr) return "";
+  const parts = nameStr.split(",").map(p => p.trim()).filter(Boolean);
+  const seenSignatures = new Set<string>();
+  const uniqueParts: string[] = [];
+
+  for (const part of parts) {
+    const words = part.split(/\s+/).filter(Boolean);
+    const cleanWords: string[] = [];
+    for (let i = 0; i < words.length; i++) {
+      if (i === 0 || words[i].toUpperCase() !== words[i - 1].toUpperCase()) {
+        cleanWords.push(words[i]);
+      }
+    }
+    const cleanPart = cleanWords.join(" ");
+    const signature = cleanWords
+      .map(w => w.toUpperCase())
+      .sort()
+      .join(" ");
+
+    if (signature && !seenSignatures.has(signature)) {
+      seenSignatures.add(signature);
+      uniqueParts.push(cleanPart);
+    }
   }
-  return item?.clientName || item?.clienteNombre || item?.cliente || "S/D";
+
+  const result = uniqueParts.join(", ");
+  const finalWords = result.split(/\s+/).filter(Boolean);
+  const finalCleanWords: string[] = [];
+  for (let i = 0; i < finalWords.length; i++) {
+    const currentWordClean = finalWords[i].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase();
+    const prevWordClean = i > 0 ? finalWords[i - 1].replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").toUpperCase() : "";
+    if (i === 0 || currentWordClean !== prevWordClean) {
+      finalCleanWords.push(finalWords[i]);
+    }
+  }
+  
+  let finalStr = finalCleanWords.join(" ");
+  finalStr = finalStr.replace(/,\s*,/g, ",").replace(/,\s*$/, "").trim();
+  return finalStr;
+}
+
+function getClientVisible(item: any): string {
+  let rawClient = item?.clienteNombre || item?.cliente || item?.clientName || "";
+  if (!rawClient) {
+    const clientNamesArray = Array.isArray(item?.containedClientNames) ? item.containedClientNames : [];
+    rawClient = clientNamesArray.length > 0 ? clientNamesArray.join(", ") : "S/D";
+  }
+  return cleanClientNames(rawClient.toString().toUpperCase());
 }
 
 function getFechaVisible(item: any): string {
