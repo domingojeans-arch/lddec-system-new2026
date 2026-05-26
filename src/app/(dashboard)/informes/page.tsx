@@ -15,6 +15,7 @@ import { collection, getDocs, query } from "firebase/firestore";
 import { ReportGeneratorPanel } from "@/components/informes/report-generator-panel";
 import { AuditLotPanel } from "@/components/informes/audit-lot-panel";
 import { AuditMaestroPanel } from "@/components/informes/audit-maestro-panel";
+import { AuditOutputPanel } from "@/components/informes/audit-output-panel";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -86,6 +87,7 @@ export default function InformesPage() {
               <div className="grid grid-cols-1 gap-10">
                 <AuditLotPanel />
                 <AuditMaestroPanel />
+                <AuditOutputPanel />
               </div>
             </TabsContent>
           </Tabs>
