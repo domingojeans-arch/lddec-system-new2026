@@ -76,9 +76,9 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
 
   const isSample = form.watch("isSample");
 
-  const clientOptions = clients.map(c => ({
-    label: (c.name || c.nombre || `${c.firstName || ""} ${c.lastName || ""}`).trim().toUpperCase(),
-    value: c.id
+  const clientOptions = (clients || []).map(c => ({
+    label: (c?.name || c?.nombre || `${c?.firstName || ""} ${c?.lastName || ""}`).trim().toUpperCase(),
+    value: c?.id || ""
   }));
 
   const handleSampleToggle = (checked: boolean) => {
@@ -111,12 +111,12 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
       return;
     }
 
-    for (const lot of lots) {
-      if (!lot.lotNumber) {
-        setLocalError(`El Lote #${lots.indexOf(lot) + 1} no tiene número.`);
+    for (const lot of lots || []) {
+      if (!lot?.lotNumber) {
+        setLocalError(`El Lote #${(lots || []).indexOf(lot) + 1} no tiene número.`);
         return;
       }
-      if (lot.garments.length === 0) {
+      if (!lot?.garments || lot.garments.length === 0) {
         setLocalError(`El Lote ${lot.lotNumber} debe tener prendas.`);
         return;
       }

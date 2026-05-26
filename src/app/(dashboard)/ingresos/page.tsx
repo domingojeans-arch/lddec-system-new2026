@@ -62,21 +62,45 @@ function getVisibleLotNumber(lot: any): string {
 }
 
 function mapFirestoreToEntry(docSnap: any): Entry {
-  const data = docSnap.data();
+  const data = docSnap.data() || {};
   const id = docSnap.id;
-  let entryDate = "";
-  if (data.date?.toDate) entryDate = data.date.toDate().toISOString().split('T')[0];
-  else if (data.entryDate && data.entryDate.includes('-')) entryDate = data.entryDate;
+  let entryDate = new Date().toISOString().split('T')[0];
+  if (data.date?.toDate) {
+    try { entryDate = data.date.toDate().toISOString().split('T')[0]; } catch(e){}
+  } else if (data.entryDate && typeof data.entryDate === 'string' && data.entryDate.includes('-')) {
+    entryDate = data.entryDate;
+  }
   const visibleNumber = getEntryVisible(data, id);
-  const mappedLots = (data.lotes || []).map((lot: any) => ({ ...lot, id: lot.id || getVisibleLotNumber(lot), lotNumber: getVisibleLotNumber(lot) }));
+  const mappedLots = (data.lotes || []).map((lot: any) => {
+    const garmentsArr = Array.isArray(lot?.garments) ? lot.garments : (Array.isArray(lot?.prendas) ? lot.prendas : []);
+    // Fallback if it's an old structure without garments array
+    const finalGarments = garmentsArr.length > 0 ? garmentsArr : [{ id: Math.random().toString(36).substr(2, 9), garmentType: lot?.garmentType || lot?.tipo || "", quantity: Number(lot?.cantidad || lot?.quantity || 0) }];
+    return { 
+      ...(lot || {}), 
+      id: lot?.id || getVisibleLotNumber(lot), 
+      lotNumber: getVisibleLotNumber(lot),
+      garments: finalGarments
+    };
+  });
   const totalGarments = mappedLots.reduce((acc: number, lot: any) => {
-    const garments = lot.garments || lot.prendas || [];
+    const garments = lot.garments || [];
     if (garments.length > 0) {
       return acc + garments.reduce((gAcc: number, g: any) => gAcc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0);
     }
-    return acc + Number(lot.cantidad || lot.cantidadConfirmada || lot.quantity || lot.total || 0);
+    return acc + Number(lot?.cantidad || lot?.cantidadConfirmada || lot?.quantity || lot?.total || 0);
   }, 0);
-  return { id, entryNumber: visibleNumber, clientName: data.clientName || "Socio", entryDate, responsible: data.responsible || "N/A", isSample: !!data.isSample, status: data.status || "active", totalGarments, lots: mappedLots, notes: data.notes || "" } as Entry;
+  return { 
+    id, 
+    entryNumber: visibleNumber, 
+    clientName: data.clientName || "Socio", 
+    entryDate, 
+    responsible: data.responsible || "N/A", 
+    isSample: !!data.isSample, 
+    status: data.status || "active", 
+    totalGarments, 
+    lots: mappedLots, 
+    notes: data.notes || "" 
+  } as Entry;
 }
 
 export default function IngresosPage() {
