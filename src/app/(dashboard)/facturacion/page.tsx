@@ -174,36 +174,38 @@ export default function FacturacionPage() {
     if (isReadOnly || isSubmitting) return;
 
     // VALIDACIÓN DE UNICIDAD EN FIRESTORE
-    if (!editingInvoice) {
-      setIsSubmitting(true);
-      try {
-        const qFacturas = query(
-          collection(db, "facturas"),
-          where("numeroFactura", "==", data.numeroFactura.trim().toUpperCase()),
-          limit(1)
-        );
-        const querySnapshot = await getDocs(qFacturas);
-        if (!querySnapshot.empty) {
-          toast({
-            variant: "destructive",
-            title: "Alerta de Duplicado",
-            description: "El número de factura ya se encuentra registrado"
-          });
-          setIsSubmitting(false);
-          return;
+    setIsSubmitting(true);
+    try {
+      const qFacturas = query(
+        collection(db, "facturas"),
+        where("numeroFactura", "==", data.numeroFactura.trim().toUpperCase())
+      );
+      const querySnapshot = await getDocs(qFacturas);
+      const isDuplicate = querySnapshot.docs.some(docSnap => {
+        if (editingInvoice) {
+          return docSnap.id !== editingInvoice.id;
         }
-      } catch (error) {
-        console.error("Error al validar unicidad:", error);
+        return true;
+      });
+
+      if (isDuplicate) {
         toast({
           variant: "destructive",
-          title: "Error en validación",
-          description: "No se pudo comprobar la unicidad del número de factura."
+          title: "Alerta de Duplicado",
+          description: "El número de factura ya se encuentra registrado"
         });
         setIsSubmitting(false);
         return;
       }
-    } else {
-      setIsSubmitting(true);
+    } catch (error) {
+      console.error("Error al validar unicidad:", error);
+      toast({
+        variant: "destructive",
+        title: "Error en validación",
+        description: "No se pudo comprobar la unicidad del número de factura."
+      });
+      setIsSubmitting(false);
+      return;
     }
 
     try {
