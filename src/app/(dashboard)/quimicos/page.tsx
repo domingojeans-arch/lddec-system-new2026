@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { 
   Plus, 
   Trash2, 
@@ -154,6 +154,7 @@ export default function ChemicalInventoryPage() {
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingKardex, setLoadingKardex] = useState(false);
+  const initialBalancesCalculated = useRef<Record<string, boolean>>({});
   
   const isAdmin = user?.role === "admin";
   const isReadOnly = user?.role === "socio";
@@ -277,8 +278,9 @@ export default function ChemicalInventoryPage() {
 
       // HERENCIA DE SALDOS INICIALES
       // Si el químico no tiene saldo inicial para este mes, lo calculamos buscando el mes anterior.
-      if (chemicals.length > 0) {
-        const curKey = `${selectedYear}-${selectedMonth}`;
+      const curKey = `${selectedYear}-${selectedMonth}`;
+      if (chemicals.length > 0 && !initialBalancesCalculated.current[curKey]) {
+        initialBalancesCalculated.current[curKey] = true;
         
         let prevYear = parseInt(selectedYear);
         let prevMonth = parseInt(selectedMonth) - 1;
@@ -436,28 +438,6 @@ export default function ChemicalInventoryPage() {
     setPesadaHeader(newHeader);
   };
 
-  useEffect(() => {
-    const weight = parseFloat(pesadaHeader.orderWeight);
-    if (isNaN(weight) || pesadaItems.length === 0) return;
-
-    const newItems = pesadaItems.map(item => {
-      if (!item.chemicalId || !item.procesoTecnico) return item;
-      const chemical = chemicals.find(c => c.id === item.chemicalId);
-      if (!chemical) return item;
-
-      const match = chemMaestro.find(m => m.proceso === item.procesoTecnico && m.sustancia === chemical.chemicalName.toUpperCase());
-
-      if (match) {
-        const minVal = weight * (match.min / 100);
-        const maxVal = weight * (match.max / 100);
-        const avgVal = (minVal + maxVal) / 2;
-        return { ...item, quantity: item.quantity === "" ? (avgVal * 1000).toFixed(0) : item.quantity, suggestion: `Sugerido: ${(minVal * 1000).toFixed(0)} - ${(maxVal * 1000).toFixed(0)} g` };
-      }
-      return { ...item, suggestion: undefined };
-    });
-
-    if (JSON.stringify(newItems) !== JSON.stringify(pesadaItems)) setPesadaItems(newItems);
-  }, [pesadaHeader.orderWeight, pesadaItems, chemicals, chemMaestro]);
 
   const handleStartEditInitial = (id: string, currentKg: number) => {
     if (isReadOnly) return;
@@ -899,7 +879,6 @@ export default function ChemicalInventoryPage() {
                               )}
                             </div>
                           </div>
-                          {item.suggestion && <div className="flex items-center gap-1.5 px-2 animate-in fade-in"><div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" /><p className="text-[10px] font-black text-primary uppercase tracking-tighter">{item.suggestion}</p></div>}
                         </div>
                       );
                     })}
