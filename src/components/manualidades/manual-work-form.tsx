@@ -1,6 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -109,6 +116,29 @@ export function ManualWorkForm({ initialData, onSubmit, onCancel }: ManualWorkFo
   const lotNumber = form.watch("lotNumber");
   const workDate = form.watch("workDate");
   const workDateObj = workDate ? parseISO(workDate) : undefined;
+
+  const isDisabledDate = (date: Date) => {
+    const hoy = dayjs().tz("America/Guayaquil").startOf("day");
+    const targetDate = dayjs(date).tz("America/Guayaquil").startOf("day");
+
+    // Fechas futuras a hoy bloqueadas en cualquier escenario
+    if (targetDate.isAfter(hoy)) {
+      return true;
+    }
+
+    const esPrimerDia = hoy.date() === 1;
+    const esUltimoDia = hoy.date() === hoy.endOf("month").date();
+
+    if (esPrimerDia || esUltimoDia) {
+      // Excepción: permitir mes calendario pasado
+      const limitePasado = hoy.startOf("month").subtract(1, "month").startOf("month");
+      return targetDate.isBefore(limitePasado);
+    } else {
+      // Regla estándar: bloquear fechas anteriores al mes actual
+      const inicioMesActual = hoy.startOf("month");
+      return targetDate.isBefore(inicioMesActual);
+    }
+  };
 
   const handleSelectLot = (lot: any, entryId: string, entryNumber: string, clientId: string, clientName: string) => {
     form.setValue("entryId", entryId);
@@ -278,6 +308,7 @@ export function ManualWorkForm({ initialData, onSubmit, onCancel }: ManualWorkFo
                               mode="single"
                               selected={workDateObj}
                               onSelect={(d) => field.onChange(d ? format(d, "yyyy-MM-dd") : "")}
+                              disabled={isDisabledDate}
                               locale={es}
                               initialFocus
                             />
