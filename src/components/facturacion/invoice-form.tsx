@@ -46,7 +46,10 @@ function getVisibleLotName(lote: any): string {
     lote.lotNumber,
     lote.numeroLote,
     lote.entryLotNumber,
-    lote.lote
+    lote.lote,
+    lote.loteId,
+    lote.loteNumero,
+    lote.idLote
   ];
 
   for (const val of candidates) {
@@ -218,7 +221,18 @@ export function InvoiceForm({
         allOutputs.forEach(output => {
           const items = Array.isArray(output.itemsDispatched) ? output.itemsDispatched : [];
           items.forEach((item: any) => {
-            const parentRef = String(item.parentIngresoMaestro || item.parentIngreso || "").toUpperCase();
+            const parentRef = String(
+              item.parentIngresoMaestro || 
+              item.parentIngreso || 
+              item.entryNumber || 
+              item.numeroIngreso || 
+              output.parentIngresoMaestro || 
+              output.entryNumber || 
+              output.numeroIngreso || 
+              output.referencia || 
+              output.ref || 
+              ""
+            ).toUpperCase();
             if ((parentRef === String(entryId).toUpperCase() || parentRef === String(entryNumberVisible).toUpperCase()) && getVisibleLotName(item) === lid) {
               dispatched += getDispatchedQtyFromOutputItem(item);
             }
