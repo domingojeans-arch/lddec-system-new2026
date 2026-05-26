@@ -233,7 +233,14 @@ export function InvoiceForm({
               output.ref || 
               ""
             ).toUpperCase();
-            if ((parentRef === String(entryId).toUpperCase() || parentRef === String(entryNumberVisible).toUpperCase()) && getVisibleLotName(item) === lid) {
+            
+            const isFromThisEntry = 
+              parentRef === String(entryId).toUpperCase() || 
+              parentRef === String(entryNumberVisible).toUpperCase() ||
+              parentRef === lid ||
+              String(item.parentIngresoMaestro || "").toUpperCase() === lid;
+
+            if (isFromThisEntry && getVisibleLotName(item) === lid) {
               dispatched += getDispatchedQtyFromOutputItem(item);
             }
           });
