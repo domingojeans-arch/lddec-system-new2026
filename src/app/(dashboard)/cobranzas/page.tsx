@@ -415,7 +415,7 @@ export default function CobranzasPage() {
 
       {!isReadOnly && isGenerated && selectedInvoices.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-          <div className="lg:col-span-8 bg-card p-10 rounded-[3rem] border border-border shadow-premium">
+          <div className="lg:col-span-9 bg-card p-10 rounded-[3rem] border border-border shadow-premium">
             <CobranzaForm 
               lines={paymentLines} 
               onAddLine={handleAddLine} 
@@ -424,18 +424,27 @@ export default function CobranzasPage() {
               invoices={invoicesWithBalance.filter(i => selectedInvoices.includes(i.id))} 
             />
           </div>
-          <div className="lg:col-span-4 sticky top-24">
-            <Button 
-              onClick={handleConfirmPayments} 
-              disabled={processing || paymentLines.length === 0} 
-              className="w-full h-24 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg uppercase rounded-[2rem] shadow-2xl shadow-emerald-600/20 gap-3"
-            >
-              {processing ? <Loader2 className="h-6 w-6 animate-spin" /> : <DollarSign className="h-6 w-6" />}
-              Confirmar Aplicación
-            </Button>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase text-center mt-4 px-6">
-              Al confirmar, se actualizarán los saldos de cada factura seleccionada de forma definitiva.
-            </p>
+          <div className="lg:col-span-3 sticky top-24">
+            <div className="bg-card p-6 rounded-[2.5rem] border border-border shadow-premium space-y-5 flex flex-col items-center">
+              <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600">
+                <DollarSign className="h-6 w-6 animate-pulse" />
+              </div>
+              <div className="text-center space-y-1">
+                <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Acción Comercial</h5>
+                <p className="text-xs font-bold text-foreground">Confirmar Cobranza</p>
+              </div>
+              <Button 
+                onClick={handleConfirmPayments} 
+                disabled={processing || paymentLines.length === 0} 
+                className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm uppercase rounded-[2rem] shadow-xl shadow-emerald-600/10 gap-2 transition-all active:scale-95"
+              >
+                {processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <DollarSign className="h-4 w-4" />}
+                Confirmar Aplicación
+              </Button>
+              <p className="text-[9px] leading-relaxed font-bold text-muted-foreground uppercase text-center px-2">
+                Al confirmar, se actualizarán los saldos de cada factura seleccionada de forma definitiva.
+              </p>
+            </div>
           </div>
         </div>
       )}

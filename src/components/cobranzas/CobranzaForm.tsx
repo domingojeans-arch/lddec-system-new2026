@@ -70,8 +70,8 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
 
           return (
             <div key={line.id} className="bg-muted/20 p-6 rounded-[1.5rem] border border-border space-y-6 animate-in slide-in-from-right-2">
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <div className="space-y-1.5 md:col-span-8">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Factura Destino</Label>
                   <Select value={line.invoiceId} onValueChange={(val) => onUpdateLine(line.id, { invoiceId: val })}>
                     <SelectTrigger className="erp-input h-11 bg-background font-bold text-xs">
@@ -87,7 +87,18 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
                   </Select>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 md:col-span-4">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Monto ($)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01"
+                    value={line.monto}
+                    onChange={(e) => onUpdateLine(line.id, { monto: parseFloat(e.target.value) || 0 })}
+                    className="erp-input h-11 bg-background font-black text-emerald-600 text-lg"
+                  />
+                </div>
+
+                <div className="space-y-1.5 md:col-span-4">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Tipo Transacción</Label>
                   <Select 
                     value={line.tipoTransaccion} 
@@ -108,7 +119,7 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
                   </Select>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 md:col-span-4">
                   <Label className={cn("text-[10px] font-black uppercase tracking-widest ml-1", disablePaymentMethod ? "text-muted-foreground/40" : "text-muted-foreground")}>
                     Método de Pago
                   </Label>
@@ -129,7 +140,7 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
                   </Select>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 md:col-span-4">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Fecha Pago</Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -149,17 +160,6 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
                       />
                     </PopoverContent>
                   </Popover>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Monto ($)</Label>
-                  <Input 
-                    type="number" 
-                    step="0.01"
-                    value={line.monto}
-                    onChange={(e) => onUpdateLine(line.id, { monto: parseFloat(e.target.value) || 0 })}
-                    className="erp-input h-11 bg-background font-black text-emerald-600 text-lg"
-                  />
                 </div>
               </div>
 
