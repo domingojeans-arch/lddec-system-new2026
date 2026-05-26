@@ -87,7 +87,8 @@ import {
   serverTimestamp,
   deleteDoc,
   updateDoc,
-  setDoc
+  setDoc,
+  or
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -245,36 +246,85 @@ export default function SalidasPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [viewingOutput, setViewingOutput] = useState<any>(null);
 
-  /**
-   * MOTOR DE CARGA MULTICANAL OPTIMIZADO (GET DOCS)
-   */
   const loadHistory = useCallback(async () => {
     if (!db) return;
     setLoadingHistory(true);
     try {
-      const fromTs = Timestamp.fromDate(new Date(dateFrom + "T00:00:00"));
-      const toTs = Timestamp.fromDate(new Date(dateTo + "T23:59:59"));
+      const term = tableSearch.trim().toUpperCase();
+      let snapOutputs, snapSalidas, snapMuestras;
 
-      // Consultas específicas con rango de fecha para las 3 colecciones
-      const qOutputs = query(collection(db, "outputs"), where("date", ">=", fromTs), where("date", "<=", toTs), orderBy("date", "desc"), limit(200));
-      const qSalidas = query(collection(db, "salidas"), where("fechaSalida", ">=", fromTs), where("fechaSalida", "<=", toTs), orderBy("fechaSalida", "desc"), limit(200));
-      const qMuestras = query(collection(db, "muestras"), where("fecha", ">=", fromTs), where("fecha", "<=", toTs), orderBy("fecha", "desc"), limit(200));
+      if (term) {
+        // Si hay término de búsqueda, ignoramos fechas y buscamos directo por guía o cliente
+        // Firestore procesará el 'or' siempre que no tenga 'orderBy' que rompa los índices por defecto.
+        const qOutputs = query(collection(db, "outputs"), or(
+          where("numeroSalida", "==", term),
+          where("containedClientNames", "array-contains", term)
+        ), limit(100));
 
-      const [snapOutputs, snapSalidas, snapMuestras] = await Promise.all([
-        getDocs(qOutputs),
-        getDocs(qSalidas),
-        getDocs(qMuestras)
-      ]);
+        const qSalidas = query(collection(db, "salidas"), or(
+          where("numeroSalida", "==", term),
+          where("numeroGuia", "==", term),
+          where("clienteNombre", "==", term),
+          where("clientName", "==", term)
+        ), limit(100));
 
-      setOutputsRaw(snapOutputs.docs.map(d => ({ id: d.id, ...d.data() })));
-      setSalidasRaw(snapSalidas.docs.map(d => ({ id: d.id, ...d.data() })));
-      setMuestrasRaw(snapMuestras.docs.map(d => ({ id: d.id, ...d.data() })));
+        const qMuestras = query(collection(db, "muestras"), or(
+          where("numeroSalida", "==", term),
+          where("numero", "==", term),
+          where("cliente", "==", term)
+        ), limit(100));
+
+        const [resOutputs, resSalidas, resMuestras] = await Promise.all([
+          getDocs(qOutputs),
+          getDocs(qSalidas),
+          getDocs(qMuestras)
+        ]);
+        
+        snapOutputs = resOutputs;
+        snapSalidas = resSalidas;
+        snapMuestras = resMuestras;
+
+        // Intentar buscar también por el ID del documento si no hubo resultados en outputs (por si el ID es la guía)
+        if (snapOutputs.empty) {
+          const docRef = doc(db, "outputs", term);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setOutputsRaw([{ id: docSnap.id, ...docSnap.data() }]);
+          } else {
+            setOutputsRaw([]);
+          }
+        } else {
+          setOutputsRaw(snapOutputs.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        }
+
+        setSalidasRaw(snapSalidas.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setMuestrasRaw(snapMuestras.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+
+      } else {
+        // Lógica estándar con fechas
+        const fromTs = Timestamp.fromDate(new Date(dateFrom + "T00:00:00"));
+        const toTs = Timestamp.fromDate(new Date(dateTo + "T23:59:59"));
+
+        const qOutputs = query(collection(db, "outputs"), where("date", ">=", fromTs), where("date", "<=", toTs), orderBy("date", "desc"), limit(200));
+        const qSalidas = query(collection(db, "salidas"), where("fechaSalida", ">=", fromTs), where("fechaSalida", "<=", toTs), orderBy("fechaSalida", "desc"), limit(200));
+        const qMuestras = query(collection(db, "muestras"), where("fecha", ">=", fromTs), where("fecha", "<=", toTs), orderBy("fecha", "desc"), limit(200));
+
+        const [resOutputs, resSalidas, resMuestras] = await Promise.all([
+          getDocs(qOutputs),
+          getDocs(qSalidas),
+          getDocs(qMuestras)
+        ]);
+
+        setOutputsRaw(resOutputs.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setSalidasRaw(resSalidas.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+        setMuestrasRaw(resMuestras.docs.map((d: any) => ({ id: d.id, ...d.data() })));
+      }
     } catch (error) {
       console.warn("Error cargando historial de salidas:", error);
     } finally {
       setLoadingHistory(false);
     }
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, tableSearch]);
 
   useEffect(() => {
     loadHistory();
