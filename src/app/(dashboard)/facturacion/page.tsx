@@ -309,6 +309,54 @@ export default function FacturacionPage() {
     }
   };
 
+  const handleDeleteFully = async (invoice: Invoice) => {
+    const userRole = (user?.role || "").toLowerCase();
+    const canAnular = userRole === "admin" || userRole === "administrador" || userRole === "facturacion";
+
+    if (isReadOnly || !canAnular) {
+      toast({ variant: "destructive", title: "Acceso Denegado" });
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, "facturas", invoice.id));
+      
+      const entryIdsToUpdate = invoice.ingresoMaestroIds || (invoice.ingresoMaestroId ? [invoice.ingresoMaestroId] : []);
+      for (const eid of entryIdsToUpdate) {
+        const rawEid = String(eid).trim();
+        if (rawEid) {
+          const entriesRef = collection(db, "entries");
+          let entryDocs = await getDocs(query(entriesRef, where("entryNumber", "==", rawEid)));
+          
+          if (!entryDocs.empty) {
+            entryDocs.forEach(async (dSnap) => {
+              await updateDoc(doc(db, "entries", dSnap.id), {
+                estadoFacturacion: "PENDIENTE",
+                numeroFactura: "-",
+                facturaId: null,
+                updatedAt: serverTimestamp()
+              });
+            });
+          } else {
+            try {
+              const docRef = doc(db, "entries", rawEid);
+              await updateDoc(docRef, {
+                estadoFacturacion: "PENDIENTE",
+                numeroFactura: "-",
+                facturaId: null,
+                updatedAt: serverTimestamp()
+              });
+            } catch(e) {}
+          }
+        }
+      }
+      
+      toast({ title: "Factura Eliminada", description: "El registro y sus ingresos vinculados han sido revertidos." });
+    } catch (error) {
+      console.error("Error al eliminar factura:", error);
+      toast({ variant: "destructive", title: "Error" });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20 space-y-10 animate-in fade-in duration-700">
       <div className="max-w-[1600px] mx-auto space-y-1">
@@ -392,6 +440,7 @@ export default function FacturacionPage() {
               onView={(inv) => { setViewingInvoice(inv); setIsDetailOpen(true); }} 
               onEdit={handleEdit} 
               onDelete={handleDelete} 
+              onDeleteFully={handleDeleteFully}
               onPrint={(inv) => { setViewingInvoice(inv); setIsDetailOpen(true); }} 
               userRole={user?.role}
             />
