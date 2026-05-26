@@ -195,7 +195,7 @@ export default function FacturacionPage() {
           description: "El número de factura ya se encuentra registrado"
         });
         setIsSubmitting(false);
-        return;
+        return false;
       }
     } catch (error) {
       console.error("Error al validar unicidad:", error);
@@ -205,7 +205,7 @@ export default function FacturacionPage() {
         description: "No se pudo comprobar la unicidad del número de factura."
       });
       setIsSubmitting(false);
-      return;
+      return false;
     }
 
     try {
@@ -219,6 +219,7 @@ export default function FacturacionPage() {
         toast({ title: "Documento Actualizado" });
         setIsSheetOpen(false);
         setEditingInvoice(null);
+        return true;
       } else {
         const payload = {
           ...data,
@@ -231,10 +232,12 @@ export default function FacturacionPage() {
         };
         await addDoc(collection(db, "facturas"), payload);
         toast({ title: "Documento Emitido" });
+        return true;
       }
     } catch (error) {
       console.error("Error saving invoice:", error);
       toast({ variant: "destructive", title: "Error al guardar" });
+      return false;
     } finally {
       setIsSubmitting(false);
     }

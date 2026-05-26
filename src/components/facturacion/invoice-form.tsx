@@ -75,7 +75,7 @@ export function InvoiceForm({
   isSubmitting = false
 }: { 
   clients: any[], 
-  onSubmit: (data: any) => void, 
+  onSubmit: (data: any) => Promise<boolean | void> | void, 
   onCancel: () => void,
   initialData?: any,
   isSubmitting?: boolean
@@ -303,20 +303,36 @@ export function InvoiceForm({
     }
   };
 
-  const handleFinalSubmit = (values: z.infer<typeof invoiceSchema>) => {
+  const handleFinalSubmit = async (values: z.infer<typeof invoiceSchema>) => {
     if (foundEntry && !foundEntry.canInvoice) {
       toast({ variant: "destructive", title: "Acción Denegada", description: "No puede guardar una factura para un ingreso con bloqueos operativos." });
       return;
     }
 
     const client = clients.find(c => c.id === values.clientId);
-    onSubmit({
+    const result = await onSubmit({
       ...values,
       clienteNombre: client?.name || client?.nombre || foundEntry?.clientName || initialData?.clienteNombre,
       totalFactura: total,
       tipoComprobante: isNotaDeVenta ? "Nota de Venta" : "Factura",
       lotesIncluidos: foundEntry ? foundEntry.lotsInvoiced.map((l: any) => l.lid) : (initialData?.lotesIncluidos || [])
     });
+
+    if (result === true && !initialData) {
+      form.reset({
+        numeroFactura: "",
+        fechaFactura: new Date().toISOString().split('T')[0],
+        clientId: "",
+        numeroSalida: "",
+        ingresoMaestroId: "",
+        subtotal: 0,
+        iva: 0,
+        notes: ""
+      });
+      setFoundEntry(null);
+      setSearchEntry("");
+      setValidationError(null);
+    }
   };
 
   return (

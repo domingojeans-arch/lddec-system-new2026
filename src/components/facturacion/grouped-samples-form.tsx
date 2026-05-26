@@ -52,7 +52,7 @@ const groupedInvoiceSchema = z.object({
 
 interface GroupedSamplesFormProps {
   clients: any[];
-  onSubmit: (data: any) => void;
+  onSubmit: (data: any) => Promise<boolean | void> | void;
   onCancel: () => void;
   isSubmitting?: boolean;
 }
@@ -145,7 +145,7 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
     );
   };
 
-  const handleFormSubmit = (values: z.infer<typeof groupedInvoiceSchema>) => {
+  const handleFormSubmit = async (values: z.infer<typeof groupedInvoiceSchema>) => {
     if (selectedEntryIds.length === 0) {
       alert("Seleccione al menos una muestra para facturar.");
       return;
@@ -172,7 +172,19 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
       tipoComprobante: isNotaDeVenta ? "Nota de Venta" : "Factura"
     };
 
-    onSubmit(payload);
+    const result = await onSubmit(payload);
+    
+    if (result === true) {
+      form.reset({
+        numeroFactura: "",
+        clientId: "",
+        fechaFactura: new Date().toISOString().split('T')[0],
+        subtotal: 0,
+        iva: 0,
+        notes: "",
+      });
+      setSelectedEntryIds([]);
+    }
   };
 
   return (
