@@ -54,9 +54,10 @@ interface GroupedSamplesFormProps {
   clients: any[];
   onSubmit: (data: any) => void;
   onCancel: () => void;
+  isSubmitting?: boolean;
 }
 
-export function GroupedSamplesForm({ clients, onSubmit, onCancel }: GroupedSamplesFormProps) {
+export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting = false }: GroupedSamplesFormProps) {
   const [loading, setLoading] = useState(true);
   const [unbilledSamples, setUnbilledSamples] = useState<any[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
@@ -364,11 +365,20 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel }: GroupedSampl
             </Button>
             <Button 
               type="submit" 
-              disabled={selectedEntryIds.length === 0} 
+              disabled={selectedEntryIds.length === 0 || isSubmitting} 
               className="bg-primary hover:bg-primary/90 text-white h-14 px-14 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-primary/20 transition-all active:scale-95 disabled:opacity-30"
             >
-              <Save className="h-4 w-4 mr-3" />
-              {isNotaDeVenta ? "Crear Nota de Venta" : "Crear Factura"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-3 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-3" />
+                  {isNotaDeVenta ? "Crear Nota de Venta" : "Crear Factura"}
+                </>
+              )}
             </Button>
           </div>
         </div>

@@ -22,7 +22,9 @@ import {
   serverTimestamp,
   doc,
   deleteDoc,
-  limit
+  limit,
+  where,
+  getDocs
 } from "firebase/firestore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
@@ -57,6 +59,7 @@ export default function FacturacionPage() {
   const [dateTo, setDateTo] = useState("");
 
   const [activeMode, setActiveMode] = useState("individual");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -168,7 +171,41 @@ export default function FacturacionPage() {
   }, [filteredInvoices]);
 
   const handleFormSubmit = async (data: any) => {
-    if (isReadOnly) return;
+    if (isReadOnly || isSubmitting) return;
+
+    // VALIDACIÓN DE UNICIDAD EN FIRESTORE
+    if (!editingInvoice) {
+      setIsSubmitting(true);
+      try {
+        const qFacturas = query(
+          collection(db, "facturas"),
+          where("numeroFactura", "==", data.numeroFactura.trim().toUpperCase()),
+          limit(1)
+        );
+        const querySnapshot = await getDocs(qFacturas);
+        if (!querySnapshot.empty) {
+          toast({
+            variant: "destructive",
+            title: "Alerta de Duplicado",
+            description: "El número de factura ya se encuentra registrado"
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      } catch (error) {
+        console.error("Error al validar unicidad:", error);
+        toast({
+          variant: "destructive",
+          title: "Error en validación",
+          description: "No se pudo comprobar la unicidad del número de factura."
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    } else {
+      setIsSubmitting(true);
+    }
+
     try {
       if (editingInvoice) {
         const invoiceRef = doc(db, "facturas", editingInvoice.id);
@@ -196,6 +233,8 @@ export default function FacturacionPage() {
     } catch (error) {
       console.error("Error saving invoice:", error);
       toast({ variant: "destructive", title: "Error al guardar" });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -236,8 +275,8 @@ export default function FacturacionPage() {
               <TabsTrigger value="individual" className="px-10 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all">Facturar Individual</TabsTrigger>
               <TabsTrigger value="muestras" className="px-10 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all">Facturar Muestras</TabsTrigger>
             </TabsList>
-            <TabsContent value="individual" className="mt-0 outline-none"><InvoiceForm clients={clients} onSubmit={handleFormSubmit} onCancel={() => {}} /></TabsContent>
-            <TabsContent value="muestras" className="mt-0 outline-none"><GroupedSamplesForm clients={clients} onSubmit={handleFormSubmit} onCancel={() => {}} /></TabsContent>
+            <TabsContent value="individual" className="mt-0 outline-none"><InvoiceForm clients={clients} onSubmit={handleFormSubmit} onCancel={() => {}} isSubmitting={isSubmitting} /></TabsContent>
+            <TabsContent value="muestras" className="mt-0 outline-none"><GroupedSamplesForm clients={clients} onSubmit={handleFormSubmit} onCancel={() => {}} isSubmitting={isSubmitting} /></TabsContent>
           </Tabs>
         </div>
       )}

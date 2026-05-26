@@ -68,12 +68,14 @@ export function InvoiceForm({
   clients, 
   onSubmit, 
   onCancel, 
-  initialData 
+  initialData,
+  isSubmitting = false
 }: { 
   clients: any[], 
   onSubmit: (data: any) => void, 
   onCancel: () => void,
-  initialData?: any
+  initialData?: any,
+  isSubmitting?: boolean
 }) {
   const { toast } = useToast();
   const [searchEntry, setSearchEntry] = useState(initialData?.ingresoMaestroId || "");
@@ -552,11 +554,20 @@ export function InvoiceForm({
             </Button>
             <Button 
               type="submit" 
-              disabled={(!foundEntry || (foundEntry && !foundEntry.canInvoice)) && !initialData} 
+              disabled={((!foundEntry || (foundEntry && !foundEntry.canInvoice)) && !initialData) || isSubmitting} 
               className="bg-primary hover:bg-primary/90 text-white h-14 px-14 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-primary/20 transition-all active:scale-95 disabled:opacity-30"
             >
-              <Save className="h-4 w-4 mr-3" />
-              {initialData ? "Actualizar Registro" : "Registrar Factura"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-3 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-3" />
+                  {initialData ? "Actualizar Registro" : "Registrar Factura"}
+                </>
+              )}
             </Button>
           </div>
         </div>
