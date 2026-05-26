@@ -718,7 +718,7 @@ export default function SalidasPage() {
               </CardHeader>
               <CardContent className="p-5 space-y-4">
                 <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase ml-1">N° Salida</Label><Input value={guideInfo.numeroSalida} onChange={e => setGuideInfo({...guideInfo, numeroSalida: e.target.value.toUpperCase()})} className="erp-input h-10 font-bold text-base text-primary" /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase ml-1">Fecha</Label>
                     <Popover>
@@ -775,7 +775,7 @@ export default function SalidasPage() {
               
               {isManualFormOpen && (
                 <div className="p-5 pt-0 space-y-4 border-t border-border/50 animate-in slide-in-from-top-2 duration-200">
-                  <div className="grid grid-cols-2 gap-2 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4">
                     <div className="space-y-1">
                       <Label className="text-[9px] font-black uppercase ml-1">N° Lote</Label>
                       <Input placeholder="LOTE..." value={manualLotForm.lotNumber} onChange={e => setManualLotForm({...manualLotForm, lotNumber: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />
@@ -796,7 +796,7 @@ export default function SalidasPage() {
                     </Select>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-[9px] font-black uppercase ml-1">Tipo de Prenda</Label>
                       <Input placeholder="PRENDA..." value={manualLotForm.garmentType} onChange={e => setManualLotForm({...manualLotForm, garmentType: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" />

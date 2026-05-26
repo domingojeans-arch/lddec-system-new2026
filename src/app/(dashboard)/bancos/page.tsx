@@ -349,7 +349,7 @@ export default function BancosPage() {
                       className="erp-input h-11 font-bold" 
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Tipo</Label>
                       <Select value={accForm.tipo} onValueChange={v => setAccForm({...accForm, tipo: v})}>

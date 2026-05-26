@@ -102,7 +102,7 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-8">
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="firstName"
@@ -202,7 +202,7 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
         {!hideFinancials && (
           <div className="bg-muted/30 p-6 rounded-xl border border-border space-y-6">
             <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">SALDO INICIAL 2026</h4>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="baseDebt"
@@ -259,7 +259,7 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="phone"

@@ -124,7 +124,7 @@ export function ChemicalForm({ initialData, onSubmit, onCancel }: ChemicalFormPr
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="invoiceNumber"
@@ -173,7 +173,7 @@ export function ChemicalForm({ initialData, onSubmit, onCancel }: ChemicalFormPr
           {/* Weights & Costs */}
           <div className="space-y-6">
             <h4 className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground/60 border-b pb-2">Pesos y Valorización</h4>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="nominalWeight"
@@ -201,7 +201,7 @@ export function ChemicalForm({ initialData, onSubmit, onCancel }: ChemicalFormPr
                 )}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="grossWeight"

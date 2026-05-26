@@ -1039,7 +1039,7 @@ export default function HistorialPage() {
                           <Wallet className="h-6 w-6 text-amber-600" />
                           <h4 className="font-black text-lg">Detalle del Movimiento Base</h4>
                         </div>
-                        <div className="grid grid-cols-2 gap-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                           <div>
                             <p className="text-[10px] font-black text-muted-foreground uppercase">Socio</p>
                             <p className="font-bold text-sm uppercase">{auditData?.client?.displayName || "Socio"}</p>
