@@ -742,6 +742,26 @@ export default function SalidasPage() {
     setItemsToDispatch(itemsToDispatch.filter((_, i) => i !== idx));
   };
 
+  const handleSampleToggle = (checked: boolean) => {
+    const currentVal = guideInfo.numeroSalida || "";
+    const onlyNums = currentVal.replace(/[^0-9]/g, '');
+    setGuideInfo({
+      ...guideInfo,
+      isSample: checked,
+      numeroSalida: checked ? `S-MUES-${onlyNums}` : onlyNums
+    });
+  };
+
+  const handleOutputNumberChange = (value: string) => {
+    const safeVal = value || "";
+    if (guideInfo.isSample) {
+      const onlyNums = safeVal.replace(/[^0-9]/g, '');
+      setGuideInfo({ ...guideInfo, numeroSalida: `S-MUES-${onlyNums}` });
+    } else {
+      setGuideInfo({ ...guideInfo, numeroSalida: safeVal.toUpperCase() });
+    }
+  };
+
   const dateFromObj = dateFrom ? parseISO(dateFrom) : undefined;
   const dateToObj = dateTo ? parseISO(dateTo) : undefined;
   const fechaObj = guideInfo.fecha ? parseISO(guideInfo.fecha) : undefined;
@@ -767,7 +787,33 @@ export default function SalidasPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-5 space-y-4">
-                <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase ml-1">N° Salida</Label><Input value={guideInfo.numeroSalida} onChange={e => setGuideInfo({...guideInfo, numeroSalida: e.target.value.toUpperCase()})} className="erp-input h-10 font-bold text-base text-primary" /></div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between ml-1">
+                    <Label className="text-[10px] font-black uppercase">N° Salida</Label>
+                    <div className="flex items-center gap-2">
+                      <Checkbox 
+                        checked={guideInfo.isSample} 
+                        onCheckedChange={(c) => handleSampleToggle(!!c)} 
+                        className="h-3.5 w-3.5 border-muted-foreground/30 data-[state=checked]:bg-primary"
+                        id="isSampleToggle"
+                      />
+                      <label htmlFor="isSampleToggle" className="text-[9px] font-bold uppercase cursor-pointer text-muted-foreground hover:text-foreground transition-colors">Es Muestra</label>
+                    </div>
+                  </div>
+                  <div className="relative group">
+                    {guideInfo.isSample && (
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+                        <span className="text-xs font-black text-primary/60 uppercase tracking-tighter">S-MUES-</span>
+                      </div>
+                    )}
+                    <Input 
+                      value={guideInfo.isSample ? guideInfo.numeroSalida.replace('S-MUES-', '') : guideInfo.numeroSalida} 
+                      onChange={e => handleOutputNumberChange(e.target.value)} 
+                      className={cn("erp-input h-10 font-bold text-base text-primary transition-all", guideInfo.isSample && "pl-[68px]")} 
+                      placeholder={guideInfo.isSample ? "Número" : "Ej: 7421"}
+                    />
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase ml-1">Fecha</Label>
