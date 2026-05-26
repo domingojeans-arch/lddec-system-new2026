@@ -172,8 +172,8 @@ export default function FaltantesPage() {
         };
         const cantidadFaltante = Number(itemObj.cantidadRecibida || 0) - Number(itemObj.cantidadEnviada || 0);
 
-        // 2. Filtro estricto: solo aparecen las filas donde cantidadFaltante > 0
-        if (cantidadFaltante > 0) {
+        // 2. Filtro estricto con doble candado: ya tuvo envío inicial (> 0) y mantiene saldo pendiente
+        if (itemObj.cantidadEnviada > 0 && cantidadFaltante > 0) {
           const prenda = lote.garmentType || lote.prendas?.[0]?.tipo || lote.garments?.[0]?.garmentType || "Varios";
 
           results.push({
