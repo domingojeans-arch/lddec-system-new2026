@@ -262,11 +262,12 @@ export default function ProduccionPage() {
     // VALIDACIÓN DE SEGURIDAD CONTRA DUPLICADOS ANTES DE APROBAR
     if (status === 'aprobado') {
       try {
-        // 1. Consulta rápida a Firestore buscando registros aprobados del mismo lote y proceso
+        // 1. Consulta rápida a Firestore buscando registros aprobados del mismo lote, proceso y operario
         const q = query(
           collection(db, "manualidades"),
           where("loteNumero", "==", work.loteNumero),
           where("proceso", "==", work.proceso),
+          where("operarioNombre", "==", work.operarioNombre || work.operarioId || ""),
           where("estado", "==", "aprobado")
         );
         const querySnapshot = await getDocs(q);
@@ -279,7 +280,8 @@ export default function ProduccionPage() {
           m.id !== workId &&
           m.estado === "aprobado" &&
           String(m.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase() &&
-          String(m.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase()
+          String(m.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase() &&
+          String(m.operarioNombre || m.operarioId || "").trim().toUpperCase() === String(work.operarioNombre || work.operarioId || "").trim().toUpperCase()
         );
 
         // 3. Unificar por id
@@ -288,7 +290,7 @@ export default function ProduccionPage() {
         localApproved.forEach(d => allApprovedMap.set(d.id, d));
         const combinedApproved = Array.from(allApprovedMap.values());
 
-        // 4. Buscar coincidencia exacta: Cliente, Cantidad, Proceso/Manualidad y Lote
+        // 4. Buscar coincidencia exacta: Cliente, Cantidad, Proceso/Manualidad, Lote y Operario
         const isDuplicate = combinedApproved.some(d => {
           const sameLot = String(d.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase();
           const sameProcess = String(d.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase();
@@ -298,7 +300,11 @@ export default function ProduccionPage() {
           const wClient = String(work.clienteId || work.clienteNombre || work.cliente || "").trim().toUpperCase();
           const sameClient = dClient === wClient && dClient !== "";
 
-          return sameLot && sameProcess && sameQty && sameClient;
+          const dOp = String(d.operarioNombre || d.operarioId || "").trim().toUpperCase();
+          const wOp = String(work.operarioNombre || work.operarioId || "").trim().toUpperCase();
+          const sameOperator = dOp === wOp && dOp !== "";
+
+          return sameLot && sameProcess && sameQty && sameClient && sameOperator;
         });
 
         if (isDuplicate) {
