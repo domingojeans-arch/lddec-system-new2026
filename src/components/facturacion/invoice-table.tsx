@@ -38,15 +38,20 @@ interface InvoiceTableProps {
   onEdit: (invoice: Invoice) => void;
   onDelete: (id: string) => void;
   onPrint: (invoice: Invoice) => void;
+  userRole?: string;
 }
 
 const statusMap: any = {
   "Por Cobrar": "bg-amber-100 text-amber-700 border-amber-200",
   "Parcialmente Cobrada": "bg-blue-100 text-blue-700 border-blue-200",
   "Pagada": "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "ANULADA": "bg-red-100 text-red-700 border-red-200",
 };
 
-export function InvoiceTable({ invoices, onView, onEdit, onDelete, onPrint }: InvoiceTableProps) {
+export function InvoiceTable({ invoices, onView, onEdit, onDelete, onPrint, userRole }: InvoiceTableProps) {
+  const role = (userRole || "").toLowerCase();
+  const isAuthorizedToAnular = role === "admin" || role === "administrador" || role === "facturacion";
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -147,34 +152,36 @@ export function InvoiceTable({ invoices, onView, onEdit, onDelete, onPrint }: In
                         <Printer className="h-4 w-4 text-emerald-600" />
                         Imprimir
                       </DropdownMenuItem>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="gap-3 font-bold text-xs uppercase py-3 rounded-xl cursor-pointer text-destructive focus:bg-destructive/5 focus:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                            Anular Factura
-                          </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-10">
-                          <AlertDialogHeader className="items-center text-center">
-                            <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                              <AlertTriangle className="h-8 w-8 text-red-600" />
-                            </div>
-                            <AlertDialogTitle className="text-2xl font-black uppercase tracking-tight">Anular Comprobante</AlertDialogTitle>
-                            <AlertDialogDescription className="text-muted-foreground font-medium">
-                              ¿Confirmas la anulación definitiva de la factura <strong>{inv.numeroFactura}</strong>? Esta acción no se puede deshacer y liberará los lotes asociados.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter className="mt-8 gap-3">
-                            <AlertDialogCancel className="flex-1 rounded-xl h-12 font-bold uppercase text-[10px] tracking-widest border-border">Cerrar</AlertDialogCancel>
-                            <AlertDialogAction 
-                              onClick={() => onDelete(inv.id)} 
-                              className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl h-12 font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-red-600/20"
-                            >
-                              Anular Definitivamente
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      {isAuthorizedToAnular && inv.estadoCobranza !== "ANULADA" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="gap-3 font-bold text-xs uppercase py-3 rounded-xl cursor-pointer text-destructive focus:bg-destructive/5 focus:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                              Anular Factura
+                            </DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="rounded-[2.5rem] border-none shadow-2xl p-10">
+                            <AlertDialogHeader className="items-center text-center">
+                              <div className="h-16 w-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                                <AlertTriangle className="h-8 w-8 text-red-600" />
+                              </div>
+                              <AlertDialogTitle className="text-2xl font-black uppercase tracking-tight">Anular Comprobante</AlertDialogTitle>
+                              <AlertDialogDescription className="text-muted-foreground font-medium">
+                                ¿Confirmas la anulación definitiva de la factura <strong>{inv.numeroFactura}</strong>? Esta acción no se puede deshacer y liberará los lotes asociados.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-8 gap-3">
+                              <AlertDialogCancel className="flex-1 rounded-xl h-12 font-bold uppercase text-[10px] tracking-widest border-border">Cerrar</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => onDelete(inv.id)} 
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl h-12 font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-red-600/20"
+                              >
+                                Anular Definitivamente
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

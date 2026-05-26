@@ -80,7 +80,7 @@ export type MetodoPagoCobranza =
   | "Cheque" 
   | "Tarjeta";
 
-export type EstadoCobranza = "Por Cobrar" | "Parcialmente Cobrada" | "Pagada";
+export type EstadoCobranza = "Por Cobrar" | "Parcialmente Cobrada" | "Pagada" | "ANULADA";
 
 export interface PagoDetalle {
   id: string;

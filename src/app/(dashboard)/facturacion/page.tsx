@@ -248,16 +248,24 @@ export default function FacturacionPage() {
 
   const handleDelete = async (id: string) => {
     const userRole = (user?.role || "").toLowerCase();
-    const isAdmin = userRole === "admin" || userRole === "administrador";
+    const canAnular = userRole === "admin" || userRole === "administrador" || userRole === "facturacion";
 
-    if (isReadOnly || !isAdmin) {
+    if (isReadOnly || !canAnular) {
       toast({ variant: "destructive", title: "Acceso Denegado" });
       return;
     }
     try {
-      await deleteDoc(doc(db, "facturas", id));
+      const invoiceRef = doc(db, "facturas", id);
+      await updateDoc(invoiceRef, {
+        estadoCobranza: "ANULADA",
+        estado: "ANULADA",
+        estadoCobro: "ANULADA",
+        saldoPendiente: 0,
+        updatedAt: serverTimestamp()
+      });
       toast({ title: "Factura Anulada" });
     } catch (error) {
+      console.error("Error al anular factura:", error);
       toast({ variant: "destructive", title: "Error" });
     }
   };
@@ -346,6 +354,7 @@ export default function FacturacionPage() {
               onEdit={handleEdit} 
               onDelete={handleDelete} 
               onPrint={(inv) => { setViewingInvoice(inv); setIsDetailOpen(true); }} 
+              userRole={user?.role}
             />
           </div>
         </Card>
