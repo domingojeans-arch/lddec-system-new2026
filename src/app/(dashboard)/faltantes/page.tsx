@@ -165,10 +165,15 @@ export default function FaltantesPage() {
           return sum + (itemMatch ? Number(itemMatch.quantityToDispatch || 0) : 0);
         }, 0);
 
-        const faltante = originalQuantity - totalDispatched;
-        const isUnresolved = lote.isNoveltyResolved === false || lote.isNoveltyResolved === undefined;
+        // 1. Definición estricta de variables de negocio y cálculo de saldo pendiente
+        const itemObj = {
+          cantidadRecibida: originalQuantity,
+          cantidadEnviada: totalDispatched
+        };
+        const cantidadFaltante = Number(itemObj.cantidadRecibida || 0) - Number(itemObj.cantidadEnviada || 0);
 
-        if (isUnresolved && faltante > 0 && (lote.productionStatus === "Missing" || totalDispatched > 0)) {
+        // 2. Filtro estricto: solo aparecen las filas donde cantidadFaltante > 0
+        if (cantidadFaltante > 0) {
           const prenda = lote.garmentType || lote.prendas?.[0]?.tipo || lote.garments?.[0]?.garmentType || "Varios";
 
           results.push({
@@ -179,9 +184,11 @@ export default function FaltantesPage() {
             visibleIngresoNumber: getEntryVisible(entry, entry.id),
             clientName: entry.clientName || entry.clienteNombre || "Socio",
             prenda,
+            cantidadRecibida: originalQuantity,
+            cantidadEnviada: totalDispatched,
             originalQuantity,
             totalDispatched,
-            faltante,
+            faltante: cantidadFaltante,
             productionStatus: lote.productionStatus,
             entryDate: entry.entryDate || (entry.date?.toDate ? entry.date.toDate().toLocaleDateString('es-EC') : 'S/F'),
             loteRaw: lote,
