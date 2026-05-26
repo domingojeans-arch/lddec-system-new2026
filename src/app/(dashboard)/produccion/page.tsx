@@ -290,28 +290,24 @@ export default function ProduccionPage() {
         localApproved.forEach(d => allApprovedMap.set(d.id, d));
         const combinedApproved = Array.from(allApprovedMap.values());
 
-        // 4. Buscar coincidencia exacta: Cliente, Cantidad, Proceso/Manualidad, Lote y Operario
+        // 4. Buscar coincidencia exacta de 4 niveles: N° Lote, Manualidad, Operario y Cantidad
         const isDuplicate = combinedApproved.some(d => {
           const sameLot = String(d.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase();
           const sameProcess = String(d.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase();
           const sameQty = Number(d.cantidad) === Number(work.cantidad);
           
-          const dClient = String(d.clienteId || d.clienteNombre || d.cliente || "").trim().toUpperCase();
-          const wClient = String(work.clienteId || work.clienteNombre || work.cliente || "").trim().toUpperCase();
-          const sameClient = dClient === wClient && dClient !== "";
-
           const dOp = String(d.operarioNombre || d.operarioId || "").trim().toUpperCase();
           const wOp = String(work.operarioNombre || work.operarioId || "").trim().toUpperCase();
           const sameOperator = dOp === wOp && dOp !== "";
 
-          return sameLot && sameProcess && sameQty && sameClient && sameOperator;
+          return sameLot && sameProcess && sameQty && sameOperator;
         });
 
         if (isDuplicate) {
           toast({
             variant: "destructive",
             title: "Error de Aprobación",
-            description: "Error: Este lote ya está registrado con la misma manualidad y cantidad."
+            description: "Ya está registrado"
           });
           return; // DETIENE POR COMPLETO LA ACCIÓN
         }
