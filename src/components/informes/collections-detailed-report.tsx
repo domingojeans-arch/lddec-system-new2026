@@ -100,11 +100,14 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
         }
 
         @media print {
-          @page { size: portrait; margin: 1cm; }
-          body { background: white !important; color: black !important; }
+          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
+          body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
           .print-hidden { display: none !important; }
-          #statement-report { padding: 0 !important; width: 100% !important; border: none !important; box-shadow: none !important; display: block !important; }
-          table { border: 0.5pt solid black !important; border-collapse: collapse !important; width: 100% !important; }
+          #statement-report { padding: 0 !important; width: 100% !important; max-width: 100% !important; border: none !important; box-shadow: none !important; display: block !important; }
+          table { width: 100% !important; max-width: 100% !important; border: 0.5pt solid black !important; border-collapse: collapse !important; }
+          thead { display: table-header-group !important; }
+          tfoot { display: table-footer-group !important; }
+          tr { page-break-inside: avoid !important; break-inside: avoid !important; }
           th { border: 0.5pt solid black !important; font-size: 8pt !important; padding: 2px 4px !important; background: #eee !important; color: black !important; font-weight: bold !important; }
           td { border: 0.5pt solid black !important; font-size: 8pt !important; padding: 2px 4px !important; color: black !important; }
           .font-black { font-weight: 900 !important; }

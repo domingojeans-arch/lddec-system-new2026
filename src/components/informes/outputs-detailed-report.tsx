@@ -120,12 +120,14 @@ export function OutputsDetailedReport({ prodOutputs, sampleOutputs, dateFrom, da
     <div className="space-y-10 print:m-0 print:p-0">
       <style jsx global>{`
         @media print {
-          @page { size: A4; margin: 0; }
+          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
           body { margin: 0; padding: 0; background: white !important; }
           #outputs-report-area {
-            width: 21cm;
-            min-height: 29.7cm;
-            padding: 1.5cm;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-height: auto !important;
+            padding: 0 !important;
+            margin: 0 !important;
             position: relative;
             font-family: 'Inter', sans-serif;
             background: white !important;
@@ -133,11 +135,14 @@ export function OutputsDetailedReport({ prodOutputs, sampleOutputs, dateFrom, da
             visibility: visible !important;
           }
           .print-hidden { display: none !important; }
-          .header-logo { position: absolute; top: 1.5cm; right: 1.5cm; width: 2.2cm; height: 2.2cm; object-fit: contain; }
+          .header-logo { position: absolute; top: 0; right: 0; width: 2.2cm; height: 2.2cm; object-fit: contain; }
           .header-title { font-size: 16pt; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; }
           .header-subtitle { font-size: 13pt; font-weight: 700; color: #3b82f6 !important; text-transform: uppercase; margin-bottom: 10px; }
           .meta-info { font-size: 9pt; font-weight: 600; color: #64748b !important; text-transform: uppercase; margin-bottom: 15px; }
-          table { border: 1.5pt solid black !important; border-collapse: collapse !important; width: 100% !important; }
+          table { width: 100% !important; max-width: 100% !important; border: 1.5pt solid black !important; border-collapse: collapse !important; }
+          thead { display: table-header-group !important; }
+          tfoot { display: table-footer-group !important; }
+          tr { page-break-inside: avoid !important; break-inside: avoid !important; }
           th { background: #f1f5f9 !important; border: 1pt solid black !important; color: black !important; font-weight: 900 !important; font-size: 8pt !important; padding: 4px 8px !important; }
           td { border: 1pt solid black !important; color: black !important; font-size: 8pt !important; padding: 3px 8px !important; line-height: 1.1; }
         }

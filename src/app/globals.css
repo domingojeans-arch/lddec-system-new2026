@@ -153,4 +153,31 @@
   .print-hidden {
     display: none !important;
   }
+
+  /* CONFIGURACIÓN DE HOJA A4 Y MÁRGENES ESTÁNDAR */
+  @page {
+    size: A4 portrait !important;
+    margin: 15mm 15mm 15mm 15mm !important;
+  }
+
+  /* AJUSTE DE ANCHO DE LA TABLA AL 100% DEL ESPACIO DE LA HOJA */
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  /* REPETICIÓN DE ENCABEZADOS Y PIES DE TABLA AUTOMÁTICA EN NUEVAS PÁGINAS */
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  /* PROTECCIÓN CONTRA CORTES EN FILAS */
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
