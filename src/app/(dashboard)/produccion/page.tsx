@@ -194,21 +194,9 @@ export default function ProduccionPage() {
     const op = searchOperator.toLowerCase();
     
     const enriched = manualWorks.map(work => {
-      const lotNum = (work.loteNumero || "").toString().toUpperCase();
-      let originalQty = null;
-      
-      for (const entry of entries) {
-        const found = (entry.lotes || []).find((l: any) => {
-          const vName = getVisibleLotName(l);
-          const iId = (l.lotNumber || l.id || l.loteId || l.numeroLote || "").toString().toUpperCase();
-          return iId === lotNum || vName === lotNum;
-        });
-        if (found) {
-          originalQty = Number(found.cantidadConfirmada || found.quantity || found.cantidad || 0);
-          break;
-        }
-      }
-      return { ...work, loteOriginalCant: originalQty };
+      // Determine static original quantity; avoid zero values which indicate no original data
+      const originalQty = Number(work.cantidadOriginal ?? work.cantInicial ?? work.cantidad || 0);
+      return { ...work, loteOriginalCant: originalQty > 0 ? originalQty : undefined };
     });
 
     // Dividir los datos y separar en el cliente según activeTab
@@ -251,7 +239,7 @@ export default function ProduccionPage() {
       const strB = String(compB || "").toLowerCase();
       return manualSortDir === "asc" ? strA.localeCompare(strB, 'es') : strB.localeCompare(strA, 'es');
     });
-  }, [manualWorks, activeTab, searchTerm, searchOperator, manualSortKey, manualSortDir, entries]);
+  }, [manualWorks, activeTab, searchTerm, searchOperator, manualSortKey, manualSortDir]);
 
   const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'rechazado' | 'pendiente', price?: number) => {
     if (isReadOnly) return;

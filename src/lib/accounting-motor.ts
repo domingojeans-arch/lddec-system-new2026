@@ -55,16 +55,13 @@ export function calculateClientAccountingMetrics(
   });
 
   // 2. Procesar Movimientos de Facturas (Payments)
-  payments.forEach(p => {
-    const d = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
-    if (!d || d < FECHA_BASE_2026) return;
-
+  // Use helper to filter payments within the period
+  const filteredPayments = filterPaymentsByDate(payments, effectiveFrom, to);
+  filteredPayments.forEach(p => {
     const monto = Number(p.monto || 0);
     const tipo = (p.tipoTransaccion || "").toString();
-
     let impact = 0;
     let category: 'nd' | 'nc' | 'ret' | 'cobro' | 'none' = 'cobro';
-
     if (tipo === 'Pago' || tipo === 'PAGO' || tipo.includes('Cruce') || tipo === 'PAGO_INICIAL') {
       impact = -monto;
       category = 'cobro';
@@ -78,18 +75,17 @@ export function calculateClientAccountingMetrics(
       impact = monto;
       category = 'nd';
     } else if (tipo.includes('Reverso')) {
-      impact = monto; 
+      impact = monto;
       category = 'cobro';
     }
-
-    if (d < effectiveFrom) {
+    const pDate = toDate(p.fechaTransaccion);
+    if (pDate && pDate < effectiveFrom) {
       previousMovementsNet += impact;
-    } else if (d <= to) {
+    } else {
       if (category === 'cobro') {
         if (tipo.includes('Reverso')) periodCobro -= monto;
         else periodCobro += monto;
-      }
-      else if (category === 'ret') periodRetencion += monto;
+      } else if (category === 'ret') periodRetencion += monto;
       else if (category === 'nc') periodNC += monto;
       else if (category === 'nd') periodND += monto;
     }
@@ -100,15 +96,14 @@ export function calculateClientAccountingMetrics(
   let siPaymentsBeforeFrom = 0;
   let siPaymentsDuringPeriod = 0;
 
-  pagosInicial.forEach((p: any) => {
-    if (p.anulado) return;
-    const d = toDate(p.fechaTransaccion || p.fecha);
-    if (!d || d < FECHA_BASE_2026) return;
-
+  // Filter initial balance payments using helper
+  const filteredSI = filterPaymentsByDate(pagosInicial, effectiveFrom, to);
+  filteredSI.forEach(p => {
     const monto = Number(p.monto || 0);
-    if (d < effectiveFrom) {
+    const d = toDate(p.fechaTransaccion || p.fecha);
+    if (d && d < effectiveFrom) {
       siPaymentsBeforeFrom += monto;
-    } else if (d <= to) {
+    } else {
       siPaymentsDuringPeriod += monto;
     }
   });
@@ -130,4 +125,16 @@ export function calculateClientAccountingMetrics(
     cobro: finalPeriodCobro,
     saldoActual
   };
+}
+
+// Helper to filter payments by a date range inclusive
+export function filterPaymentsByDate(payments: any[], fromDate: Date, toDateVal: Date): any[] {
+  const from = fromDate instanceof Date ? fromDate : new Date(fromDate);
+  const to = toDateVal instanceof Date ? toDateVal : new Date(toDateVal);
+  return payments.filter(p => {
+    if (p.anulado) return false;
+    const d = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
+    if (!d) return false;
+    return d >= from && d <= to;
+  });
 }

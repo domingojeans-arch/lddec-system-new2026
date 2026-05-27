@@ -149,7 +149,7 @@ export function LotRowsEditor({ lots, onChange, garmentCatalog, processCatalog }
                           <SelectValue placeholder="Seleccione Prenda" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl shadow-2xl">
-                          {garmentCatalog.map(g => (
+                          {Array.from(new Set([...garmentCatalog, garment.garmentType].filter(Boolean))).map(g => (
                             <SelectItem key={g} value={g}>{g}</SelectItem>
                           ))}
                         </SelectContent>

@@ -34,7 +34,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { toDate } from "@/lib/toDate";
-import { calculateClientAccountingMetrics } from "@/lib/accounting-motor";
+import { calculateClientAccountingMetrics, filterPaymentsByDate } from "@/lib/accounting-motor";
 import { Badge } from "@/components/ui/badge";
 
 const FECHA_BASE_2026 = new Date("2026-01-01T00:00:00");
@@ -118,23 +118,21 @@ export default function CobranzasPage() {
    */
   const invoicesWithBalance = useMemo(() => {
     if (!isGenerated || !currentClient) return [];
+
+    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : new Date();
     const to = dateTo ? new Date(dateTo + "T23:59:59") : new Date();
 
     const result: any[] = [];
 
-    // 1. PROCESAR SALDO INICIAL 2026 (FILA VIRTUAL)
+    // 1. Process initial balance 2026 (virtual row) with date filter
     const baseDebt = Number(currentClient.baseDebt || currentClient.saldoInicial || 0);
     const pagosSI = Array.isArray(currentClient.pagosSaldoInicial) ? currentClient.pagosSaldoInicial : [];
-    
-    const totalAbonadoSI = pagosSI.reduce((acc: number, p: any) => {
+    const filteredPagosSI = filterPaymentsByDate(pagosSI, from, to);
+    const totalAbonadoSI = filteredPagosSI.reduce((acc: number, p: any) => {
       if (p.anulado) return acc;
-      const d = toDate(p.fechaTransaccion || p.fecha);
-      if (!d || d < FECHA_BASE_2026) return acc;
       return p.tipoTransaccion === 'Reverso' ? acc - p.monto : acc + p.monto;
     }, 0);
-
     const saldoSI = Math.max(0, baseDebt - totalAbonadoSI);
-
     if (saldoSI > 0.01) {
       result.push({
         id: "INITIAL_BALANCE_2026",
@@ -147,12 +145,13 @@ export default function CobranzasPage() {
       });
     }
 
-    // 2. PROCESAR FACTURAS REALES (Solo 2026+)
+    // 2. Process real invoices (2026+)
     const facturaRows = allInvoices.map(inv => {
       const invDate = toDate(inv.fechaFactura || inv.date);
-      const totalAbonado = (inv.pagosYajustes || []).reduce((acc: any, p: any) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - p.monto : acc + p.monto), 0);
+      const pagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+      const filteredPagos = filterPaymentsByDate(pagos, from, to);
+      const totalAbonado = filteredPagos.reduce((acc: any, p: any) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - p.monto : acc + p.monto), 0);
       const saldo = Math.max(0, Number(inv.totalFactura || 0) - totalAbonado);
-      
       return {
         ...inv,
         _normalizedSaldo: saldo,
@@ -165,8 +164,8 @@ export default function CobranzasPage() {
       return inv._normalizedSaldo > 0.01;
     });
 
-    return [...result, ...facturaRows].sort((a,b) => b._normalizedDate.getTime() - a._normalizedDate.getTime());
-  }, [allInvoices, dateTo, currentClient, isGenerated]);
+    return [...result, ...facturaRows].sort((a, b) => b._normalizedDate.getTime() - a._normalizedDate.getTime());
+  }, [allInvoices, dateFrom, dateTo, currentClient, isGenerated]);
 
   const handleConfirmPayments = async () => {
     if (isReadOnly || !selectedClientId || paymentLines.length === 0) return;

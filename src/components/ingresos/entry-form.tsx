@@ -76,10 +76,19 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
 
   const isSample = form.watch("isSample");
 
-  const clientOptions = (clients || []).map(c => ({
-    label: (c?.name || c?.nombre || `${c?.firstName || ""} ${c?.lastName || ""}`).trim().toUpperCase(),
-    value: c?.id || ""
-  }));
+  const clientOptions = React.useMemo(() => {
+    const opts = (clients || []).map(c => ({
+      label: (c?.name || c?.nombre || `${c?.firstName || ""} ${c?.lastName || ""}`).trim().toUpperCase(),
+      value: c?.id || ""
+    }));
+    if (initialData && initialData.clientId && !opts.some(o => o.value === initialData.clientId)) {
+      opts.push({
+        label: (initialData.clientName || "Socio").trim().toUpperCase(),
+        value: initialData.clientId
+      });
+    }
+    return opts;
+  }, [clients, initialData]);
 
   const handleSampleToggle = (checked: boolean) => {
     const currentVal = form.getValues("entryNumber") || "";

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -42,12 +41,20 @@ export function Combobox({
   searchPlaceholder = "Buscar...",
   className,
 }: ComboboxProps) {
-  const [open, setOpen] = React.useState(false)
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+
+  // Filter options based on search input (case-insensitive)
+  const filteredOptions = React.useMemo(() => {
+    const q = search.toLowerCase();
+    return options.filter((opt) => opt.label.toLowerCase().includes(q));
+  }, [search, options]);
 
   // Manejador de selección para asegurar el cierre y la actualización del estado
   const handleItemSelect = (optionValue: string) => {
     onSelect(optionValue)
     setOpen(false)
+    setSearch("")
   }
 
   return (
@@ -80,13 +87,15 @@ export function Combobox({
           <CommandInput 
             placeholder={searchPlaceholder} 
             className="h-14 text-sm border-none focus:ring-0" 
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
           <CommandList className="max-h-[350px] overflow-y-auto p-2 scroll-smooth scrollbar-thin scrollbar-thumb-muted-foreground/20">
             <CommandEmpty className="py-10 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
               No se encontraron resultados
             </CommandEmpty>
             <CommandGroup>
-              {options.map((option) => (
+              {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.value}
                   value={option.label}

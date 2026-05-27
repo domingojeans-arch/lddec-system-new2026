@@ -89,17 +89,18 @@ function mapFirestoreToEntry(docSnap: any): Entry {
     }
     return acc + Number(lot?.cantidad || lot?.cantidadConfirmada || lot?.quantity || lot?.total || 0);
   }, 0);
-  return { 
-    id, 
-    entryNumber: visibleNumber, 
-    clientName: data.clientName || "Socio", 
-    entryDate, 
-    responsible: data.responsible || "N/A", 
-    isSample: !!data.isSample, 
-    status: data.status || "active", 
-    totalGarments, 
-    lots: mappedLots, 
-    notes: data.notes || "" 
+  return {
+    id,
+    entryNumber: visibleNumber,
+    clientId: data.clientId || data.clienteId || data.cliente || "",
+    clientName: data.clientName || data.nombreCliente || data.nombre || "Socio",
+    entryDate,
+    responsible: data.responsible || "N/A",
+    isSample: !!data.isSample,
+    status: data.status || "active",
+    totalGarments,
+    lots: mappedLots,
+    notes: data.notes || "",
   } as Entry;
 }
 

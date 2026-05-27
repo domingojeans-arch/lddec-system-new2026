@@ -28,6 +28,7 @@ import { StatementOfAccountsDetailed } from "./statement-of-accounts-detailed";
 import { EntriesVsBillingReport } from "./entries-vs-billing-report";
 import { BillingVsCollectionsReport } from "./billing-vs-collections-report";
 import { ManualWorksDetailedReport } from "./manual-works-detailed-report";
+import { filterPaymentsByDate } from "@/lib/accounting-motor";
 import { toDate } from "@/lib/toDate";
 import { OperatorPayoutReport } from "./operator-payout-report";
 import { BankMovementsReport } from "./bank-movements-report";
@@ -221,6 +222,15 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           let parsedDate = d.fechaFactura?.toDate ? d.fechaFactura.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.invoiceDate ? new Date(d.invoiceDate) : d.date ? new Date(d.date) : d.timestamp ? new Date(d.timestamp) : null;
           return parsedDate && parsedDate >= fromDate && parsedDate <= toDateObj;
         });
+        // Fetch payments (cobranzas)
+        const paymentsSnap = await getDocs(collection(db, "payments"));
+        const allPayments = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        let filteredPayments = allPayments;
+        if (hasClientFilter && filters.clientId !== "all") {
+          filteredPayments = filteredPayments.filter(p => p.clientId === filters.clientId || p.clienteId === filters.clientId);
+        }
+        data.payments = filterPaymentsByDate(filteredPayments, fromDate, toDateObj);
+
       }
 
       if (filters.type.includes("Manualidades") || filters.type.includes("Operarios")) {
@@ -388,13 +398,13 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
             <StatementOfAccountsReport 
               clients={filters.clientId === "all" ? clients : clients.filter(c => c.id === filters.clientId)} 
               invoices={reportData.allInvoices || reportData.invoices} 
-              payments={[]} 
+              payments={reportData.payments} 
               dateFrom={filters.dateFrom} 
               dateTo={filters.dateTo} 
             />
           )}
           {filters.type === "Estado de Cuenta Detallado (Formato Contable)" && <StatementOfAccountsDetailed client={clients.find(c => c.id === filters.clientId) || {}} invoices={reportData.allInvoices || reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
-          {filters.type === "Informe Detallado de Cobranzas" && <CollectionsDetailedReport collections={reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} client={filters.clientId === "all" ? null : clients.find(c => c.id === filters.clientId)} />}
+          {filters.type === "Informe Detallado de Cobranzas" && <CollectionsDetailedReport collections={reportData.payments} dateFrom={filters.dateFrom} dateTo={filters.dateTo} client={filters.clientId === "all" ? null : clients.find(c => c.id === filters.clientId)} />}
         </div>
       )}
     </div>

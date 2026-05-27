@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 interface BillingVsCollectionsReportProps {
   invoices: any[];
-  collections: any[];
+  collections?: any[]; // optional, not used currently
   dateFrom: string;
   dateTo: string;
 }
@@ -26,8 +26,11 @@ export function BillingVsCollectionsReport({ invoices, dateFrom, dateTo }: Billi
     const to = new Date(dateTo + "T23:59:59");
 
     return invoices.filter(inv => {
-      const d = inv.fechaFactura?.toDate ? inv.fechaFactura.toDate() : new Date(inv.fechaFactura || inv.date);
-      return d >= from && d <= to;
+      // Prefer stored Timestamp, fallback to rawDate or generic date fields
+      const d = inv.fechaFactura?.toDate ? inv.fechaFactura.toDate()
+        : inv.rawDate instanceof Date ? inv.rawDate
+        : new Date(inv.fechaFactura || inv.date || inv.createdAt || inv.timestamp);
+      return d && d >= from && d <= to;
     }).map(inv => {
       const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray((inv as any).pagosAjustes) ? (inv as any).pagosAjustes : []);
       const totalCobrado = movimientos.reduce((acc: number, p: any) => {
@@ -66,6 +69,14 @@ export function BillingVsCollectionsReport({ invoices, dateFrom, dateTo }: Billi
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
   };
+
+  if (reportData.length === 0) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        No se encontraron facturas para el rango y filtro seleccionado.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-10 animate-in fade-in duration-500 print:m-0 print:p-0">

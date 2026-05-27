@@ -94,7 +94,14 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
           </div>
         </div>
       </div>
-
+{/* Salidas / Guías Asociadas – control visual */}
+<div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mt-6 shadow-sm">
+  <label className="block text-sm font-black uppercase text-blue-600 mb-2">Salidas / Guías Asociadas</label>
+  <textarea
+    placeholder="Registre aquí las guías o salidas vinculadas a esta factura..."
+    className="w-full min-h-[80px] p-3 rounded-lg border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+  />
+</div>
       {/* Items Section */}
       <div className="space-y-6 px-4">
         <h3 className="text-xl font-black tracking-tight flex items-center gap-2">

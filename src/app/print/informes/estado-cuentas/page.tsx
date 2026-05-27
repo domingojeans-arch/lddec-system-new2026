@@ -4,6 +4,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
+import { filterPaymentsByDate } from "@/lib/accounting-motor";
 import { collection, getDocs } from "firebase/firestore";
 import { toDate } from "@/lib/toDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
@@ -63,19 +64,33 @@ function PrintContent() {
 
             let totalHaber = 0;
             invoicesInPeriod.forEach(inv => {
-              const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+              const rawMov = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+              const movimientos = filterPaymentsByDate(rawMov, fromDate, toDateObj);
               movimientos.forEach((m: any) => {
-                if (!m.anulado) {
-                  if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
-                    totalHaber -= Number(m.monto || 0);
-                  } else {
-                    totalHaber += Number(m.monto || 0);
-                  }
+                if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
+                  totalHaber -= Number(m.monto || 0);
+                } else {
+                  totalHaber += Number(m.monto || 0);
                 }
               });
             });
 
             const saldoActual = (saldoAnterior + totalDebe) - totalHaber;
+
+            const lastInvoice = invoicesInPeriod.sort((a,b) => {
+              const dA = toDate(a.fechaFactura || a.date) || new Date(0);
+              const dB = toDate(b.fechaFactura || b.date) || new Date(0);
+              return dB.getTime() - dA.getTime();
+            })[0];
+            const lastDate = lastInvoice ? toDate(lastInvoice.fechaFactura || lastInvoice.date) : null;
+            const daysDiff = lastDate ? Math.floor((new Date().getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+            let bgClass = "";
+            if (saldoActual > 0) {
+              if (daysDiff >= 9 && daysDiff <= 14) bgClass = "bg-yellow-50";
+              else if (daysDiff >= 15 && daysDiff <= 29) bgClass = "bg-amber-50";
+              else if (daysDiff >= 30) bgClass = "bg-rose-50";
+            }
 
             return {
               name: (client.name || client.firstName || "").toUpperCase().trim(),
@@ -85,7 +100,8 @@ function PrintContent() {
               nc: 0,
               retencion: 0,
               cobro: totalHaber,
-              saldoActual
+              saldoActual,
+              bgClass
             };
           }).filter(r => Math.abs(r.saldoAnterior) > 0.01 || Math.abs(r.facturacion) > 0.01 || Math.abs(r.cobro) > 0.01 || Math.abs(r.saldoActual) > 0.01);
 
@@ -131,7 +147,7 @@ function PrintContent() {
   return (
     <div className="print-page">
       <style>{`
-        @page { size: landscape; margin: 0; }
+        @page { size: A4; margin: 15mm; }
         body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; }
         .print-page {
           width: 29.7cm;
@@ -150,6 +166,11 @@ function PrintContent() {
         th { background: #f1f5f9 !important; border: 1pt solid black !important; color: black !important; font-weight: 900 !important; font-size: 7.5pt !important; padding: 4px !important; text-transform: uppercase; }
         td { border: 1pt solid black !important; color: black !important; font-size: 7.5pt !important; padding: 3px 6px !important; line-height: 1.1; }
         .group-header { background: #f8fafc !important; border-left: 6px solid #3b82f6 !important; padding: 4px 10px !important; margin: 15px 0 5px 0 !important; font-weight: 900; font-size: 8pt; text-transform: uppercase; }
+        .bg-red-100 { background-color: #fee2e2 !important; }
+        .bg-orange-50 { background-color: #fff7ed !important; }
+        .bg-amber-50 { background-color: #fffbeb !important; }
+        .bg-yellow-50 { background-color: #fef9c3 !important; }
+        .bg-rose-50 { background-color: #fff1f2 !important; }
       `}</style>
 
       <img src="/logo-lddec.png" alt="Logo" className="header-logo" />
@@ -178,7 +199,7 @@ function PrintContent() {
             </thead>
             <tbody>
               {group.rows.map((row: any, i: number) => (
-                <tr key={i}>
+                <tr key={i} className={row.bgClass}>
                   <td>{row.name}</td>
                   <td style={{ textAlign: 'right' }}>{formatNum(row.saldoAnterior)}</td>
                   <td style={{ textAlign: 'right' }}>{formatNum(row.facturacion)}</td>
