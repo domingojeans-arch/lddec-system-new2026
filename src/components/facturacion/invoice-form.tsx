@@ -575,6 +575,23 @@ export function InvoiceForm({
               </div>
             </div>
 
+            {/* Control Visual de Salidas / Guías Asociadas */}
+            <div className="bg-blue-50/50 border border-blue-100/50 rounded-2xl p-6 space-y-4 pt-4">
+              <FormField control={form.control} name="numeroSalida" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-blue-600">Salidas / Guías Asociadas (Control Visual)</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Registre aquí los números de guías de despacho o salidas asociadas a esta factura a modo de control visual..." 
+                      className="w-full min-h-[80px] p-3 rounded-xl border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-xs text-foreground font-bold resize-none" 
+                      disabled={(!foundEntry || !foundEntry.canInvoice) && !initialData}
+                      {...field} 
+                    />
+                  </FormControl>
+                </FormItem>
+              )} />
+            </div>
+
             <div className="pt-2">
               <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem>

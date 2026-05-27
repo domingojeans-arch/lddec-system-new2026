@@ -98,8 +98,10 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
 <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mt-6 shadow-sm">
   <label className="block text-sm font-black uppercase text-blue-600 mb-2">Salidas / Guías Asociadas</label>
   <textarea
+    readOnly
+    value={invoice.numeroSalida || "No se registraron guías asociadas a esta factura."}
     placeholder="Registre aquí las guías o salidas vinculadas a esta factura..."
-    className="w-full min-h-[80px] p-3 rounded-lg border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+    className="w-full min-h-[80px] p-3 rounded-lg border border-blue-200 focus:outline-none bg-white text-sm font-bold text-slate-700 resize-none"
   />
 </div>
       {/* Items Section */}

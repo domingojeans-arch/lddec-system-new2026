@@ -48,6 +48,7 @@ const groupedInvoiceSchema = z.object({
   subtotal: z.coerce.number().min(0, "Mínimo 0"),
   iva: z.coerce.number().min(0, "Mínimo 0"),
   notes: z.string().optional(),
+  numeroSalida: z.string().optional(),
 });
 
 interface GroupedSamplesFormProps {
@@ -71,6 +72,7 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
       subtotal: 0,
       iva: 0,
       notes: "",
+      numeroSalida: "",
     },
   });
 
@@ -182,6 +184,7 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
         subtotal: 0,
         iva: 0,
         notes: "",
+        numeroSalida: "",
       });
       setSelectedEntryIds([]);
     }
@@ -359,6 +362,23 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
                   ${total.toFixed(2)}
                 </div>
               </div>
+            </div>
+
+            {/* Control Visual de Salidas / Guías Asociadas */}
+            <div className="bg-blue-50/50 border border-blue-100/50 rounded-2xl p-6 space-y-4 pt-4">
+              <FormField control={form.control} name="numeroSalida" render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-blue-600">Salidas / Guías Asociadas (Control Visual)</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Registre aquí los números de guías de despacho o salidas asociadas a esta factura a modo de control visual..." 
+                      className="w-full min-h-[80px] p-3 rounded-xl border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-xs text-foreground font-bold resize-none" 
+                      disabled={selectedEntryIds.length === 0}
+                      {...field} 
+                    />
+                  </FormControl>
+                </FormItem>
+              )} />
             </div>
 
             <div className="pt-2">
