@@ -75,6 +75,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<CachedDashboardStats | null>(null);
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(new Date().getMonth());
+
+  const handlePrevMonth = () => {
+    setSelectedMonthIdx((prev) => (prev === 0 ? 11 : prev - 1));
+  };
+  const handleNextMonth = () => {
+    setSelectedMonthIdx((prev) => (prev === 11 ? 0 : prev + 1));
+  };
 
   const isReadOnly = user?.role === "socio";
 
@@ -260,7 +268,30 @@ export default function DashboardPage() {
             return isBilled;
           }).length;
 
-          statsArr.push({ month: label, count: `${billed}/${total}`, pct: total > 0 ? Math.round((billed / total) * 100) : 0 });
+          // Calcular cantidad total de prendas ingresadas en el mes
+          const totalGarments = entriesInMonth.reduce((acc, e) => {
+            const lotes = e.lotes || e.lots || [];
+            return acc + lotes.reduce((lAcc: number, l: any) => lAcc + (Number(l.cantidadConfirmada || l.quantity || l.cantidad || 0)), 0);
+          }, 0);
+
+          // Calcular monto total facturado en el mes ($ USD) para esta categoría
+          const invsInMonth = invoicesRaw.filter(inv => {
+            if (!inv || inv.anulado) return false;
+            const invDate = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate || inv.date || inv.timestamp);
+            const matchMonth = invDate && invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear();
+            
+            const isSampleInvoice = inv.isSample === true || inv.tipoFactura === "muestra" || (inv.ingresoMaestroId && entriesRaw.find(e => e.id === inv.ingresoMaestroId)?.isSample === true);
+            return matchMonth && (isSample ? isSampleInvoice : !isSampleInvoice);
+          });
+          const totalBilledAmount = invsInMonth.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
+
+          statsArr.push({ 
+            month: label, 
+            count: `${billed}/${total}`, 
+            pct: total > 0 ? Math.round((billed / total) * 100) : 0,
+            totalGarments,
+            totalBilledAmount
+          });
         }
         return statsArr;
       };
@@ -481,14 +512,13 @@ export default function DashboardPage() {
   }
 
   // 7. Cálculos para comparativa anual (2025 fijos vs 2026 calculados)
-  const currentMonthIdx = new Date().getMonth();
-  const currentMonthName = MONTH_NAMES[currentMonthIdx];
+  const currentMonthName = MONTH_NAMES[selectedMonthIdx];
   
   const revenue2026 = stats?.metrics?.revenue2026 || Array(12).fill(0);
   const revenue2025 = REVENUE_2025;
   
-  const currentRevenue2026 = revenue2026[currentMonthIdx] || 0;
-  const currentRevenue2025 = revenue2025[currentMonthIdx] || 0;
+  const currentRevenue2026 = revenue2026[selectedMonthIdx] || 0;
+  const currentRevenue2025 = revenue2025[selectedMonthIdx] || 0;
   
   const growthPct = currentRevenue2025 > 0 
     ? ((currentRevenue2026 - currentRevenue2025) / currentRevenue2025) * 100 
@@ -602,6 +632,10 @@ export default function DashboardPage() {
                       <span className="text-foreground/60">{item.count} <span className="text-[8px] opacity-50">({item.pct}%)</span></span>
                     </div>
                     <Progress value={item.pct} className="h-2 bg-muted rounded-full overflow-hidden" />
+                    <div className="flex justify-between items-center text-[9px] font-bold text-muted-foreground/80 uppercase tracking-wider px-0.5">
+                      <span>Prendas: {Number(item.totalGarments || 0).toLocaleString('es-EC')}</span>
+                      <span>Facturado: ${(item.totalBilledAmount || 0).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
                   </div>
                 ))}
               </CardContent>
@@ -619,6 +653,10 @@ export default function DashboardPage() {
                       <span className="text-foreground/60">{item.count} <span className="text-[8px] opacity-50">({item.pct}%)</span></span>
                     </div>
                     <Progress value={item.pct} className="h-2 bg-muted rounded-full overflow-hidden" />
+                    <div className="flex justify-between items-center text-[9px] font-bold text-muted-foreground/80 uppercase tracking-wider px-0.5">
+                      <span>Prendas: {Number(item.totalGarments || 0).toLocaleString('es-EC')}</span>
+                      <span>Facturado: ${(item.totalBilledAmount || 0).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
                   </div>
                 ))}
               </CardContent>
@@ -648,11 +686,33 @@ export default function DashboardPage() {
             {/* Indicador Visual / Barra de Estado Limpia */}
             <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-1 flex flex-col justify-between group hover:border-primary/30 transition-all">
               <CardHeader className="px-10 pt-10 pb-4">
-                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
-                  <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                    {growthPct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                      {growthPct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    </div>
+                    <span>Crecimiento</span>
                   </div>
-                  Comparativa de Crecimiento
+                  
+                  {/* Controles de Mes Interactivo */}
+                  <div className="flex items-center gap-1.5">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handlePrevMonth}
+                      className="h-8 w-8 rounded-lg border-border hover:bg-muted text-foreground transition-all flex items-center justify-center font-bold"
+                    >
+                      ←
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handleNextMonth}
+                      className="h-8 w-8 rounded-lg border-border hover:bg-muted text-foreground transition-all flex items-center justify-center font-bold"
+                    >
+                      →
+                    </Button>
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-10 pb-10 flex-1 flex flex-col justify-between space-y-6">
