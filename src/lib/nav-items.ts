@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, CircleArrowDown, ClipboardCheck, 
   Cog, Zap, Beaker, CircleArrowUp, Truck, Receipt, 
   Wallet, Building, History, FileText, 
-  AlertTriangle, PackageSearch, Wrench 
+  AlertTriangle, PackageSearch, Wrench, Calendar
 } from "lucide-react";
 import { SystemRole } from "@/types/lddec";
 
@@ -110,6 +110,12 @@ export const navItems: NavItem[] = [
     path: "/muestras", 
     icon: PackageSearch, 
     allowedRoles: ["admin", "facturacion", "socio", "bodega"] 
+  },
+  { 
+    title: "Agenda Pagos", 
+    path: "/agenda-pagos", 
+    icon: Calendar, 
+    allowedRoles: ["admin"] 
   },
   { 
     title: "Mantenimiento", 
