@@ -195,7 +195,7 @@ export default function ProduccionPage() {
     
     const enriched = manualWorks.map(work => {
       // Determine static original quantity; avoid zero values which indicate no original data
-      const originalQty = Number(work.cantidadOriginal ?? work.cantInicial ?? work.cantidad || 0);
+      const originalQty = Number((work.cantidadOriginal ?? work.cantInicial ?? work.cantidad) || 0);
       return { ...work, loteOriginalCant: originalQty > 0 ? originalQty : undefined };
     });
 
