@@ -21,35 +21,88 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
   }, []);
 
   const reportLines = useMemo(() => {
-    const lines: any[] = [];
+    const from = new Date(dateFrom + "T00:00:00");
+    const to = new Date(dateTo + "T23:59:59");
+    const safeCollections = Array.isArray(collections) ? collections : [];
     
-    collections.forEach(col => {
+    // Usaremos un Map para evitar duplicados entre cobros globales y cobros embebidos
+    const uniqueLines = new Map<string, any>();
+    
+    safeCollections.forEach(col => {
+      if (!col) return;
+
       // Filtrar por cliente si se seleccionó uno específico
       if (client && client.id && col.clientId !== client.id && col.clienteId !== client.id) {
         return;
       }
 
-      const movimientos = Array.isArray(col.pagosYajustes) ? col.pagosYajustes : (Array.isArray(col.pagosAjustes) ? col.pagosAjustes : []);
-      movimientos.forEach((p: any) => {
-        if (p.anulado) return;
+      // Comprobar si tiene estructura anidada (por ejemplo, si es una factura o un documento legacy con sub-pagos)
+      const hasNested = (Array.isArray(col.pagosYajustes) && col.pagosYajustes.length > 0) || (Array.isArray(col.pagosAjustes) && col.pagosAjustes.length > 0);
 
-        lines.push({
-          fecha: p.fechaTransaccion || p.fecha || col.fechaFactura || col.date,
-          cliente: col.clienteNombre || col.clientName || col.cliente || "Socio",
-          documento: `FACT: ${col.numeroFactura || col.numero || col.id}`,
-          tipo: p.tipoTransaccion || "PAGO",
-          metodo: p.metodoPago || "S/D",
-          monto: Number(p.monto || 0)
+      if (hasNested) {
+        const movimientos = Array.isArray(col.pagosYajustes) ? col.pagosYajustes : (Array.isArray(col.pagosAjustes) ? col.pagosAjustes : []);
+        movimientos.forEach((p: any) => {
+          if (!p || p.anulado) return;
+
+          // Obtener y validar la fecha del pago individual
+          const pDate = toDate(p.fechaTransaccion || p.fecha || col.fechaFactura || col.date);
+          if (!pDate || pDate < from || pDate > to) return; // FILTRAR ESTRICTAMENTE POR FECHA DE COBRO
+
+          const normalizedTipo = String(p.tipoTransaccion || p.tipo || "PAGO").trim().toUpperCase();
+          const normalizedMetodo = String(p.metodoPago || "S/D").trim().toUpperCase();
+          const montoVal = Number(p.monto || 0);
+          const timeVal = pDate.getTime();
+          
+          // Generar una clave de deduplicación segura basada en datos transaccionales clave
+          const key = `${normalizedTipo}-${montoVal}-${timeVal}-${normalizedMetodo}`;
+          
+          if (!uniqueLines.has(key)) {
+            uniqueLines.set(key, {
+              fecha: pDate,
+              cliente: col.clienteNombre || col.clientName || col.cliente || "Socio",
+              documento: `FACT: ${col.numeroFactura || col.numero || col.id}`,
+              tipo: p.tipoTransaccion || "PAGO",
+              metodo: p.metodoPago || "S/D",
+              monto: montoVal
+            });
+          }
         });
-      });
+      } else {
+        // Estructura plana (pago individual de la colección 'payments')
+        if (col.anulado) return;
+
+        const pDate = toDate(col.fechaTransaccion || col.fecha || col.createdAt || col.date);
+        if (!pDate || pDate < from || pDate > to) return; // FILTRAR ESTRICTAMENTE POR FECHA DE COBRO
+
+        const normalizedTipo = String(col.tipoTransaccion || col.tipo || "PAGO").trim().toUpperCase();
+        const normalizedMetodo = String(col.metodoPago || "S/D").trim().toUpperCase();
+        const montoVal = Number(col.monto || 0);
+        const timeVal = pDate.getTime();
+
+        // Generar una clave de deduplicación segura basada en datos transaccionales clave
+        const key = `${normalizedTipo}-${montoVal}-${timeVal}-${normalizedMetodo}`;
+
+        if (!uniqueLines.has(key)) {
+          uniqueLines.set(key, {
+            fecha: pDate,
+            cliente: col.clienteNombre || col.clientName || col.cliente || "Socio",
+            documento: col.numeroFactura ? `FACT: ${col.numeroFactura}` : (col.facturaId ? `FACT ID: ${col.facturaId}` : "S/D"),
+            tipo: col.tipoTransaccion || "PAGO",
+            metodo: col.metodoPago || "S/D",
+            monto: montoVal
+          });
+        }
+      }
     });
+    
+    const lines = Array.from(uniqueLines.values());
     
     return lines.sort((a, b) => {
       const dateA = toDate(a.fecha);
       const dateB = toDate(b.fecha);
       return (dateB?.getTime() || 0) - (dateA?.getTime() || 0);
     });
-  }, [collections, client]);
+  }, [collections, client, dateFrom, dateTo]);
 
   const metrics = useMemo(() => {
     const recaudacionEfectiva = reportLines

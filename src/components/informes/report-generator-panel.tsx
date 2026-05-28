@@ -166,9 +166,18 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
       const fromDate = from.toDate();
       const toDateObj = to.toDate();
 
-      const hasClientFilter = filters.type !== "Liquidación de Pagos a Operarios" && !filters.type.includes("Químicos");
+      const typeLower = filters.type.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const isResumen = typeLower.includes("resumen operativo");
+      const isIngresos = typeLower.includes("ingreso") || isResumen;
+      const isSalidas = typeLower.includes("salida") || isResumen;
+      const isFacturacion = typeLower.includes("factur") || typeLower.includes("venta") || typeLower.includes("cuenta") || typeLower.includes("cobranza") || isResumen;
+      const isManualidades = typeLower.includes("manualidad") || typeLower.includes("operario");
+      const isBancos = typeLower.includes("banc");
+      const isQuimicos = typeLower.includes("quimic");
 
-      if (filters.type.includes("Ingresos") || filters.type === "Resumen Operativo Mes a Mes") {
+      const hasClientFilter = !typeLower.includes("operario") && !isQuimicos;
+
+      if (isIngresos || isFacturacion) {
         const snap = await getDocs(collection(db, "entries"));
         let raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -183,7 +192,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         });
       }
 
-      if (filters.type.includes("Salidas") || filters.type === "Resumen Operativo Mes a Mes") {
+      if (isSalidas) {
         const [snapOutputs, snapSalidas, snapMuestras] = await Promise.all([
           getDocs(collection(db, "outputs")),
           getDocs(collection(db, "salidas")),
@@ -209,7 +218,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         });
       }
 
-      if (filters.type.includes("Facturación") || filters.type.includes("Ventas") || filters.type.includes("Cuenta") || filters.type.includes("Cobranzas") || filters.type === "Resumen Operativo Mes a Mes") {
+      if (isFacturacion) {
         const snap = await getDocs(collection(db, "facturas"));
         let raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -233,7 +242,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
 
       }
 
-      if (filters.type.includes("Manualidades") || filters.type.includes("Operarios")) {
+      if (isManualidades) {
         // 1. Consulta limpia a Firestore filtrando únicamente por estado 'aprobado'
         const q = query(collection(db, "manualidades"), where("estado", "==", "aprobado"));
         const snap = await getDocs(q);
@@ -390,6 +399,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           {filters.type === "Informe de Salidas Detallado" && <OutputsDetailedReport prodOutputs={reportData.outputs} sampleOutputs={[]} totals={{ prodPrendas: 0, samplePrendas: 0, totalGeneral: 0 }} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Informe Detallado de Ventas (Libro de Ventas)" && <SalesDetailedReport invoices={reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Informe de Ingresos vs. Facturación" && <EntriesVsBillingReport entries={reportData.entries} invoices={reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
+          {filters.type === "Informe de Facturación vs. Cobranzas" && <BillingVsCollectionsReport entries={reportData.entries} invoices={reportData.allInvoices || reportData.invoices} payments={reportData.payments} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Informe Detallado de Manualidades" && <ManualWorksDetailedReport manualWorks={reportData.manualidades} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Liquidación de Pagos a Operarios" && <OperatorPayoutReport manualWorks={reportData.manualidades} dateFrom={filters.dateFrom} dateTo={filters.dateTo} selectedOperator={filters.operatorName} />}
           {filters.type === "Informe Detallado de Movimientos Químicos" && <ChemicalMovementsDetailedReport movements={reportData.chemicalMovements} chemicals={reportData.chemicalsStock} dateFrom={filters.dateFrom} dateTo={filters.dateTo} selectedSubstance={filters.chemicalId} />}
@@ -404,7 +414,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
             />
           )}
           {filters.type === "Estado de Cuenta Detallado (Formato Contable)" && <StatementOfAccountsDetailed client={clients.find(c => c.id === filters.clientId) || {}} invoices={reportData.allInvoices || reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
-          {filters.type === "Informe Detallado de Cobranzas" && <CollectionsDetailedReport collections={reportData.payments} dateFrom={filters.dateFrom} dateTo={filters.dateTo} client={filters.clientId === "all" ? null : clients.find(c => c.id === filters.clientId)} />}
+          {filters.type === "Informe Detallado de Cobranzas" && <CollectionsDetailedReport collections={[...(reportData.payments || []), ...(reportData.allInvoices || reportData.invoices || [])]} dateFrom={filters.dateFrom} dateTo={filters.dateTo} client={filters.clientId === "all" ? null : clients.find(c => c.id === filters.clientId)} />}
         </div>
       )}
     </div>
