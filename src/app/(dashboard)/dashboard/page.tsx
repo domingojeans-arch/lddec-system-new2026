@@ -119,12 +119,13 @@ export default function DashboardPage() {
       const startOfYearTs = Timestamp.fromDate(startOfYear);
 
       // 1. Descarga Multicanal Filtrada (One-time fetch con where)
-      const [entriesSnap, outputsSnap, legacySalidasSnap, legacyMuestrasSnap, invoicesSnap] = await Promise.all([
+      const [entriesSnap, outputsSnap, legacySalidasSnap, legacyMuestrasSnap, invoicesSnap, paymentsSnap] = await Promise.all([
         getDocs(query(collection(db, "entries"), where("date", ">=", startOfYearTs))),
         getDocs(query(collection(db, "outputs"), where("date", ">=", startOfYearTs))),
         getDocs(query(collection(db, "salidas"), where("fechaSalida", ">=", startOfYearTs))),
         getDocs(query(collection(db, "muestras"), where("fecha", ">=", startOfYearTs))),
-        getDocs(query(collection(db, "facturas"), where("fechaFactura", ">=", startOfYearTs)))
+        getDocs(query(collection(db, "facturas"), where("fechaFactura", ">=", startOfYearTs))),
+        getDocs(collection(db, "payments"))
       ]);
 
       const entriesRaw = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -134,6 +135,7 @@ export default function DashboardPage() {
         ...legacyMuestrasSnap.docs.map(d => ({ id: d.id, ...d.data() }))
       ];
       const invoicesRaw = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const paymentsRaw = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       // 2. Cálculos de KPIs
       const today = new Date();
@@ -328,6 +330,81 @@ export default function DashboardPage() {
 
       const avgDeliveryCalculated = count > 0 ? Math.round(totalDays / count) : 0;
 
+      // 5. Cálculo Dinámico de "ESTADO DE COBROS" (collectionStats)
+      const getCollectionMonthlyStats = () => {
+        const statsArr = [];
+        const safePayments = paymentsRaw || [];
+
+        for (let i = 0; i < 5; i++) {
+          const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+          const label = `${d.toLocaleString('es-ES', { month: 'long' })} ${d.getFullYear()}`.toUpperCase();
+
+          const invoicesInMonth = invoicesRaw.filter(inv => {
+            const invDate = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate || inv.date || inv.timestamp);
+            return invDate && invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear();
+          });
+
+          const total = invoicesInMonth.length;
+          let paidCount = 0;
+
+          invoicesInMonth.forEach(invoice => {
+            const totalFactura = Number(invoice.totalFactura || invoice.total || 0);
+            if (totalFactura <= 0) return;
+
+            // Fusión y deduplicación de pagos para este invoice
+            const uniqueMvs = new Map<string, any>();
+
+            // 1. Pagos embebidos en el objeto factura
+            const invoiceMovs = Array.isArray(invoice.pagosYajustes) 
+              ? invoice.pagosYajustes 
+              : (Array.isArray(invoice.pagosAjustes) ? invoice.pagosAjustes : []);
+            
+            invoiceMovs.forEach((m: any) => {
+              if (!m || m.anulado) return;
+              const pDate = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
+              const key = `${m.tipoTransaccion || m.tipo || 'PAGO'}-${Number(m.monto || 0)}-${pDate?.getTime() || 0}`;
+              uniqueMvs.set(key, m);
+            });
+
+            // 2. Pagos globales en la colección 'payments' asociados a esta factura
+            const globalPayDocs = safePayments.filter((p: any) => {
+              if (!p || p.anulado) return false;
+              const matchFacturaId = p.facturaId && invoice.id && String(p.facturaId).trim().toUpperCase() === String(invoice.id).trim().toUpperCase();
+              const matchNumeroFactura = p.numeroFactura && invoice.numeroFactura && String(p.numeroFactura).trim().toUpperCase() === String(invoice.numeroFactura).trim().toUpperCase();
+              return matchFacturaId || matchNumeroFactura;
+            });
+
+            globalPayDocs.forEach((p: any) => {
+              if (!p) return;
+              const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
+              const key = `${p.tipoTransaccion || 'PAGO'}-${Number(p.monto || 0)}-${pDate?.getTime() || 0}`;
+              if (!uniqueMvs.has(key)) {
+                uniqueMvs.set(key, p);
+              }
+            });
+
+            const movimientos = Array.from(uniqueMvs.values());
+            const totalCobrado = movimientos.reduce((acc: number, p: any) => {
+              if (!p || p.anulado) return acc;
+              const isReverso = p.tipoTransaccion === 'Reverso' || p.tipo === 'Reverso';
+              return isReverso ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0);
+            }, 0);
+
+            const saldo = totalFactura - totalCobrado;
+            if (saldo <= 0.01) {
+              paidCount++;
+            }
+          });
+
+          statsArr.push({
+            month: label,
+            count: `${paidCount}/${total}`,
+            pct: total > 0 ? Math.round((paidCount / total) * 100) : 0
+          });
+        }
+        return statsArr;
+      };
+
       // 6. Consolidación de Cache
       const newStats: CachedDashboardStats = {
         metrics: {
@@ -336,13 +413,7 @@ export default function DashboardPage() {
           avgDelivery: avgDeliveryCalculated, 
           billingStats: getMonthlyStats(false),
           sampleStats: getMonthlyStats(true),
-          collectionStats: [
-            { month: "ABRIL 2026", count: "0/0", pct: 0 },
-            { month: "MARZO 2026", count: "0/152", pct: 0 },
-            { month: "FEBRERO 2026", count: "0/107", pct: 0 },
-            { month: "ENERO 2026", count: "5/108", pct: 5 },
-            { month: "DICIEMBRE 2025", count: "0/188", pct: 0 },
-          ]
+          collectionStats: getCollectionMonthlyStats()
         },
         charts: { topClients, topGarments },
         lastUpdate: new Date(),
