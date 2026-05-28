@@ -63,6 +63,8 @@ export default function AgendaPagosPage() {
   const [tipo, setTipo] = useState("Banco");
   const [numeroCheque, setNumeroCheque] = useState("");
   const [bancoCheque, setBancoCheque] = useState("");
+  const [esRecurrente, setEsRecurrente] = useState(false);
+  const [mesesRepetir, setMesesRepetir] = useState("12");
   const [submitting, setSubmitting] = useState(false);
 
   // 1. PROTECTION - Admin only
@@ -110,25 +112,48 @@ export default function AgendaPagosPage() {
 
     setSubmitting(true);
     try {
-      const data: any = {
-        detalle: detalle.trim(),
-        monto: Number(monto),
-        fechaPago,
-        tipo,
-        estado: "Pendiente",
-        createdAt: Timestamp.now()
-      };
+      const parsedMonto = Number(monto);
+      const isRecurrentActive = esRecurrente && Number(mesesRepetir) > 1;
+      const count = isRecurrentActive ? Math.min(60, Math.max(1, Number(mesesRepetir))) : 1;
 
-      if (tipo === "Cheque") {
-        data.numeroCheque = numeroCheque.trim();
-        data.bancoCheque = bancoCheque.trim();
+      const initialDate = new Date(fechaPago + "T00:00:00");
+
+      for (let m = 0; m < count; m++) {
+        // Calculate the target payment date by adding m months
+        const targetDate = new Date(initialDate);
+        targetDate.setMonth(initialDate.getMonth() + m);
+
+        const yyyy = targetDate.getFullYear();
+        const mm = String(targetDate.getMonth() + 1).padStart(2, "0");
+        const dd = String(targetDate.getDate()).padStart(2, "0");
+        const targetDateStr = `${yyyy}-${mm}-${dd}`;
+
+        const data: any = {
+          detalle: isRecurrentActive ? `${detalle.trim()} (${m + 1}/${count})` : detalle.trim(),
+          monto: parsedMonto,
+          fechaPago: targetDateStr,
+          tipo,
+          estado: "Pendiente",
+          createdAt: Timestamp.now()
+        };
+
+        if (esRecurrente) {
+          data.esRecurrente = true;
+        }
+
+        if (tipo === "Cheque") {
+          data.numeroCheque = numeroCheque.trim();
+          data.bancoCheque = bancoCheque.trim();
+        }
+
+        await addDoc(collection(db, "agenda_pagos"), data);
       }
 
-      await addDoc(collection(db, "agenda_pagos"), data);
-
       toast({
-        title: "Pago Agendado",
-        description: "El pago pendiente ha sido registrado con éxito."
+        title: isRecurrentActive ? "Pagos Recurrentes Agendados" : "Pago Agendado",
+        description: isRecurrentActive 
+          ? `Se han registrado con éxito los ${count} pagos recurrentes mensuales.`
+          : "El pago pendiente ha sido registrado con éxito."
       });
 
       // Clear form
@@ -138,6 +163,8 @@ export default function AgendaPagosPage() {
       setTipo("Banco");
       setNumeroCheque("");
       setBancoCheque("");
+      setEsRecurrente(false);
+      setMesesRepetir("12");
     } catch (error) {
       console.error("Error al registrar pago:", error);
       toast({
@@ -407,6 +434,40 @@ export default function AgendaPagosPage() {
                 </div>
               )}
 
+              {/* OPCIÓN 1: PAGO RECURRENTE */}
+              <div className="space-y-4 p-4 bg-muted/10 rounded-2xl border border-border/50">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest cursor-pointer select-none" htmlFor="recurrente-checkbox">
+                    ¿Es pago recurrente mensual?
+                  </label>
+                  <input 
+                    id="recurrente-checkbox"
+                    type="checkbox" 
+                    checked={esRecurrente}
+                    onChange={(e) => setEsRecurrente(e.target.checked)}
+                    className="h-4 w-4 rounded border-border bg-muted/30 text-primary focus:ring-primary outline-none accent-primary"
+                  />
+                </div>
+
+                {esRecurrente && (
+                  <div className="space-y-1.5 animate-in fade-in duration-300">
+                    <label className="text-[9px] font-black uppercase text-primary tracking-widest">Meses a programar</label>
+                    <Input 
+                      type="number" 
+                      min="1"
+                      max="60"
+                      value={mesesRepetir} 
+                      onChange={(e) => setMesesRepetir(e.target.value)} 
+                      placeholder="Ej. 12"
+                      className="bg-muted/20 border-primary/30 rounded-xl h-11 text-xs"
+                    />
+                    <p className="text-[8px] font-bold text-muted-foreground/80 uppercase tracking-wide">
+                      Se generarán {mesesRepetir} pagos mensuales sucesivos a partir de la fecha seleccionada.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <Button 
                 type="submit" 
                 disabled={submitting}
@@ -471,7 +532,14 @@ export default function AgendaPagosPage() {
                           </td>
                           <td className="py-4 pr-4">
                             <div className="space-y-1">
-                              <span className="text-xs font-semibold text-foreground">{p.detalle}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-foreground">{p.detalle}</span>
+                                {p.esRecurrente && (
+                                  <Badge className="bg-primary/20 text-primary border border-primary/30 font-bold uppercase text-[7px] px-1.5 py-0.5 rounded-md">
+                                    Recurrente
+                                  </Badge>
+                                )}
+                              </div>
                               {p.tipo === "Cheque" && p.numeroCheque && (
                                 <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
                                   <span>Chq: {p.numeroCheque}</span>
