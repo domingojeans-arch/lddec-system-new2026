@@ -6,6 +6,7 @@ import {
   Users, 
   Loader2, 
   TrendingUp, 
+  TrendingDown,
   RefreshCcw,
   Clock,
   Receipt,
@@ -33,6 +34,19 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 /**
+ * CONSTANTES DE INGRESOS COMPARATIVOS
+ */
+const REVENUE_2025 = [
+  15200, 18400, 21100, 19800, 22500, 24000,
+  20500, 23100, 25400, 27800, 26200, 31500
+];
+
+const MONTH_NAMES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+];
+
+/**
  * INTERFAZ DE MÉTRICAS CACHEADAS
  */
 interface CachedDashboardStats {
@@ -43,6 +57,7 @@ interface CachedDashboardStats {
     billingStats: any[];
     sampleStats: any[];
     collectionStats: any[];
+    revenue2026?: number[];
   };
   charts: {
     topClients: any[];
@@ -405,6 +420,21 @@ export default function DashboardPage() {
         return statsArr;
       };
 
+      // 5. Cálculo de Ingresos Mensuales 2026 (Facturación)
+      const revenue2026Calculated = (() => {
+        const monthlyRevenue = Array(12).fill(0);
+        invoicesRaw.forEach(inv => {
+          if (!inv || inv.anulado) return;
+          const invDate = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate || inv.date || inv.timestamp);
+          if (invDate && invDate.getFullYear() === 2026) {
+            const monthIdx = invDate.getMonth();
+            const amount = Number(inv.totalFactura || inv.total || 0);
+            monthlyRevenue[monthIdx] += amount;
+          }
+        });
+        return monthlyRevenue;
+      })();
+
       // 6. Consolidación de Cache
       const newStats: CachedDashboardStats = {
         metrics: {
@@ -413,7 +443,8 @@ export default function DashboardPage() {
           avgDelivery: avgDeliveryCalculated, 
           billingStats: getMonthlyStats(false),
           sampleStats: getMonthlyStats(true),
-          collectionStats: getCollectionMonthlyStats()
+          collectionStats: getCollectionMonthlyStats(),
+          revenue2026: revenue2026Calculated
         },
         charts: { topClients, topGarments },
         lastUpdate: new Date(),
@@ -443,6 +474,26 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  // 7. Cálculos para comparativa anual (2025 fijos vs 2026 calculados)
+  const currentMonthIdx = new Date().getMonth();
+  const currentMonthName = MONTH_NAMES[currentMonthIdx];
+  
+  const revenue2026 = stats?.metrics?.revenue2026 || Array(12).fill(0);
+  const revenue2025 = REVENUE_2025;
+  
+  const currentRevenue2026 = revenue2026[currentMonthIdx] || 0;
+  const currentRevenue2025 = revenue2025[currentMonthIdx] || 0;
+  
+  const growthPct = currentRevenue2025 > 0 
+    ? ((currentRevenue2026 - currentRevenue2025) / currentRevenue2025) * 100 
+    : 0;
+
+  const comparisonChartData = MONTH_NAMES.map((name, idx) => ({
+    name: name.substring(0, 3).toUpperCase(),
+    "2025": revenue2025[idx],
+    "2026": revenue2026[idx],
+  }));
 
   return (
     <div className="min-h-screen bg-background -m-4 md:-m-8 lg:-m-12 p-4 md:p-8 lg:p-12 animate-in fade-in duration-700 overflow-x-hidden">
@@ -583,6 +634,112 @@ export default function DashboardPage() {
                     <Progress value={item.pct} className="h-2 bg-muted rounded-full overflow-hidden" />
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* NUEVO COMPARATIVO DE INGRESOS ANUALES (2025 vs 2026) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Indicador Visual / Barra de Estado Limpia */}
+            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-1 flex flex-col justify-between group hover:border-primary/30 transition-all">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
+                  <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                    {growthPct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                  </div>
+                  Comparativa de Crecimiento
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-10 pb-10 flex-1 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Mes Equivalente
+                  </div>
+                  <h4 className="text-xl font-bold uppercase text-foreground">
+                    {currentMonthName} 2026 vs 2025
+                  </h4>
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Facturación 2026</span>
+                      <p className="text-2xl font-black text-primary tracking-tight">
+                        ${currentRevenue2026.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="space-y-1 border-l border-border pl-4">
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Facturación 2025</span>
+                      <p className="text-2xl font-black text-muted-foreground/80 tracking-tight">
+                        ${currentRevenue2025.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tasa de Crecimiento</span>
+                    <span className={`text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1 ${growthPct >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                      {growthPct >= 0 ? "+" : ""}{growthPct.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="relative pt-1">
+                    <div className="overflow-hidden h-3 text-xs flex rounded-full bg-muted">
+                      {growthPct >= 0 ? (
+                        <>
+                          <div style={{ width: '50%' }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted-foreground/10"></div>
+                          <div style={{ width: `${Math.min(50, growthPct)}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-emerald-500 transition-all"></div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ width: `${Math.max(0, 50 - Math.abs(growthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted"></div>
+                          <div style={{ width: `${Math.min(50, Math.abs(growthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-rose-500 transition-all"></div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground mt-1 tracking-widest">
+                      <span>-50%</span>
+                      <span>0% (Paridad)</span>
+                      <span>+50%</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Gráfico de Comparación Anual */}
+            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-2 group hover:border-primary/30 transition-all">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
+                  <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                  Comparativo de Facturación Mensual ($ USD)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="h-[300px] px-10 pb-10">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparisonChartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }}
+                      tickFormatter={(val) => `$${(val / 1000)}k`}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '16px', color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '12px' }}
+                      formatter={(value: any) => [`$${Number(value).toLocaleString('es-EC', { minimumFractionDigits: 2 })}`, '']}
+                    />
+                    <Bar dataKey="2025" fill="hsl(var(--muted-foreground)/0.4)" radius={[4, 4, 0, 0]} barSize={12} name="2025 (Fijo)" />
+                    <Bar dataKey="2026" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={12} name="2026 (Real)" />
+                  </BarChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
