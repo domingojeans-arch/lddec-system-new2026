@@ -269,7 +269,12 @@ export default function DashboardPage() {
       const clientMap: Record<string, number> = {};
       const garmentMap: Record<string, number> = {};
       entriesRaw.forEach(e => {
-        const name = (e.clientName || "S/D").toUpperCase();
+        // Normalización de nombres de clientes para evitar duplicados invertidos (ej. OSCAR RECALDE vs RECALDE OSCAR)
+        const rawName = String(e.clientName || "S/D").trim().toUpperCase();
+        const words = rawName.split(/\s+/).filter(w => w.length > 0);
+        words.sort();
+        const name = words.length > 0 ? words.join(" ") : "S/D";
+
         const qty = (e.lotes || []).reduce((acc: number, l: any) => acc + (Number(l.cantidadConfirmada || l.quantity || l.cantidad || 0)), 0);
         clientMap[name] = (clientMap[name] || 0) + qty;
         (e.lotes || []).forEach((l: any) => {
