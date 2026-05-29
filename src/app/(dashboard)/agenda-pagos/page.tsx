@@ -66,6 +66,7 @@ export default function AgendaPagosPage() {
   }, []);
 
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
   const [showAllPayments, setShowAllPayments] = useState(false);
 
   const displayedPayments = useMemo(() => {
@@ -375,16 +376,50 @@ export default function AgendaPagosPage() {
                 <CalendarIcon className="h-4 w-4 text-primary" />
                 Filtrar por Fecha
               </CardTitle>
-              {selectedDate && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    const prev = new Date(currentMonth);
+                    prev.setMonth(prev.getMonth() - 1);
+                    setCurrentMonth(prev);
+                  }}
+                  className="h-7 w-7 rounded-lg hover:bg-muted/40 text-foreground font-black text-sm"
+                  type="button"
+                >
+                  ‹
+                </Button>
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => setSelectedDate(todayStr)}
+                  onClick={() => {
+                    const today = new Date();
+                    setCurrentMonth(today);
+                    const yyyy = today.getFullYear();
+                    const mm = String(today.getMonth() + 1).padStart(2, "0");
+                    const dd = String(today.getDate()).padStart(2, "0");
+                    setSelectedDate(`${yyyy}-${mm}-${dd}`);
+                  }}
                   className="text-[9px] font-black uppercase tracking-wider text-primary hover:bg-primary/10 h-7 px-2 rounded-lg"
+                  type="button"
                 >
                   Hoy
                 </Button>
-              )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    const next = new Date(currentMonth);
+                    next.setMonth(next.getMonth() + 1);
+                    setCurrentMonth(next);
+                  }}
+                  className="h-7 w-7 rounded-lg hover:bg-muted/40 text-foreground font-black text-sm"
+                  type="button"
+                >
+                  ›
+                </Button>
+              </div>
             </CardHeader>
             <Calendar
               mode="single"
@@ -395,8 +430,11 @@ export default function AgendaPagosPage() {
                   const mm = String(date.getMonth() + 1).padStart(2, "0");
                   const dd = String(date.getDate()).padStart(2, "0");
                   setSelectedDate(`${yyyy}-${mm}-${dd}`);
+                  setCurrentMonth(date);
                 }
               }}
+              month={currentMonth}
+              onMonthChange={setCurrentMonth}
               modifiers={{
                 hasPendingPayment: (date) => {
                   const yyyy = date.getFullYear();
