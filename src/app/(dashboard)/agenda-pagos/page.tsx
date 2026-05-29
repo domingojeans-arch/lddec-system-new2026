@@ -56,6 +56,16 @@ export default function AgendaPagosPage() {
   const [payments, setPayments] = useState<PendingPayment[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
+
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+
   // Form states
   const [detalle, setDetalle] = useState("");
   const [monto, setMonto] = useState("");
@@ -242,12 +252,8 @@ export default function AgendaPagosPage() {
       const pDate = new Date(p.fechaPago + "T00:00:00");
       if (isNaN(pDate.getTime())) return;
 
-      // Check daily
-      if (
-        pDate.getDate() === today.getDate() &&
-        pDate.getMonth() === today.getMonth() &&
-        pDate.getFullYear() === today.getFullYear()
-      ) {
+      // Check daily (filtered by selectedDate)
+      if (p.fechaPago === selectedDate) {
         totalDiario += p.monto;
       }
 
@@ -266,7 +272,7 @@ export default function AgendaPagosPage() {
     });
 
     return { totalDiario, totalSemanal, totalMensual };
-  }, [payments]);
+  }, [payments, selectedDate]);
 
   // Helper to choose color and icon per Category
   const getCategoryDetails = (category: string) => {
@@ -318,11 +324,23 @@ export default function AgendaPagosPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <Card className="bg-card border-border shadow-premium rounded-3xl overflow-hidden group hover:border-primary/30 transition-all">
           <CardContent className="p-8 space-y-2">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">TOTAL DIARIO PENDIENTE</p>
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">TOTAL DIARIO PENDIENTE</p>
+              <input 
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-muted/40 border border-border/80 rounded-xl px-2 py-1 text-[11px] font-semibold text-foreground focus:ring-1 focus:ring-primary outline-none transition-all cursor-pointer h-8 shadow-sm text-center"
+              />
+            </div>
             <h3 className="text-4xl font-black text-foreground tracking-tighter flex items-center gap-1.5">
               <span className="text-primary">$</span>
               {metrics.totalDiario.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h3>
+            <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+              <Calendar className="h-3 w-3 text-primary" />
+              <span>{selectedDate === todayStr ? "Filtrado para hoy" : `Filtrado: ${selectedDate}`}</span>
+            </p>
           </CardContent>
         </Card>
 
