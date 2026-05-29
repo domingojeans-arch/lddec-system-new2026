@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { 
-  Calendar, 
+  Calendar as CalendarIcon, 
   DollarSign, 
   Trash2, 
   CheckCircle, 
@@ -15,6 +15,7 @@ import {
   CreditCard,
   Briefcase
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,6 +66,12 @@ export default function AgendaPagosPage() {
   }, []);
 
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [showAllPayments, setShowAllPayments] = useState(false);
+
+  const displayedPayments = useMemo(() => {
+    if (showAllPayments) return payments;
+    return payments.filter(p => p.fechaPago === selectedDate);
+  }, [payments, selectedDate, showAllPayments]);
 
   // Form states
   const [detalle, setDetalle] = useState("");
@@ -306,7 +313,7 @@ export default function AgendaPagosPage() {
       <div className="mb-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="h-14 w-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-            <Calendar className="h-7 w-7" />
+            <CalendarIcon className="h-7 w-7" />
           </div>
           <div>
             <h1 className="text-3xl font-black uppercase tracking-tight">Agenda Virtual de Pagos</h1>
@@ -324,21 +331,13 @@ export default function AgendaPagosPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <Card className="bg-card border-border shadow-premium rounded-3xl overflow-hidden group hover:border-primary/30 transition-all">
           <CardContent className="p-8 space-y-2">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">TOTAL DIARIO PENDIENTE</p>
-              <input 
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-muted/40 border border-border/80 rounded-xl px-2 py-1 text-[11px] font-semibold text-foreground focus:ring-1 focus:ring-primary outline-none transition-all cursor-pointer h-8 shadow-sm text-center"
-              />
-            </div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">TOTAL DIARIO PENDIENTE</p>
             <h3 className="text-4xl font-black text-foreground tracking-tighter flex items-center gap-1.5">
               <span className="text-primary">$</span>
               {metrics.totalDiario.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </h3>
             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-primary" />
+              <CalendarIcon className="h-3 w-3 text-primary" />
               <span>{selectedDate === todayStr ? "Filtrado para hoy" : `Filtrado: ${selectedDate}`}</span>
             </p>
           </CardContent>
@@ -367,8 +366,64 @@ export default function AgendaPagosPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* FORM PANEL */}
-        <Card className="bg-card border-border shadow-premium rounded-[2rem] overflow-hidden h-fit lg:col-span-1">
+        {/* LEFT COLUMN: CALENDAR & FORM PANELS */}
+        <div className="lg:col-span-1 space-y-8 h-fit">
+          {/* CALENDAR PANEL */}
+          <Card className="bg-card border-border shadow-premium rounded-[2rem] overflow-hidden p-6 flex flex-col items-center">
+            <CardHeader className="px-2 pt-2 pb-4 w-full flex flex-row items-center justify-between">
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-primary" />
+                Filtrar por Fecha
+              </CardTitle>
+              {selectedDate && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setSelectedDate(todayStr)}
+                  className="text-[9px] font-black uppercase tracking-wider text-primary hover:bg-primary/10 h-7 px-2 rounded-lg"
+                >
+                  Hoy
+                </Button>
+              )}
+            </CardHeader>
+            <Calendar
+              mode="single"
+              selected={selectedDate ? new Date(selectedDate + "T12:00:00") : undefined}
+              onSelect={(date) => {
+                if (date) {
+                  const yyyy = date.getFullYear();
+                  const mm = String(date.getMonth() + 1).padStart(2, "0");
+                  const dd = String(date.getDate()).padStart(2, "0");
+                  setSelectedDate(`${yyyy}-${mm}-${dd}`);
+                }
+              }}
+              modifiers={{
+                hasPendingPayment: (date) => {
+                  const yyyy = date.getFullYear();
+                  const mm = String(date.getMonth() + 1).padStart(2, "0");
+                  const dd = String(date.getDate()).padStart(2, "0");
+                  const dateStr = `${yyyy}-${mm}-${dd}`;
+                  return payments.some(p => p.fechaPago === dateStr && p.estado === "Pendiente");
+                },
+                hasPaidPayment: (date) => {
+                  const yyyy = date.getFullYear();
+                  const mm = String(date.getMonth() + 1).padStart(2, "0");
+                  const dd = String(date.getDate()).padStart(2, "0");
+                  const dateStr = `${yyyy}-${mm}-${dd}`;
+                  return payments.some(p => p.fechaPago === dateStr && p.estado === "Pagado") && 
+                    !payments.some(p => p.fechaPago === dateStr && p.estado === "Pendiente");
+                }
+              }}
+              modifiersClassNames={{
+                hasPendingPayment: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-primary after:rounded-full",
+                hasPaidPayment: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-emerald-500 after:rounded-full"
+              }}
+              className="border-none bg-transparent shadow-none p-0 w-full"
+            />
+          </Card>
+
+          {/* FORM PANEL */}
+          <Card className="bg-card border-border shadow-premium rounded-[2rem] overflow-hidden">
           <CardHeader className="px-8 pt-8 pb-4">
             <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-2">
               <Plus className="h-4 w-4 text-primary" />
@@ -497,25 +552,45 @@ export default function AgendaPagosPage() {
             </form>
           </CardContent>
         </Card>
+        </div>
 
         {/* LIST / TABLE PANEL */}
         <Card className="bg-card border-border shadow-premium rounded-[2rem] overflow-hidden lg:col-span-2">
-          <CardHeader className="px-8 pt-8 pb-4 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground">
-              Listado de Obligaciones Financieras
-            </CardTitle>
-            <Badge className="bg-muted text-muted-foreground border-none font-bold uppercase text-[9px] px-3 py-1 rounded-full">
-              {payments.length} Registros
-            </Badge>
+          <CardHeader className="px-8 pt-8 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground">
+                Listado de Obligaciones Financieras
+              </CardTitle>
+              <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">
+                {showAllPayments ? "Mostrando todas las obligaciones" : `Filtrado por fecha: ${selectedDate}`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={showAllPayments ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowAllPayments(!showAllPayments)}
+                className="text-[9px] font-black uppercase tracking-wider h-8 rounded-xl px-3"
+              >
+                {showAllPayments ? "Ver Filtrado" : "Ver Todos"}
+              </Button>
+              <Badge className="bg-muted text-muted-foreground border-none font-bold uppercase text-[9px] px-3 h-8 rounded-xl flex items-center justify-center">
+                {displayedPayments.length} / {payments.length} Registros
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent className="px-8 pb-8">
-            {payments.length === 0 ? (
+            {displayedPayments.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 border border-dashed border-border rounded-3xl">
                 <AlertCircle className="h-12 w-12 text-muted-foreground/30" />
                 <div>
-                  <h4 className="text-xs font-black uppercase text-foreground">Agenda Vacía</h4>
+                  <h4 className="text-xs font-black uppercase text-foreground">
+                    {payments.length === 0 ? "Agenda Vacía" : "Sin Obligaciones este Día"}
+                  </h4>
                   <p className="text-[10px] text-muted-foreground mt-1 max-w-[240px]">
-                    No se registran obligaciones pendientes en este momento.
+                    {payments.length === 0 
+                      ? "No se registran obligaciones pendientes en este momento." 
+                      : `No hay obligaciones agendadas para el ${selectedDate}.`}
                   </p>
                 </div>
               </div>
@@ -533,7 +608,7 @@ export default function AgendaPagosPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {payments.map((p) => {
+                    {displayedPayments.map((p) => {
                       const cat = getCategoryDetails(p.tipo);
                       const IconComponent = cat.icon;
                       const isExpired = p.estado === "Pendiente" && new Date(p.fechaPago + "T23:59:59") < new Date();
