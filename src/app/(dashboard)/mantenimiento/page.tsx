@@ -746,8 +746,8 @@ export default function MantenimientoPage() {
                   <TableHeader className="bg-muted/50">
                     <TableRow>
                       <TableHead className="py-4 pl-8 text-[9px] font-black uppercase">Manualidad</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-center">Adulto</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-center">Niño</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-center">Prenda Adulto / Prenda Grande</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-center">Prenda Niño / Prenda Pequeña</TableHead>
                       <TableHead className="text-[9px] font-black uppercase text-right pr-8">Acc.</TableHead>
                     </TableRow>
                   </TableHeader>
