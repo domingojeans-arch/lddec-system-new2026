@@ -36,6 +36,8 @@ import {
 import { toDate } from "@/lib/toDate";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface PendingPayment {
   id: string;
@@ -237,12 +239,14 @@ export default function AgendaPagosPage() {
 
   // 6. REALTIME FINANCIAL METRICS
   const metrics = useMemo(() => {
-    const today = new Date();
+    // Separamos la fecha seleccionada para evitar problemas de zona horaria
+    const [yyyy, mm, dd] = selectedDate.split("-").map(Number);
+    const baseDate = new Date(yyyy, mm - 1, dd, 12, 0, 0); // Usar mediodía para prevenir saltos de DST
     
-    // Start and end of current week
-    const startOfWeek = new Date(today);
+    // Calculamos inicio y fin de la semana (Lunes a Domingo)
+    const startOfWeek = new Date(baseDate);
     const day = startOfWeek.getDay();
-    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
     startOfWeek.setDate(diff);
     startOfWeek.setHours(0, 0, 0, 0);
 
@@ -250,32 +254,35 @@ export default function AgendaPagosPage() {
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     endOfWeek.setHours(23, 59, 59, 999);
 
+    const selectedMonthPrefix = selectedDate.substring(0, 7); // "YYYY-MM"
+
     let totalDiario = 0;
     let totalSemanal = 0;
     let totalMensual = 0;
 
     payments.forEach(p => {
       if (p.estado !== "Pendiente") return;
+      if (!p.fechaPago) return;
+      
+      const amount = Number(p.monto) || 0;
 
-      const pDate = new Date(p.fechaPago + "T00:00:00");
-      if (isNaN(pDate.getTime())) return;
-
-      // Check daily (filtered by selectedDate)
+      // Check diario
       if (p.fechaPago === selectedDate) {
-        totalDiario += p.monto;
+        totalDiario += amount;
       }
 
-      // Check weekly
-      if (pDate >= startOfWeek && pDate <= endOfWeek) {
-        totalSemanal += p.monto;
+      // Check mensual (Comparación de string es 100% segura para el mismo mes)
+      if (p.fechaPago.substring(0, 7) === selectedMonthPrefix) {
+        totalMensual += amount;
       }
 
-      // Check monthly
-      if (
-        pDate.getMonth() === today.getMonth() &&
-        pDate.getFullYear() === today.getFullYear()
-      ) {
-        totalMensual += p.monto;
+      // Check semanal
+      const [py, pm, pd] = p.fechaPago.split("-").map(Number);
+      if (!isNaN(py) && !isNaN(pm) && !isNaN(pd)) {
+        const pDate = new Date(py, pm - 1, pd, 12, 0, 0);
+        if (pDate >= startOfWeek && pDate <= endOfWeek) {
+          totalSemanal += amount;
+        }
       }
     });
 
@@ -376,51 +383,56 @@ export default function AgendaPagosPage() {
                 <CalendarIcon className="h-4 w-4 text-primary" />
                 Filtrar por Fecha
               </CardTitle>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const prev = new Date(currentMonth);
-                    prev.setMonth(prev.getMonth() - 1);
-                    setCurrentMonth(prev);
-                  }}
-                  className="h-7 w-7 rounded-lg hover:bg-muted/40 text-foreground font-black text-sm"
-                  type="button"
-                >
-                  ‹
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => {
-                    const today = new Date();
-                    setCurrentMonth(today);
-                    const yyyy = today.getFullYear();
-                    const mm = String(today.getMonth() + 1).padStart(2, "0");
-                    const dd = String(today.getDate()).padStart(2, "0");
-                    setSelectedDate(`${yyyy}-${mm}-${dd}`);
-                  }}
-                  className="text-[9px] font-black uppercase tracking-wider text-primary hover:bg-primary/10 h-7 px-2 rounded-lg"
-                  type="button"
-                >
-                  Hoy
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const next = new Date(currentMonth);
-                    next.setMonth(next.getMonth() + 1);
-                    setCurrentMonth(next);
-                  }}
-                  className="h-7 w-7 rounded-lg hover:bg-muted/40 text-foreground font-black text-sm"
-                  type="button"
-                >
-                  ›
-                </Button>
-              </div>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  const today = new Date();
+                  setCurrentMonth(today);
+                  const yyyy = today.getFullYear();
+                  const mm = String(today.getMonth() + 1).padStart(2, "0");
+                  const dd = String(today.getDate()).padStart(2, "0");
+                  setSelectedDate(`${yyyy}-${mm}-${dd}`);
+                }}
+                className="text-[9px] font-black uppercase tracking-wider text-primary hover:bg-primary/10 h-7 px-2 rounded-lg"
+                type="button"
+              >
+                Hoy
+              </Button>
             </CardHeader>
+
+            <div className="flex items-center justify-center gap-4 w-full mb-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  const prev = new Date(currentMonth);
+                  prev.setMonth(prev.getMonth() - 1);
+                  setCurrentMonth(prev);
+                }}
+                className="h-8 w-8 rounded-full hover:bg-muted/40 text-foreground font-black text-lg"
+                type="button"
+              >
+                ‹
+              </Button>
+              <h2 className="text-base font-black capitalize tracking-wide w-32 text-center text-foreground">
+                {format(currentMonth, "MMMM yyyy", { locale: es })}
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  const next = new Date(currentMonth);
+                  next.setMonth(next.getMonth() + 1);
+                  setCurrentMonth(next);
+                }}
+                className="h-8 w-8 rounded-full hover:bg-muted/40 text-foreground font-black text-lg"
+                type="button"
+              >
+                ›
+              </Button>
+            </div>
+
             <Calendar
               mode="single"
               selected={selectedDate ? new Date(selectedDate + "T12:00:00") : undefined}
@@ -455,6 +467,10 @@ export default function AgendaPagosPage() {
               modifiersClassNames={{
                 hasPendingPayment: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-primary after:rounded-full",
                 hasPaidPayment: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:bg-emerald-500 after:rounded-full"
+              }}
+              classNames={{
+                caption: "hidden",
+                nav: "hidden"
               }}
               className="border-none bg-transparent shadow-none p-0 w-full"
             />

@@ -7,6 +7,7 @@ import {
   ArrowUpRight, 
   ArrowDownLeft, 
   Eye, 
+  EyeOff,
   Trash2, 
   Wallet, 
   Loader2, 
@@ -66,7 +67,8 @@ import {
   serverTimestamp, 
   orderBy, 
   Timestamp,
-  deleteDoc
+  deleteDoc,
+  updateDoc
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -78,7 +80,7 @@ import { Calendar } from "@/components/ui/calendar";
 export default function BancosPage() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const isAdmin = user?.role === "administrador";
+  const isAdmin = user?.role === "admin";
   const isContador = user?.role === "contador";
   const isReadOnly = user?.role === "socio";
   const cannotEdit = isContador || isReadOnly;
@@ -115,7 +117,8 @@ export default function BancosPage() {
   useEffect(() => {
     if (!db) return;
     const unsub = onSnapshot(collection(db, "cuentas_bancarias"), (snap) => {
-      setAccounts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const allAccounts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setAccounts(allAccounts.filter((a: any) => a.activa !== false));
       setLoading(false);
     });
     return () => unsub();
@@ -216,7 +219,10 @@ export default function BancosPage() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!accountToDelete || !isAdmin) return;
+    if (!accountToDelete || !isAdmin) {
+      toast({ variant: "destructive", title: "Acceso Denegado" });
+      return;
+    }
     try {
       await deleteDoc(doc(db, "cuentas_bancarias", accountToDelete.id));
       toast({ title: "Cuenta Eliminada", description: "El registro ha sido removido del sistema." });
@@ -224,6 +230,19 @@ export default function BancosPage() {
       setAccountToDelete(null);
     } catch (e) {
       toast({ variant: "destructive", title: "Error al eliminar" });
+    }
+  };
+
+  const handleToggleActive = async (account: any) => {
+    if (!isAdmin) {
+      toast({ variant: "destructive", title: "Acceso Denegado" });
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "cuentas_bancarias", account.id), { activa: false });
+      toast({ title: "Cuenta Desactivada" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error" });
     }
   };
 
@@ -304,14 +323,26 @@ export default function BancosPage() {
                           <Eye className="h-4.5 w-4.5" />
                         </Button>
                         {isAdmin && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10 rounded-full hover:bg-red-50 hover:text-red-600"
-                            onClick={() => { setAccountToDelete(acc); setIsDeleteOpen(true); }}
-                          >
-                            <Trash2 className="h-4.5 w-4.5" />
-                          </Button>
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-10 w-10 rounded-full hover:bg-orange-50 hover:text-orange-600"
+                              onClick={() => handleToggleActive(acc)}
+                              title="Ocultar/Desactivar Cuenta"
+                            >
+                              <EyeOff className="h-4.5 w-4.5" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-10 w-10 rounded-full hover:bg-red-50 hover:text-red-600"
+                              onClick={() => { setAccountToDelete(acc); setIsDeleteOpen(true); }}
+                              title="Eliminar Cuenta"
+                            >
+                              <Trash2 className="h-4.5 w-4.5" />
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>

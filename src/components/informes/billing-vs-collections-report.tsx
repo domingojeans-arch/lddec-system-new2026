@@ -24,9 +24,14 @@ export function BillingVsCollectionsReport({
   dateTo
 }: BillingVsCollectionsReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
+  const [printFilter, setPrintFilter] = useState<'ALL' | 'FALTANTES' | 'MUESTRAS'>('ALL');
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
+    
+    const afterPrint = () => setPrintFilter('ALL');
+    window.addEventListener('afterprint', afterPrint);
+    return () => window.removeEventListener('afterprint', afterPrint);
   }, []);
 
   const reportData = useMemo(() => {
@@ -156,13 +161,23 @@ export function BillingVsCollectionsReport({
       .sort((a, b) => b.ingreso.localeCompare(a.ingreso, undefined, { numeric: true }));
   }, [entries, invoices, dateFrom, dateTo]);
 
+  const displayedData = useMemo(() => {
+    if (printFilter === 'FALTANTES') {
+      return reportData.filter(r => r.estado !== "Pagada");
+    }
+    if (printFilter === 'MUESTRAS') {
+      return reportData.filter(r => r.ingreso.startsWith("MUEST-") && r.estado !== "Pagada");
+    }
+    return reportData;
+  }, [reportData, printFilter]);
+
   const totals = useMemo(() => {
-    return reportData.reduce((acc, curr) => ({
+    return displayedData.reduce((acc, curr) => ({
       total: acc.total + curr.total,
       cobrado: acc.cobrado + curr.cobrado,
       saldo: acc.saldo + curr.saldo
     }), { total: 0, cobrado: 0, saldo: 0 });
-  }, [reportData]);
+  }, [displayedData]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
@@ -172,7 +187,7 @@ export function BillingVsCollectionsReport({
     <div className="space-y-10 animate-in fade-in duration-500 print:m-0 print:p-0">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
+          @page { size: auto; margin: 15mm; }
           body { margin: 0; padding: 0; background: white !important; }
           #billing-report-area {
             width: 100% !important;
@@ -200,8 +215,14 @@ export function BillingVsCollectionsReport({
         }
       `}</style>
 
-      <div className="flex justify-end gap-3 print-hidden">
-        <Button onClick={() => window.print()} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg">
+      <div className="flex flex-wrap justify-end gap-3 print-hidden">
+        <Button onClick={() => { setPrintFilter('FALTANTES'); setTimeout(() => window.print(), 200); }} variant="outline" className="text-amber-600 border-amber-600 hover:bg-amber-50 hover:text-amber-700 font-bold h-11 px-6 rounded-xl gap-2 shadow-sm">
+          <FileText className="h-4 w-4" /> Imprimir Solo Faltantes por Cobrar
+        </Button>
+        <Button onClick={() => { setPrintFilter('MUESTRAS'); setTimeout(() => window.print(), 200); }} variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 hover:text-blue-700 font-bold h-11 px-6 rounded-xl gap-2 shadow-sm">
+          <FileText className="h-4 w-4" /> Imprimir Muestras por Cobrar
+        </Button>
+        <Button onClick={() => { setPrintFilter('ALL'); setTimeout(() => window.print(), 200); }} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg">
           <Printer className="h-4 w-4" /> Imprimir Informe
         </Button>
       </div>
@@ -233,8 +254,8 @@ export function BillingVsCollectionsReport({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reportData.length > 0 ? (
-                reportData.map((row, idx) => (
+              {displayedData.length > 0 ? (
+                displayedData.map((row, idx) => (
                   <TableRow key={idx} className="border-border print:border-black hover:bg-muted/5">
                     <TableCell className="py-4 pl-8 text-xs font-medium text-muted-foreground print:text-black">{row.fecha}</TableCell>
                     <TableCell className="font-bold text-xs">{row.ingreso}</TableCell>
@@ -266,7 +287,7 @@ export function BillingVsCollectionsReport({
                 </TableRow>
               )}
             </TableBody>
-            {reportData.length > 0 && (
+            {displayedData.length > 0 && (
               <TableFooter className="bg-muted/20 print:bg-white print:border-t-2 print:border-black">
                 <TableRow>
                   <TableCell colSpan={4} className="text-[10px] font-black uppercase pl-8 py-5">TOTALES AUDITORÍA</TableCell>

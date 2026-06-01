@@ -112,7 +112,9 @@ service cloud.firestore {
     // TESORERÍA Y BANCOS
     match /cuentas_bancarias/{accId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('banco') || hasRole('financiero');
+      allow create: if isAdmin() || hasRole('banco') || hasRole('financiero');
+      allow update: if isAdmin() || ((hasRole('banco') || hasRole('financiero')) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['activa', 'activo'])));
+      allow delete: if isAdmin();
       
       match /transacciones/{txId} {
         allow read: if isAuthenticated();

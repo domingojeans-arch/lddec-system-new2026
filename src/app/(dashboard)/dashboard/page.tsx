@@ -36,10 +36,6 @@ import { useToast } from "@/hooks/use-toast";
 /**
  * CONSTANTES DE INGRESOS COMPARATIVOS
  */
-const REVENUE_2025 = [
-  15200, 18400, 21100, 19800, 22500, 24000,
-  20500, 23100, 25400, 27800, 26200, 31500
-];
 
 const MONTH_NAMES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -57,7 +53,8 @@ interface CachedDashboardStats {
     billingStats: any[];
     sampleStats: any[];
     collectionStats: any[];
-    revenue2026?: number[];
+    production2026?: number[];
+    production2025?: number[];
   };
   charts: {
     topClients: any[];
@@ -76,6 +73,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<CachedDashboardStats | null>(null);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(new Date().getMonth());
+  const currentYear = new Date().getFullYear();
 
   const handlePrevMonth = () => {
     setSelectedMonthIdx((prev) => (prev === 0 ? 11 : prev - 1));
@@ -135,15 +133,16 @@ export default function DashboardPage() {
     setRefreshing(true);
     
     try {
-      console.log("🚀 Iniciando recálculo global de métricas (Ventana 2026)...");
+      console.log("🚀 Iniciando recálculo global de métricas...");
       
-      // OPTIMIZACIÓN: Solo descargar datos desde el inicio del año actual para estadísticas de control
-      const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+      const startOfPrevYear = new Date(currentYear - 1, 0, 1);
+      const startOfPrevYearTs = Timestamp.fromDate(startOfPrevYear);
+      const startOfYear = new Date(currentYear, 0, 1);
       const startOfYearTs = Timestamp.fromDate(startOfYear);
 
       // 1. Descarga Multicanal Filtrada (One-time fetch con where)
       const [entriesSnap, outputsSnap, legacySalidasSnap, legacyMuestrasSnap, invoicesSnap, paymentsSnap] = await Promise.all([
-        getDocs(query(collection(db, "entries"), where("date", ">=", startOfYearTs))),
+        getDocs(query(collection(db, "entries"), where("date", ">=", startOfPrevYearTs))),
         getDocs(query(collection(db, "outputs"), where("date", ">=", startOfYearTs))),
         getDocs(query(collection(db, "salidas"), where("fechaSalida", ">=", startOfYearTs))),
         getDocs(query(collection(db, "muestras"), where("fecha", ">=", startOfYearTs))),
@@ -456,20 +455,24 @@ export default function DashboardPage() {
         return statsArr;
       };
 
-      // 5. Cálculo de Ingresos Mensuales 2026 (Facturación)
-      const revenue2026Calculated = (() => {
-        const monthlyRevenue = Array(12).fill(0);
-        invoicesRaw.forEach(inv => {
-          if (!inv || inv.anulado) return;
-          const invDate = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate || inv.date || inv.timestamp);
-          if (invDate && invDate.getFullYear() === 2026) {
-            const monthIdx = invDate.getMonth();
-            const amount = Number(inv.totalFactura || inv.total || 0);
-            monthlyRevenue[monthIdx] += amount;
+      // 5. Cálculo de Ingresos Mensuales de Prendas (Producción)
+      const production2026Calculated = Array(12).fill(0);
+      const production2025Calculated = Array(12).fill(0);
+
+      entriesRaw.forEach(e => {
+        const d = toDate(e.date || e.entryDate);
+        if (d) {
+          const year = d.getFullYear();
+          const monthIdx = d.getMonth();
+          const qty = (e.lotes || []).reduce((acc: number, l: any) => acc + (Number(l.cantidadConfirmada || l.quantity || l.cantidad || 0)), 0);
+          
+          if (year === currentYear) {
+            production2026Calculated[monthIdx] += qty;
+          } else if (year === currentYear - 1) {
+            production2025Calculated[monthIdx] += qty;
           }
-        });
-        return monthlyRevenue;
-      })();
+        }
+      });
 
       // 6. Consolidación de Cache
       const newStats: CachedDashboardStats = {
@@ -480,7 +483,8 @@ export default function DashboardPage() {
           billingStats: getMonthlyStats(false),
           sampleStats: getMonthlyStats(true),
           collectionStats: getCollectionMonthlyStats(),
-          revenue2026: revenue2026Calculated
+          production2026: production2026Calculated,
+          production2025: production2025Calculated
         },
         charts: { topClients, topGarments },
         lastUpdate: new Date(),
@@ -511,23 +515,23 @@ export default function DashboardPage() {
     );
   }
 
-  // 7. Cálculos para comparativa anual (2025 fijos vs 2026 calculados)
+  // 7. Cálculos para comparativa anual de producción
   const currentMonthName = MONTH_NAMES[selectedMonthIdx];
   
-  const revenue2026 = stats?.metrics?.revenue2026 || Array(12).fill(0);
-  const revenue2025 = REVENUE_2025;
+  const production2026 = stats?.metrics?.production2026 || Array(12).fill(0);
+  const production2025 = stats?.metrics?.production2025 || Array(12).fill(0);
   
-  const currentRevenue2026 = revenue2026[selectedMonthIdx] || 0;
-  const currentRevenue2025 = revenue2025[selectedMonthIdx] || 0;
+  const currentProduction2026 = production2026[selectedMonthIdx] || 0;
+  const currentProduction2025 = production2025[selectedMonthIdx] || 0;
   
-  const growthPct = currentRevenue2025 > 0 
-    ? ((currentRevenue2026 - currentRevenue2025) / currentRevenue2025) * 100 
+  const growthPct = currentProduction2025 > 0 
+    ? ((currentProduction2026 - currentProduction2025) / currentProduction2025) * 100 
     : 0;
 
   const comparisonChartData = MONTH_NAMES.map((name, idx) => ({
     name: name.substring(0, 3).toUpperCase(),
-    "2025": revenue2025[idx],
-    "2026": revenue2026[idx],
+    [String(currentYear - 1)]: production2025[idx],
+    [String(currentYear)]: production2026[idx],
   }));
 
   return (
@@ -691,7 +695,7 @@ export default function DashboardPage() {
                     <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                       {growthPct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                     </div>
-                    <span>Crecimiento</span>
+                    <span>Crecimiento de Producción</span>
                   </div>
                   
                   {/* Controles de Mes Interactivo */}
@@ -721,20 +725,20 @@ export default function DashboardPage() {
                     Mes Equivalente
                   </div>
                   <h4 className="text-xl font-bold uppercase text-foreground">
-                    {currentMonthName} 2026 vs 2025
+                    {currentMonthName} {currentYear} vs {currentYear - 1}
                   </h4>
                   
                   <div className="grid grid-cols-2 gap-4 pt-2">
                     <div className="space-y-1">
-                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Facturación 2026</span>
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Ingresos {currentYear}</span>
                       <p className="text-2xl font-black text-primary tracking-tight">
-                        ${currentRevenue2026.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {currentProduction2026.toLocaleString('es-EC')} <span className="text-sm font-normal text-muted-foreground">unds</span>
                       </p>
                     </div>
                     <div className="space-y-1 border-l border-border pl-4">
-                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Facturación 2025</span>
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Ingresos {currentYear - 1}</span>
                       <p className="text-2xl font-black text-muted-foreground/80 tracking-tight">
-                        ${currentRevenue2025.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {currentProduction2025.toLocaleString('es-EC')} <span className="text-sm font-normal text-muted-foreground">unds</span>
                       </p>
                     </div>
                   </div>
@@ -778,7 +782,7 @@ export default function DashboardPage() {
                   <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                     <TrendingUp className="h-4 w-4" />
                   </div>
-                  Comparativo de Facturación Mensual ($ USD)
+                  Comparativo de Ingreso de Prendas Mensual
                 </CardTitle>
               </CardHeader>
               <CardContent className="h-[300px] px-10 pb-10">
@@ -794,15 +798,15 @@ export default function DashboardPage() {
                       axisLine={false} 
                       tickLine={false} 
                       tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }}
-                      tickFormatter={(val) => `$${(val / 1000)}k`}
+                      tickFormatter={(val) => val >= 1000 ? `${(val / 1000)}k` : val}
                     />
                     <Tooltip 
                       cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
                       contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '16px', color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '12px' }}
-                      formatter={(value: any) => [`$${Number(value).toLocaleString('es-EC', { minimumFractionDigits: 2 })}`, '']}
+                      formatter={(value: any) => [`${Number(value).toLocaleString('es-EC')} prendas`, '']}
                     />
-                    <Bar dataKey="2025" fill="hsl(var(--muted-foreground)/0.4)" radius={[4, 4, 0, 0]} barSize={12} name="2025 (Fijo)" />
-                    <Bar dataKey="2026" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={12} name="2026 (Real)" />
+                    <Bar dataKey={String(currentYear - 1)} fill="hsl(var(--muted-foreground)/0.4)" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear - 1} (Fijo)`} />
+                    <Bar dataKey={String(currentYear)} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear} (Real)`} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
