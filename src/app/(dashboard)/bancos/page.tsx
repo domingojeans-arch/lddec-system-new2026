@@ -15,12 +15,14 @@ import {
   Printer,
   ArrowRightLeft,
   X,
-  AlertTriangle
+  AlertTriangle,
+  Undo2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -88,6 +90,7 @@ export default function BancosPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const [mostrarOcultas, setMostrarOcultas] = useState(false);
 
   // Form states
   const [txForm, setTxForm] = useState({ 
@@ -118,7 +121,7 @@ export default function BancosPage() {
     if (!db) return;
     const unsub = onSnapshot(collection(db, "cuentas_bancarias"), (snap) => {
       const allAccounts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setAccounts(allAccounts.filter((a: any) => a.activa !== false));
+      setAccounts(allAccounts);
       setLoading(false);
     });
     return () => unsub();
@@ -246,6 +249,19 @@ export default function BancosPage() {
     }
   };
 
+  const handleRestoreAccount = async (account: any) => {
+    if (!isAdmin) {
+      toast({ variant: "destructive", title: "Acceso Denegado" });
+      return;
+    }
+    try {
+      await updateDoc(doc(db, "cuentas_bancarias", account.id), { activa: true });
+      toast({ title: "Cuenta Restaurada" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error" });
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
@@ -257,6 +273,8 @@ export default function BancosPage() {
 
   const txDate = txForm.fecha;
 
+  const displayedAccounts = accounts.filter(a => mostrarOcultas ? true : a.activa !== false);
+
   return (
     <div className="max-w-[1600px] mx-auto space-y-10 animate-in fade-in duration-700 pb-20">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -266,8 +284,14 @@ export default function BancosPage() {
             Gestión de Disponibilidad {cannotEdit && "(MODO LECTURA)"}
           </p>
         </div>
-        {!cannotEdit && (
-          <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-6">
+          <div className="flex items-center gap-2">
+            <Switch checked={mostrarOcultas} onCheckedChange={setMostrarOcultas} id="mostrar-ocultas" />
+            <Label htmlFor="mostrar-ocultas" className="text-xs font-bold uppercase cursor-pointer text-muted-foreground">
+              Mostrar ocultas
+            </Label>
+          </div>
+          {!cannotEdit && (
             <Button 
               onClick={() => setIsRegisterOpen(true)} 
               className="bg-primary hover:bg-primary/90 text-white font-black uppercase h-12 px-8 rounded-xl shadow-xl transition-all active:scale-95"
@@ -275,8 +299,8 @@ export default function BancosPage() {
               <ArrowRightLeft className="h-4 w-4 mr-2" />
               Registrar Movimiento
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
@@ -292,8 +316,8 @@ export default function BancosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {accounts.map((acc) => (
-                  <TableRow key={acc.id} className="border-b border-border hover:bg-muted/10 transition-colors group">
+                {displayedAccounts.map((acc) => (
+                  <TableRow key={acc.id} className={cn("border-b border-border hover:bg-muted/10 transition-colors group", acc.activa === false && "opacity-60 bg-muted/5")}>
                     <TableCell className="py-6 pl-10">
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-xl bg-primary/5 flex items-center justify-center text-primary">
@@ -324,15 +348,27 @@ export default function BancosPage() {
                         </Button>
                         {isAdmin && (
                           <>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-10 w-10 rounded-full hover:bg-orange-50 hover:text-orange-600"
-                              onClick={() => handleToggleActive(acc)}
-                              title="Ocultar/Desactivar Cuenta"
-                            >
-                              <EyeOff className="h-4.5 w-4.5" />
-                            </Button>
+                            {acc.activa !== false ? (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-10 w-10 rounded-full hover:bg-orange-50 hover:text-orange-600"
+                                onClick={() => handleToggleActive(acc)}
+                                title="Ocultar/Desactivar Cuenta"
+                              >
+                                <EyeOff className="h-4.5 w-4.5" />
+                              </Button>
+                            ) : (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-10 w-10 rounded-full hover:bg-emerald-50 hover:text-emerald-600"
+                                onClick={() => handleRestoreAccount(acc)}
+                                title="Mostrar/Activar Cuenta"
+                              >
+                                <Undo2 className="h-4.5 w-4.5" />
+                              </Button>
+                            )}
                             <Button 
                               variant="ghost" 
                               size="icon" 
@@ -348,7 +384,7 @@ export default function BancosPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {accounts.length === 0 && (
+                {displayedAccounts.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="h-40 text-center opacity-30">
                       <Wallet className="h-12 w-12 mx-auto mb-2" />
