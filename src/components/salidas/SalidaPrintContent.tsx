@@ -141,7 +141,8 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
           cant: Number(sub.quantityToDispatch || sub.quantity || 0),
           desc: `${garmentType} - ${subProcess}`.toUpperCase(),
           lote: lotId,
-          ingreso: entryId
+          ingreso: entryId,
+          isManual: !!item.isManual
         });
       });
     } else {
@@ -153,7 +154,8 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
         cant: Number(item.quantityToDispatch || item.cantidad || item.quantity || 0),
         desc: `${garmentType} - ${lotProc}`,
         lote: lotId,
-        ingreso: entryId
+        ingreso: entryId,
+        isManual: !!item.isManual
       });
     }
   });
@@ -232,6 +234,7 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
             paddingTop: '2px',
             paddingBottom: '2px'
           }}>
+            {row.isManual && <div style={{ position: 'absolute', left: '3.0cm', fontWeight: 'bold', fontSize: '11pt' }}>* *</div>}
             <div style={{ width: '1.5cm', textAlign: 'center', marginLeft: '4.5cm', fontWeight: 'bold' }}>{row.cant}</div>
             <div style={{ 
               width: '6.3cm', 
@@ -244,6 +247,7 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
             }}>{row.desc}</div>
             <div style={{ position: 'absolute', left: '12.70cm', width: '2.0cm', textAlign: 'center', fontWeight: 'bold' }}>{row.lote}</div>
             <div style={{ position: 'absolute', left: '14.70cm', width: '2.0cm', textAlign: 'right' }}>{row.ingreso}</div>
+            {row.isManual && <div style={{ position: 'absolute', left: '17.0cm', fontWeight: 'bold', fontSize: '11pt' }}>* *</div>}
           </div>
         ))}
       </div>

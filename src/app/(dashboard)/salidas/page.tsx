@@ -603,9 +603,9 @@ export default function SalidasPage() {
     const selectedClient = clients.find(c => c.id === clientId);
     const clientName = selectedClient ? (selectedClient.name || selectedClient.nombre || "SOCIO").toUpperCase() : "SOCIO";
 
-    // Requisito 3: Identificador visual concatenando asteriscos en el proceso
+    // Requisito 3: Identificador visual concatenando asteriscos en la fila impresa
     const pureLotName = lotNumber.trim().toUpperCase();
-    const manualProcessName = `*${process.trim().toUpperCase()} (MANUAL)*`;
+    const manualProcessName = `"${process.trim().toUpperCase()}"`;
 
     const newItem = {
       entryLotNumber: pureLotName,
