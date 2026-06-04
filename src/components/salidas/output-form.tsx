@@ -92,9 +92,9 @@ export function OutputForm({ initialData, onSubmit, onCancel }: OutputFormProps)
   }, [lines.length, form]);
 
   const handleAddLot = (lot: any, entryId: string, entryNumber: string, clientName: string, clientId: string) => {
-    const currentFormClientId = form.getValues('clientId');
+    const firstLineClientId = lines.length > 0 ? (lines[0] as any).clientId : null;
 
-    if (lines.length > 0 && currentFormClientId && currentFormClientId !== clientId) {
+    if (firstLineClientId && firstLineClientId !== clientId) {
       toast({
         title: "Error de Validación",
         description: "Todos los lotes en esta salida deben pertenecer al mismo cliente.",
@@ -103,11 +103,11 @@ export function OutputForm({ initialData, onSubmit, onCancel }: OutputFormProps)
       return;
     }
 
-    if (lines.length === 0 || !currentFormClientId) {
+    if (lines.length === 0) {
       form.setValue('clientId', clientId);
     }
 
-    const newLine: OutputLine = {
+    const newLine: any = {
       id: Math.random().toString(36).substr(2, 9),
       entryId,
       entryNumber,
@@ -122,7 +122,8 @@ export function OutputForm({ initialData, onSubmit, onCancel }: OutputFormProps)
       quantityMissing: 0,
       quantityDamaged: 0,
       quantityPending: 0,
-      status: 'dispatched'
+      status: 'dispatched',
+      clientId // Guardar el clientId en la línea para validación futura
     };
     setLines([...lines, newLine]);
     setIsLotSelectorOpen(false);
