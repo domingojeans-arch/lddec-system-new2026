@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Button } from "@/components/ui/button";
 import { Printer } from "lucide-react";
 import { toDate } from "@/lib/toDate";
+import { formatClientName } from "@/lib/format-name";
 
 interface CollectionsDetailedReportProps {
   collections: any[];
@@ -59,7 +60,7 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
           if (!uniqueLines.has(key)) {
             uniqueLines.set(key, {
               fecha: pDate,
-              cliente: col.clienteNombre || col.clientName || col.cliente || "Socio",
+              cliente: formatClientName(col.clienteNombre || col.clientName || col.cliente || "Socio"),
               documento: `FACT: ${col.numeroFactura || col.numero || col.id}`,
               tipo: p.tipoTransaccion || "PAGO",
               metodo: p.metodoPago || "S/D",
@@ -85,7 +86,7 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
         if (!uniqueLines.has(key)) {
           uniqueLines.set(key, {
             fecha: pDate,
-            cliente: col.clienteNombre || col.clientName || col.cliente || "Socio",
+            cliente: formatClientName(col.clienteNombre || col.clientName || col.cliente || "Socio"),
             documento: col.numeroFactura ? `FACT: ${col.numeroFactura}` : (col.facturaId ? `FACT ID: ${col.facturaId}` : "S/D"),
             tipo: col.tipoTransaccion || "PAGO",
             metodo: col.metodoPago || "S/D",
@@ -244,7 +245,7 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
           <div className="space-y-1">
             {client ? (
               <>
-                <p><span className="font-bold">Cliente:</span> {(client.name || client.clienteNombre || "S/D").toUpperCase()}</p>
+                <p><span className="font-bold">Cliente:</span> {formatClientName(client.name || client.clienteNombre || "S/D")}</p>
                 <p><span className="font-bold">Zona:</span> {client.zona || "GENERAL"}</p>
                 <p><span className="font-bold">Vendedor:</span> MATRIZ AMBATO</p>
                 <p><span className="font-bold">Teléfono:</span> {client.phone || "S/D"}</p>

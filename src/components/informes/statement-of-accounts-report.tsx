@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Printer, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
 import { calculateClientAccountingMetrics } from "@/lib/accounting-motor";
 import { toDate } from "@/lib/toDate";
+import { formatClientName } from "@/lib/format-name";
 
 interface StatementOfAccountsReportProps {
   clients: any[];
@@ -80,7 +81,7 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         const saldoActual = (saldoAnterior + totalDebe) - totalHaber;
 
         return {
-          name: (client.name || `${client.firstName || ""} ${client.lastName || ""}`).toUpperCase().trim(),
+          name: formatClientName(client.name || `${client.firstName || ""} ${client.lastName || ""}`),
           saldoAnterior,
           facturacion: totalDebe,
           nd: 0,

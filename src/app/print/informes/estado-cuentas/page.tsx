@@ -8,6 +8,7 @@ import { filterPaymentsByDate } from "@/lib/accounting-motor";
 import { collection, getDocs } from "firebase/firestore";
 import { toDate } from "@/lib/toDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+import { formatClientName } from "@/lib/format-name";
 
 function PrintContent() {
   const searchParams = useSearchParams();
@@ -93,7 +94,7 @@ function PrintContent() {
             }
 
             return {
-              name: (client.name || client.firstName || "").toUpperCase().trim(),
+              name: formatClientName(client.name || client.firstName || ""),
               saldoAnterior,
               facturacion: totalDebe,
               nd: 0,
