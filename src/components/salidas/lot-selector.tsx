@@ -38,8 +38,8 @@ export function LotSelector({ onSelect, selectedLotIds }: LotSelectorProps) {
             ...lot,
             entryId: entry.id,
             entryNumber: entry.entryNumber,
-            clientName: entry.clientName,
-            clientId: entry.clientId
+            clientName: entry.clientName || (entry as any).clienteNombre || "Desconocido",
+            clientId: entry.clientId || (entry as any).clienteId || "Desconocido"
           });
         }
       });

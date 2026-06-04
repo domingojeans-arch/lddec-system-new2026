@@ -92,12 +92,14 @@ export function OutputForm({ initialData, onSubmit, onCancel }: OutputFormProps)
   }, [lines.length, form]);
 
   const handleAddLot = (lot: any, entryId: string, entryNumber: string, clientName: string, clientId: string) => {
-    const firstLineClientId = lines.length > 0 ? (lines[0] as any).clientId : null;
+    // Tomar el cliente del primer lote agregado a la lista. 
+    // Usamos clientName unificado para evitar fallos si clientId viene undefined o null de la BD
+    const firstLineClientName = lines.length > 0 ? (lines[0] as any).clientName : null;
 
-    if (firstLineClientId && firstLineClientId !== clientId) {
+    if (lines.length > 0 && firstLineClientName && firstLineClientName !== clientName) {
       toast({
         title: "Error de Validación",
-        description: "Todos los lotes en esta salida deben pertenecer al mismo cliente.",
+        description: "No se pueden mezclar lotes de diferentes clientes en un mismo despacho.",
         variant: "destructive"
       });
       return;
@@ -123,7 +125,8 @@ export function OutputForm({ initialData, onSubmit, onCancel }: OutputFormProps)
       quantityDamaged: 0,
       quantityPending: 0,
       status: 'dispatched',
-      clientId // Guardar el clientId en la línea para validación futura
+      clientId: clientId, // Guardar el clientId original
+      clientName: clientName // Guardar el string estricto del nombre del cliente para comparaciones
     };
     setLines([...lines, newLine]);
     setIsLotSelectorOpen(false);
