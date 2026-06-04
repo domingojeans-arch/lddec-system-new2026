@@ -145,9 +145,17 @@ function PrintContent() {
   if (loading) return <div className="p-20 text-center font-black uppercase tracking-widest">Generando Estado de Cuentas A4...</div>;
 
   return (
-    <div className="print-page">
+    <div className="print-page reporte-horizontal">
       <style>{`
-        @page { size: A4; margin: 15mm; }
+        @media print {
+          @page {
+            size: landscape;
+            margin: 15mm;
+          }
+          .reporte-horizontal {
+            width: 100%;
+          }
+        }
         body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; }
         .print-page {
           width: 29.7cm;
