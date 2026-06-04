@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface LotSelectorProps {
-  onSelect: (lot: EntryLot, entryId: string, entryNumber: string, clientName: string) => void;
+  onSelect: (lot: EntryLot, entryId: string, entryNumber: string, clientName: string, clientId: string) => void;
   selectedLotIds: string[];
 }
 
@@ -38,7 +38,8 @@ export function LotSelector({ onSelect, selectedLotIds }: LotSelectorProps) {
             ...lot,
             entryId: entry.id,
             entryNumber: entry.entryNumber,
-            clientName: entry.clientName
+            clientName: entry.clientName,
+            clientId: entry.clientId
           });
         }
       });
@@ -99,7 +100,7 @@ export function LotSelector({ onSelect, selectedLotIds }: LotSelectorProps) {
                     size="icon"
                     variant={isSelected ? "ghost" : "secondary"}
                     className={`h-8 w-8 rounded-full ${isSelected ? "text-accent cursor-default" : "hover:bg-accent hover:text-white"}`}
-                    onClick={() => !isSelected && onSelect(item, item.entryId, item.entryNumber, item.clientName)}
+                    onClick={() => !isSelected && onSelect(item, item.entryId, item.entryNumber, item.clientName, item.clientId)}
                   >
                     {isSelected ? <CheckCircle2 className="h-5 w-5" /> : <Plus className="h-4 w-4" />}
                   </Button>

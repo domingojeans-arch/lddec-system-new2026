@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -35,6 +35,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 
 const outputSchema = z.object({
   outputNumber: z.string().min(1, "Número de salida obligatorio"),
@@ -55,6 +56,7 @@ interface OutputFormProps {
 export function OutputForm({ initialData, onSubmit, onCancel }: OutputFormProps) {
   const [lines, setLines] = useState<OutputLine[]>(initialData?.lines || []);
   const [isLotSelectorOpen, setIsLotSelectorOpen] = useState(false);
+  const { toast } = useToast();
   
   const form = useForm<z.infer<typeof outputSchema>>({
     resolver: zodResolver(outputSchema),
@@ -83,7 +85,28 @@ export function OutputForm({ initialData, onSubmit, onCancel }: OutputFormProps)
     pending: acc.pending + line.quantityPending,
   }), { original: 0, dispatched: 0, pending: 0 });
 
-  const handleAddLot = (lot: any, entryId: string, entryNumber: string, clientName: string) => {
+  useEffect(() => {
+    if (lines.length === 0) {
+      form.setValue("clientId", "");
+    }
+  }, [lines.length, form]);
+
+  const handleAddLot = (lot: any, entryId: string, entryNumber: string, clientName: string, clientId: string) => {
+    const currentFormClientId = form.getValues('clientId');
+
+    if (lines.length > 0 && currentFormClientId && currentFormClientId !== clientId) {
+      toast({
+        title: "Error de Validación",
+        description: "Todos los lotes en esta salida deben pertenecer al mismo cliente.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (lines.length === 0 || !currentFormClientId) {
+      form.setValue('clientId', clientId);
+    }
+
     const newLine: OutputLine = {
       id: Math.random().toString(36).substr(2, 9),
       entryId,
