@@ -603,18 +603,19 @@ export default function SalidasPage() {
     const selectedClient = clients.find(c => c.id === clientId);
     const clientName = selectedClient ? (selectedClient.name || selectedClient.nombre || "SOCIO").toUpperCase() : "SOCIO";
 
-    // Requisito 3: Identificador visual concatenando " (Manual)"
-    const manualLotName = `${lotNumber.trim().toUpperCase()} (Manual)`;
+    // Requisito 3: Identificador visual concatenando asteriscos en el proceso
+    const pureLotName = lotNumber.trim().toUpperCase();
+    const manualProcessName = `*${process.trim().toUpperCase()} (MANUAL)*`;
 
     const newItem = {
-      entryLotNumber: manualLotName,
-      lotNumber: manualLotName,
+      entryLotNumber: pureLotName,
+      lotNumber: pureLotName,
       parentIngresoMaestro: `manual-${Date.now()}`,
       parentIngresoNumber: entryNumber.trim().toUpperCase(),
       clientName: clientName,
       garmentType: garmentType.trim().toUpperCase(),
-      processType: process.trim().toUpperCase(),
-      process: process.trim().toUpperCase(),
+      processType: manualProcessName,
+      process: manualProcessName,
       quantityToDispatch: qtyNum,
       isManual: true,
       prendas: [
@@ -626,7 +627,7 @@ export default function SalidasPage() {
       ]
     };
 
-    const existingIndex = itemsToDispatch.findIndex((it: any) => getVisibleLotName(it) === manualLotName);
+    const existingIndex = itemsToDispatch.findIndex((it: any) => getVisibleLotName(it) === pureLotName);
 
     if (existingIndex > -1) {
       const updatedItems = [...itemsToDispatch];
@@ -664,7 +665,7 @@ export default function SalidasPage() {
       quantity: ""
     });
 
-    toast({ title: "Lote Manual Agregado", description: `El lote manual ${manualLotName} ha sido agregado con éxito.` });
+    toast({ title: "Lote Manual Agregado", description: `El lote manual ${pureLotName} ha sido agregado con éxito.` });
   };
 
   const handleSaveOutput = async () => {
