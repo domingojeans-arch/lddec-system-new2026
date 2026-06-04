@@ -148,14 +148,12 @@ function PrintContent() {
   return (
     <div className="print-page reporte-horizontal">
       <style>{`
-        @media print {
-          @page {
-            size: landscape;
-            margin: 15mm;
-          }
-          .reporte-horizontal {
-            width: 100%;
-          }
+        @page { 
+          size: A4 landscape; 
+          margin: 15mm; 
+        }
+        .reporte-horizontal {
+          width: 100%;
         }
         body { margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; }
         .print-page {
