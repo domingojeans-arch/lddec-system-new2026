@@ -156,8 +156,8 @@
 
   /* CONFIGURACIÓN DE HOJA A4 Y MÁRGENES ESTÁNDAR */
   @page {
-    size: A4 portrait !important;
-    margin: 15mm 15mm 15mm 15mm !important;
+    size: A4 portrait;
+    margin: 15mm 15mm 15mm 15mm;
   }
 
   /* AJUSTE DE ANCHO DE LA TABLA AL 100% DEL ESPACIO DE LA HOJA */

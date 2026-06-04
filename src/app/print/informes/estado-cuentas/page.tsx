@@ -149,8 +149,8 @@ function PrintContent() {
     <div className="print-page reporte-horizontal">
       <style>{`
         @page { 
-          size: A4 landscape; 
-          margin: 15mm; 
+          size: A4 landscape !important; 
+          margin: 15mm !important; 
         }
         .reporte-horizontal {
           width: 100%;
