@@ -155,6 +155,27 @@ export default function ManualidadesPage() {
 
   const handleFinalSave = async () => {
     try {
+      // 1. Validación estricta de duplicados
+      const qDup = query(
+        collection(db, "manualidades"),
+        where("fechaStr", "==", formData.fecha),
+        where("operarioNombre", "==", formData.operarioNombre.toUpperCase())
+      );
+      const dupSnap = await getDocs(qDup);
+      const isDuplicate = dupSnap.docs.some(d => {
+        const data = d.data();
+        return data.clienteNombre === formData.clienteNombre.toUpperCase() &&
+               data.proceso === formData.proceso.toUpperCase() &&
+               Number(data.cantidad) === Number(formData.cantidad) &&
+               data.loteNumero === formData.loteNumero.toUpperCase();
+      });
+
+      if (isDuplicate) {
+        alert("Error: Este registro ya existe con el mismo operario");
+        setReverseShowConfirm(false);
+        return;
+      }
+
       const payload = { ...formData, operarioId: formData.operarioNombre.toUpperCase(), operarioNombre: formData.operarioNombre.toUpperCase(), loteNumero: formData.loteNumero.toUpperCase(), proceso: formData.proceso.toUpperCase(), especificacionPrenda: formData.especificacionPrenda.toUpperCase(), cantidad: Number(formData.cantidad), estado: "pendiente", createdAt: Timestamp.now(), updatedAt: Timestamp.now(), createdByUid: user?.uid || "system", createdBy: user?.displayName || "system", fechaStr: formData.fecha };
       await addDoc(collection(db, "manualidades"), payload);
       toast({ title: "Registro Exitoso" });

@@ -222,15 +222,15 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
                           {(canFullEdit || isHistory) && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => handleOpenEditDialog(work)}><Edit3 className="h-3.5 w-3.5" /></Button>
                           )}
-                          {onDelete && canFullEdit && (
+                          {onDelete && user?.displayName === 'EDGAR ADMIN' && (
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="h-8 w-8 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors" 
+                              className="h-8 w-8 rounded-lg text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors ml-1" 
                               onClick={() => onDelete(work.id)} 
                               title="Eliminar registro de lote de forma permanente"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
