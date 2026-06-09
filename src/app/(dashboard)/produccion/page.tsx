@@ -70,6 +70,7 @@ function getVisibleLotName(lote: any): string {
 export default function ProduccionPage() {
   const [activeTab, setActiveTab] = useState("pendiente");
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [busquedaGlobal, setBusquedaGlobal] = useState(false);
   const [entries, setEntries] = useState<any[]>([]);
   const [manualWorks, setManualWorks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +124,8 @@ export default function ProduccionPage() {
       // Filtrar y ordenar en memoria estrictamente por la fecha de origen real
       const manualList = allManualList
         .filter(work => {
+          if (busquedaGlobal) return true; // Si Búsqueda Global está activa, omite los límites de fecha
+          
           const fechaStr = work.fecha || work.fechaStr || "";
           
           // Lógica del filtro split para texto "yyyy-MM-dd"
@@ -174,7 +177,7 @@ export default function ProduccionPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedDate]);
+  }, [selectedDate, busquedaGlobal]);
 
   useEffect(() => {
     loadData();
@@ -530,6 +533,12 @@ export default function ProduccionPage() {
             <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input placeholder="Operario..." className="pl-10 erp-input h-10 text-xs border-primary/20 w-full bg-background border rounded-lg outline-none" value={inputOperator} onChange={e => setInputOperator(e.target.value)} />
           </div>
+          {(user?.displayName === 'EDGAR ADMIN' || user?.email === 'ugeofly@hotmail.com' || process.env.NODE_ENV === 'development') && (
+            <label className="flex items-center gap-2 cursor-pointer bg-primary/5 hover:bg-primary/10 border border-primary/20 px-3 py-2 rounded-lg transition-colors h-10 shrink-0 select-none">
+              <input type="checkbox" checked={busquedaGlobal} onChange={e => setBusquedaGlobal(e.target.checked)} className="w-3.5 h-3.5 accent-primary cursor-pointer" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary">Búsqueda Global (Todo el Historial)</span>
+            </label>
+          )}
           <div className="h-10 flex items-center px-4 bg-background border border-border rounded-lg text-[10px] font-black uppercase text-muted-foreground">
             {loading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <span className="text-primary mr-2 text-sm">{filteredManualWorks.length}</span>} Registros
           </div>

@@ -18,8 +18,9 @@ import { toDate } from "@/lib/toDate";
 import { useAuth } from "@/hooks/use-auth";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,7 @@ interface HandicraftsReviewTableProps {
 
 export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, isHistory, onSort, sortKey, sortDir }: HandicraftsReviewTableProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const isReadOnly = user?.role === "socio";
   const canFullEdit = (user?.role === "administrador" || user?.role === "produccion") && !isReadOnly;
   
@@ -71,18 +73,17 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
 
   // MOTOR DE DETECCIÓN DE DUPLICADOS
   const duplicateAnalysis = useMemo(() => {
-    const partialMap = new Map<string, number>();
-    const totalMap = new Map<string, number>();
+    const dupMap = new Map<string, number>();
 
     works.forEach(w => {
-      const pKey = `${w.loteNumero}-${w.proceso}-${w.cantidad}-${w.operarioNombre}`.toUpperCase();
-      partialMap.set(pKey, (partialMap.get(pKey) || 0) + 1);
-
-      const tKey = `${w.loteNumero}-${w.clienteId}-${w.cantidad}-${w.proceso}-${w.tipoPrenda}-${w.especificacionPrenda}-${w.operarioNombre}-${w.fechaStr}`.toUpperCase();
-      totalMap.set(tKey, (totalMap.get(tKey) || 0) + 1);
+      if (w.estado !== 'pendiente') return; // Solo calcular duplicados para registros en la pestaña de PENDIENTES
+      
+      // FECHA, CLIENTE, MANUALIDAD, CANTIDAD, OPERARIO
+      const key = `${w.fechaStr}-${w.clienteNombre}-${w.proceso}-${w.cantidad}-${w.operarioNombre}`.toUpperCase();
+      dupMap.set(key, (dupMap.get(key) || 0) + 1);
     });
 
-    return { partialMap, totalMap };
+    return { dupMap };
   }, [works]);
 
   useEffect(() => {
@@ -117,7 +118,8 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
       precioUnitario: work.precioUnitario || 0,
       proceso: work.proceso || "",
       notes: work.notes || "",
-      estado: work.estado || "pendiente"
+      estado: work.estado || "pendiente",
+      fechaStr: work.fechaStr || work.fecha || ""
     });
     setIsDialogOpen(true);
   };
@@ -127,7 +129,35 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
     const qty = Number(editForm.cantidad) || 0;
     const price = Number(editForm.precioUnitario) || 0;
     const total = qty * price;
-    onUpdate(selectedWork.id, { ...editForm, total });
+    
+    // Recalcular propiedades de ordenamiento temporal para persistencia de filtros
+    const dateParts = editForm.fechaStr.split("-");
+    let newTimestamp = null;
+    if (dateParts.length === 3) {
+      // Forzar mediodía para evitar saltos de zona horaria
+      const d = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]), 12, 0, 0);
+      newTimestamp = Timestamp.fromDate(d);
+    }
+
+    const payload: any = { 
+      ...editForm, 
+      cantidad: qty, 
+      precioUnitario: price, 
+      total,
+      loteNumero: String(editForm.loteNumero).toUpperCase().trim(),
+      operarioNombre: String(editForm.operarioNombre).toUpperCase().trim(),
+      proceso: String(editForm.proceso).toUpperCase().trim(),
+      fecha: editForm.fechaStr,
+      fechaStr: editForm.fechaStr,
+      workDate: editForm.fechaStr
+    };
+
+    if (newTimestamp) {
+      payload.createdAt = newTimestamp;
+    }
+
+    onUpdate(selectedWork.id, payload);
+    toast({ title: "Registro actualizado correctamente", className: "bg-emerald-600 text-white border-none" });
     setIsDialogOpen(false);
   };
 
@@ -168,20 +198,16 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
                 const dateObj = toDate(work.fecha || work.fechaStr || work.createdAt);
                 const displayDate = dateObj ? dateObj.toLocaleDateString('es-EC') : "---";
                 
-                const pKey = `${work.loteNumero}-${work.proceso}-${work.cantidad}-${work.operarioNombre}`.toUpperCase();
-                const tKey = `${work.loteNumero}-${work.clienteId}-${work.cantidad}-${work.proceso}-${work.tipoPrenda}-${work.especificacionPrenda}-${work.operarioNombre}-${work.fechaStr}`.toUpperCase();
-                
-                const isTotalDup = (duplicateAnalysis.totalMap.get(tKey) || 0) > 1;
-                const isPartialDup = !isTotalDup && (duplicateAnalysis.partialMap.get(pKey) || 0) > 1;
+                const dupKey = `${work.fechaStr}-${work.clienteNombre}-${work.proceso}-${work.cantidad}-${work.operarioNombre}`.toUpperCase();
+                const isDuplicate = work.estado === 'pendiente' && (duplicateAnalysis.dupMap.get(dupKey) || 0) > 1;
 
                 return (
-                  <TableRow key={`${work.id}-${idx}`} className={cn("border-b border-border hover:bg-muted/10 transition-colors relative group", isTotalDup ? "bg-red-500/5" : isPartialDup ? "bg-amber-500/5" : "")}>
+                  <TableRow key={`${work.id}-${idx}`} className={cn("border-b border-border transition-colors relative group", isDuplicate ? "bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/20" : "hover:bg-muted/10")}>
                     <TableCell className="py-5 pl-8"><span className="text-xs text-muted-foreground font-medium">{displayDate}</span></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-black text-primary">{work.loteNumero}</span>
-                        {isTotalDup && <Badge variant="destructive" className="h-4 px-1 text-[7px] font-black uppercase">DUPLICADO TOTAL</Badge>}
-                        {isPartialDup && <Badge variant="outline" className="h-4 px-1 text-[7px] font-black uppercase border-amber-500 text-amber-600">DUPLICADO PARCIAL</Badge>}
+                        {isDuplicate && <Badge variant="outline" className="h-4 px-1 text-[7px] font-black uppercase border-amber-500 text-amber-600 bg-amber-500/10">POSIBLE DUPLICADO</Badge>}
                       </div>
                     </TableCell>
                     <TableCell><span className="text-[10px] font-bold text-foreground uppercase truncate block max-w-[120px]">{work.clienteNombre}</span></TableCell>
@@ -219,10 +245,10 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
                               </Button>
                             </div>
                           )}
-                          {(canFullEdit || isHistory) && (
+                          {(user?.displayName === 'EDGAR ADMIN' || user?.email === 'ugeofly@hotmail.com' || process.env.NODE_ENV === 'development') && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => handleOpenEditDialog(work)}><Edit3 className="h-3.5 w-3.5" /></Button>
                           )}
-                          {onDelete && user?.displayName === 'EDGAR ADMIN' && (
+                          {onDelete && (user?.displayName === 'EDGAR ADMIN' || user?.email === 'ugeofly@hotmail.com' || process.env.NODE_ENV === 'development') && (
                             <Button 
                               variant="ghost" 
                               size="icon" 
@@ -257,6 +283,7 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
           
           <div className="p-6 max-h-[70vh] overflow-y-auto space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+              <div className="space-y-1"><Label className="text-[9px] font-black uppercase">Fecha</Label><Input readOnly={isReadOnly} type="date" value={editForm.fechaStr} onChange={e => setEditForm({...editForm, fechaStr: e.target.value})} className="erp-input h-9 text-xs font-bold" /></div>
               <div className="space-y-1"><Label className="text-[9px] font-black uppercase">Socio Industrial</Label><Input readOnly={isReadOnly} value={editForm.clienteNombre} onChange={e => setEditForm({...editForm, clienteNombre: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" /></div>
               <div className="space-y-1"><Label className="text-[9px] font-black uppercase">Operario</Label><Input readOnly={isReadOnly} value={editForm.operarioNombre} onChange={e => setEditForm({...editForm, operarioNombre: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-bold" /></div>
               <div className="space-y-1"><Label className="text-[9px] font-black uppercase">Lote</Label><Input readOnly={isReadOnly} value={editForm.loteNumero} onChange={e => setEditForm({...editForm, loteNumero: e.target.value.toUpperCase()})} className="erp-input h-9 text-xs font-black text-primary" /></div>

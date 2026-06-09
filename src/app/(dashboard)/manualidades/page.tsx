@@ -155,33 +155,40 @@ export default function ManualidadesPage() {
 
   const handleFinalSave = async () => {
     try {
-      // 1. Validación estricta de duplicados
+      const loteFormatted = formData.loteNumero.toUpperCase().trim();
+      const operarioFormatted = formData.operarioNombre.toUpperCase().trim();
+      const procesoFormatted = formData.proceso.toUpperCase().trim();
+      const cantidadNum = Number(formData.cantidad);
+
+      // 1. Validación estricta de duplicados en Firestore
       const qDup = query(
         collection(db, "manualidades"),
-        where("fechaStr", "==", formData.fecha),
-        where("operarioNombre", "==", formData.operarioNombre.toUpperCase())
+        where("loteNumero", "==", loteFormatted),
+        where("operarioNombre", "==", operarioFormatted),
+        where("proceso", "==", procesoFormatted),
+        where("cantidad", "==", cantidadNum)
       );
+      
       const dupSnap = await getDocs(qDup);
-      const isDuplicate = dupSnap.docs.some(d => {
-        const data = d.data();
-        return data.clienteNombre === formData.clienteNombre.toUpperCase() &&
-               data.proceso === formData.proceso.toUpperCase() &&
-               Number(data.cantidad) === Number(formData.cantidad) &&
-               data.loteNumero === formData.loteNumero.toUpperCase();
-      });
 
-      if (isDuplicate) {
-        alert("Error: Este registro ya existe con el mismo operario");
+      if (!dupSnap.empty) {
+        toast({ 
+          variant: "destructive", 
+          title: "Error: Este registro ya existe exactamente igual para este operario." 
+        });
         setReverseShowConfirm(false);
         return;
       }
 
-      const payload = { ...formData, operarioId: formData.operarioNombre.toUpperCase(), operarioNombre: formData.operarioNombre.toUpperCase(), loteNumero: formData.loteNumero.toUpperCase(), proceso: formData.proceso.toUpperCase(), especificacionPrenda: formData.especificacionPrenda.toUpperCase(), cantidad: Number(formData.cantidad), estado: "pendiente", createdAt: Timestamp.now(), updatedAt: Timestamp.now(), createdByUid: user?.uid || "system", createdBy: user?.displayName || "system", fechaStr: formData.fecha };
+      const payload = { ...formData, operarioId: operarioFormatted, operarioNombre: operarioFormatted, loteNumero: loteFormatted, proceso: procesoFormatted, especificacionPrenda: formData.especificacionPrenda.toUpperCase().trim(), cantidad: cantidadNum, estado: "pendiente", createdAt: Timestamp.now(), updatedAt: Timestamp.now(), createdByUid: user?.uid || "system", createdBy: user?.displayName || "system", fechaStr: formData.fecha };
       await addDoc(collection(db, "manualidades"), payload);
       toast({ title: "Registro Exitoso" });
       setReverseShowConfirm(false);
       setFormData(prev => ({ ...prev, loteNumero: "", cantidad: "", clienteId: "", clienteNombre: "" }));
-    } catch (error) { toast({ variant: "destructive", title: "Error al guardar" }); }
+    } catch (error) { 
+      console.error("Error al guardar:", error);
+      toast({ variant: "destructive", title: "Error al guardar el registro" }); 
+    }
   };
 
   if (!mounted || loadingConfig) return <div className="min-h-[400px] flex flex-col items-center justify-center gap-4"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sincronizando catálogos...</p></div>;
