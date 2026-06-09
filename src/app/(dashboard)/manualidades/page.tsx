@@ -68,6 +68,10 @@ export default function ManualidadesPage() {
   const [isLookingUpLot, setIsLookingUpLot] = useState(false);
   const [lotError, setLotError] = useState<string | null>(null);
 
+  const isAdmin = user?.displayName === 'EDGAR ADMIN' || user?.email === 'ugeofly@hotmail.com';
+  const todayDate = new Date();
+  const isOperarioRestrictionActive = !isAdmin && todayDate.getDate() >= 2;
+
   const getLocalDateString = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
@@ -159,8 +163,14 @@ export default function ManualidadesPage() {
       const operarioFormatted = formData.operarioNombre.toUpperCase().trim();
       const procesoFormatted = formData.proceso.toUpperCase().trim();
       const cantidadNum = Number(formData.cantidad);
+      
+      // 1. Backend Validation for Date Manipulation
+      let finalFecha = formData.fecha;
+      if (isOperarioRestrictionActive) {
+        finalFecha = getLocalDateString(); // Force today's date, ignoring frontend tampering
+      }
 
-      // 1. Validación estricta de duplicados en Firestore
+      // 2. Validación estricta de duplicados en Firestore
       const qDup = query(
         collection(db, "manualidades"),
         where("loteNumero", "==", loteFormatted),
@@ -180,7 +190,7 @@ export default function ManualidadesPage() {
         return;
       }
 
-      const payload = { ...formData, operarioId: operarioFormatted, operarioNombre: operarioFormatted, loteNumero: loteFormatted, proceso: procesoFormatted, especificacionPrenda: formData.especificacionPrenda.toUpperCase().trim(), cantidad: cantidadNum, estado: "pendiente", createdAt: Timestamp.now(), updatedAt: Timestamp.now(), createdByUid: user?.uid || "system", createdBy: user?.displayName || "system", fechaStr: formData.fecha };
+      const payload = { ...formData, operarioId: operarioFormatted, operarioNombre: operarioFormatted, loteNumero: loteFormatted, proceso: procesoFormatted, especificacionPrenda: formData.especificacionPrenda.toUpperCase().trim(), cantidad: cantidadNum, estado: "pendiente", createdAt: Timestamp.now(), updatedAt: Timestamp.now(), createdByUid: user?.uid || "system", createdBy: user?.displayName || "system", fechaStr: finalFecha, fecha: finalFecha };
       await addDoc(collection(db, "manualidades"), payload);
       toast({ title: "Registro Exitoso" });
       setReverseShowConfirm(false);
@@ -226,7 +236,7 @@ export default function ManualidadesPage() {
             </div>
           </div>
           <div className="space-y-5">
-            <div className="space-y-1.5"><Label className="text-sm font-semibold">Fecha</Label><Popover><PopoverTrigger asChild><Button disabled={isReadOnly} variant="outline" className="w-full h-12 border-border bg-muted/20 justify-start text-left font-bold text-sm rounded-xl"><CalendarIcon className="mr-2 h-4 w-4 text-primary" />{formData.fecha ? format(parseISO(formData.fecha), "dd/MM/yyyy") : "Fecha"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden shadow-2xl border-none z-[100]" align="start"><Calendar mode="single" selected={parseISO(formData.fecha)} onSelect={(d) => setFormData({...formData, fecha: d ? format(d, "yyyy-MM-dd") : ""})} locale={es} initialFocus /></PopoverContent></Popover></div>
+            <div className="space-y-1.5"><Label className="text-sm font-semibold">Fecha</Label><Popover><PopoverTrigger asChild><Button disabled={isReadOnly || isOperarioRestrictionActive} variant="outline" className="w-full h-12 border-border bg-muted/20 justify-start text-left font-bold text-sm rounded-xl"><CalendarIcon className="mr-2 h-4 w-4 text-primary" />{formData.fecha ? format(parseISO(formData.fecha), "dd/MM/yyyy") : "Fecha"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden shadow-2xl border-none z-[100]" align="start"><Calendar mode="single" selected={parseISO(formData.fecha)} onSelect={(d) => setFormData({...formData, fecha: d ? format(d, "yyyy-MM-dd") : ""})} locale={es} initialFocus /></PopoverContent></Popover></div>
             <div className="space-y-1.5">
               <Label className="text-sm font-semibold">Especificación</Label>
               <Select disabled={isReadOnly} value={formData.especificacionPrenda} onValueChange={(val) => setFormData({...formData, especificacionPrenda: val})}>
