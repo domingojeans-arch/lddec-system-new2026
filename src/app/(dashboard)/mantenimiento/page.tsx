@@ -77,6 +77,8 @@ import { SystemRole } from "@/types/lddec";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
+import { useRouter } from "next/navigation";
+
 const SYSTEM_ROLES: SystemRole[] = [
   "admin", 
   "bodega", 
@@ -109,7 +111,15 @@ const MASTER_USER_SYNC_LIST = [
 export default function MantenimientoPage() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin" || user?.role === "administrador";
+  const router = useRouter();
+  const isAdmin = user?.role === "admin" || user?.role === "administrador" || user?.displayName === "EDGAR ADMIN";
+  
+  useEffect(() => {
+    if (user && !isAdmin) {
+      router.replace("/dashboard");
+    }
+  }, [user, isAdmin, router]);
+
   const [loading, setLoading] = useState(true);
   const [backingUp, setBackingUp] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);

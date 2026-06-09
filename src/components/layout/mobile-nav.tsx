@@ -28,6 +28,11 @@ export function MobileNav() {
 
   // Filtrar por rol de forma segura
   const allowedItems = navItems.filter(item => {
+    // 1. Exclusividad estricta de Mantenimiento solo para EDGAR ADMIN
+    if (item.title === "Mantenimiento") {
+      return user?.role === "admin" || user?.displayName === "EDGAR ADMIN" || user?.email === "ugeofly@hotmail.com";
+    }
+
     if (user?.role === "bodega") {
       const allowedTitles = [
         "Ingresos",

@@ -18,6 +18,7 @@ import { AuditMaestroPanel } from "@/components/informes/audit-maestro-panel";
 import { AuditOutputPanel } from "@/components/informes/audit-output-panel";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 export default function InformesPage() {
   const [mounted, setMounted] = useState(false);
@@ -61,6 +62,7 @@ export default function InformesPage() {
         <div className="space-y-1 print:hidden">
           <h1 className="text-5xl font-black tracking-tighter uppercase">Inteligencia Industrial</h1>
           <p className="text-primary text-xs font-black uppercase tracking-[0.3em]">Auditoría y Análisis LDDEC v2.0</p>
+          {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
         </div>
 
         {loadingClients ? (

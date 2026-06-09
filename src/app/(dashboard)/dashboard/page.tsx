@@ -553,6 +553,7 @@ export default function DashboardPage() {
                 </span>
               )}
             </p>
+            {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
           </div>
         </div>
 
@@ -565,10 +566,6 @@ export default function DashboardPage() {
             {refreshing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCcw className="h-5 w-5" />}
             {refreshing ? "Recalculando..." : "Actualizar Datos Globales"}
           </Button>
-        )}
-        
-        {isReadOnly && (
-          <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-4 h-12 rounded-2xl">Modo Auditoría Activo</Badge>
         )}
       </div>
 

@@ -277,6 +277,7 @@ export default function FaltantesPage() {
         <div className="space-y-1">
           <h1 className="text-5xl font-black tracking-tighter uppercase">Gestión de Faltantes</h1>
           <p className="text-primary text-xs font-black uppercase tracking-[0.3em]">Control de Novedades y Despachos Pendientes</p>
+          {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
         </div>
         <div className="flex gap-3">
           <Button onClick={() => window.print()} className="bg-primary hover:bg-primary/90 text-white font-black uppercase text-xs h-12 px-8 rounded-xl shadow-xl shadow-primary/20 gap-2">

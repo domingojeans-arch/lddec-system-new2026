@@ -545,7 +545,7 @@ export default function ProduccionPage() {
         <div className="space-y-2">
           <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase">Revisión de Manualidades</h1>
           <p className="text-muted-foreground text-sm font-medium">Control de calidad y aprobación por periodo y estado.</p>
-          {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3">Modo Solo Lectura</Badge>}
+          {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
         </div>
 
         <div className="bg-muted/30 p-2 rounded-xl border border-border flex flex-col lg:flex-row items-center gap-4">

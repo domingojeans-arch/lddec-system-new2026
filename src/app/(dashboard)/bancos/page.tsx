@@ -283,6 +283,7 @@ export default function BancosPage() {
           <p className="text-primary text-xs font-black uppercase tracking-[0.3em]">
             Gestión de Disponibilidad {cannotEdit && "(MODO LECTURA)"}
           </p>
+          {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-6">
           <div className="flex items-center gap-2">

@@ -730,6 +730,7 @@ export default function HistorialPage() {
       <div className="space-y-1">
         <h1 className="text-5xl font-black tracking-tighter uppercase">Historial de Auditoría</h1>
         <p className="text-primary text-xs font-black uppercase tracking-[0.3em]">Trazabilidad Cronológica Industrial 1.1</p>
+        {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
       </div>
 
       <div className="bg-card p-8 rounded-[2.5rem] border border-border shadow-premium space-y-8 print:hidden">

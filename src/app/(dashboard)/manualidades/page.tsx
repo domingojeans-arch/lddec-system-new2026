@@ -205,7 +205,7 @@ export default function ManualidadesPage() {
 
   return (
     <div className="max-w-[1100px] mx-auto space-y-10 py-8 animate-in fade-in duration-500">
-      <div className="text-center space-y-1"><h1 className="text-3xl font-bold text-foreground">Terminal de Manualidades</h1><div className="flex items-center justify-center gap-2">{isReadOnly ? <Badge className="bg-amber-500 text-white font-bold uppercase text-[10px] px-3">Modo Solo Lectura</Badge> : <p className="text-[10px] font-black uppercase text-primary tracking-widest">Operador: {user?.displayName}</p>}</div></div>
+      <div className="text-center space-y-1"><h1 className="text-3xl font-bold text-foreground">Terminal de Manualidades</h1><div className="flex items-center justify-center gap-2">{isReadOnly ? <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge> : <p className="text-[10px] font-black uppercase text-primary tracking-widest">Operador: {user?.displayName}</p>}</div></div>
       <div className="bg-card p-10 rounded-[3rem] border border-border shadow-premium relative">
         {(isSearching || isLookingUpLot) && <div className="absolute inset-0 bg-background/50 backdrop-blur-sm z-50 flex items-center justify-center rounded-[3rem]"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">

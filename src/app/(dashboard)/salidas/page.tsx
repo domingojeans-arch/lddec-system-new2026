@@ -772,6 +772,7 @@ export default function SalidasPage() {
       <div className="space-y-1">
         <h1 className="text-3xl font-black uppercase tracking-tighter text-foreground">Salidas Industriales</h1>
         <p className="text-primary text-[10px] font-black uppercase tracking-[0.3em]">Gestión de Despachos LDDEC 1.1</p>
+        {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

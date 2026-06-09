@@ -327,6 +327,7 @@ export default function EntregasPage() {
         <div className="space-y-2">
           <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase">Confirmación de Entregas</h1>
           <p className="text-muted-foreground text-sm font-medium">Recepción final del cliente basada en guías de salida.</p>
+          {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
         </div>
         {canEdit && selectedIds.length > 0 && activeTab === "pendientes" && (
           <div className="bg-primary/5 border border-primary/20 p-4 rounded-2xl flex items-center gap-6 shadow-sm">

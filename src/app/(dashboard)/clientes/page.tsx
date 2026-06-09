@@ -27,6 +27,7 @@ import {
   doc, 
   query
 } from "firebase/firestore";
+import { Badge } from "@/components/ui/badge";
 
 export default function ClientesPage() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -36,6 +37,8 @@ export default function ClientesPage() {
   const [editingClient, setEditingClient] = useState<Client | undefined>(undefined);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  const isReadOnly = user?.role === "socio";
 
   useEffect(() => {
     if (!db) return;
@@ -87,15 +90,15 @@ export default function ClientesPage() {
   const isBodeguero = user?.role === "bodega";
 
   const canEdit = useMemo(() => {
-    if (!user) return false;
+    if (!user || isReadOnly) return false;
     const allowed = ["admin", "administrador", "facturacion", "cobranzas", "contador", "socio", "bodega"];
     return allowed.includes(user.role || "");
-  }, [user]);
+  }, [user, isReadOnly]);
 
   const canDelete = useMemo(() => {
-    if (!user) return false;
+    if (!user || isReadOnly) return false;
     return user.role === "admin" || user.role === "administrador";
-  }, [user]);
+  }, [user, isReadOnly]);
 
   const hideFinancials = isBodeguero;
 
@@ -190,7 +193,10 @@ export default function ClientesPage() {
   return (
     <div className="space-y-8 max-w-[1600px] auto mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase">Clientes</h1>
+        <div className="space-y-1">
+          <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase">Clientes</h1>
+          {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
+        </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" className="bg-card border-border text-muted-foreground font-bold h-10 gap-2">
             <Download className="h-4 w-4" /> Exportar

@@ -724,6 +724,7 @@ export default function ChemicalInventoryPage() {
       <div className="space-y-1">
         <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase">Bodega de Químicos</h1>
         <p className="text-muted-foreground text-sm font-medium">Gestión mensual de insumos y consumos operativos (Motor v1.2).</p>
+        {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
       </div>
 
       {!isReadOnly && (

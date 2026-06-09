@@ -37,6 +37,7 @@ import {
 import { EntryTable as ActualEntryTable } from "@/components/ingresos/entry-table";
 import { EntryForm as ActualEntryForm } from "@/components/ingresos/entry-form";
 import { EntryDetail as ActualEntryDetail } from "@/components/ingresos/entry-detail";
+import { Badge } from "@/components/ui/badge";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -128,6 +129,8 @@ export default function IngresosPage() {
   
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  const isReadOnly = user?.role === "socio";
 
   useEffect(() => {
     const timer = setTimeout(() => setSearchTerm(inputSearch), 300);
@@ -198,7 +201,11 @@ export default function IngresosPage() {
   return (
     <div className="space-y-8 max-w-[1600px] mx-auto animate-in fade-in duration-700">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-1"><h1 className="text-5xl font-black text-foreground tracking-tighter uppercase">Ingresos</h1><p className="text-primary text-xs font-black uppercase tracking-[0.3em]">Gestión de Catálogos LDDEC 1.6</p></div>
+        <div className="space-y-1">
+          <h1 className="text-5xl font-black text-foreground tracking-tighter uppercase">Ingresos</h1>
+          <p className="text-primary text-xs font-black uppercase tracking-[0.3em]">Gestión de Catálogos LDDEC 1.6</p>
+          {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
+        </div>
         {(user?.role === "admin" || user?.role === "bodega") && (
           <Button onClick={() => { setEditingEntry(undefined); setIsSheetOpen(true); }} className="bg-primary hover:bg-primary/90 text-white font-black uppercase h-12 px-8 rounded-xl shadow-xl shadow-primary/20 gap-2"><Plus className="h-5 w-5" /> Nuevo Ingreso</Button>
         )}
