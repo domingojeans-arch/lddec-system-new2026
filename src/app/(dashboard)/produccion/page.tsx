@@ -197,9 +197,33 @@ export default function ProduccionPage() {
     const op = searchOperator.toLowerCase();
     
     const enriched = manualWorks.map(work => {
-      // Determine static original quantity; avoid zero values which indicate no original data
-      const originalQty = Number((work.cantidadOriginal ?? work.cantInicial ?? work.cantidad) || 0);
-      return { ...work, loteOriginalCant: originalQty > 0 ? originalQty : undefined };
+      const workLote = String(work.loteNumero).trim().toUpperCase();
+      let masterQty = -1;
+
+      // Buscar en los ingresos maestros (entries) el lote específico
+      for (const entry of entries) {
+        const lotesArr = entry.lotes || entry.lots || [];
+        for (const lot of lotesArr) {
+          const lotName = getVisibleLotName(lot);
+          if (lotName === workLote) {
+            let qty = 0;
+            const prendas = lot.garments || lot.prendas || [];
+            if (prendas.length > 0) {
+              qty = prendas.reduce((acc: number, g: any) => acc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0);
+            } else {
+              qty = Number(lot.cantidad || lot.cantidadConfirmada || lot.quantity || lot.total || 0);
+            }
+            masterQty = qty;
+            break;
+          }
+        }
+        if (masterQty !== -1) break;
+      }
+
+      return { 
+        ...work, 
+        loteOriginalCant: masterQty !== -1 ? masterQty : undefined
+      };
     });
 
     // Dividir los datos y separar en el cliente según activeTab
