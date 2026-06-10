@@ -352,39 +352,51 @@ export default function HistorialPage() {
 
       const totalFacturado = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
 
-      let totalCobrado = 0;
+      let totalCobradoFacturas = 0;
       invoicesInPeriod.forEach(inv => {
         const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
         movimientos.forEach((m: any) => {
           if (!m.anulado) {
             if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
-              totalCobrado -= Number(m.monto || 0);
+              totalCobradoFacturas -= Number(m.monto || 0);
             } else {
-              totalCobrado += Number(m.monto || 0);
+              totalCobradoFacturas += Number(m.monto || 0);
             }
           }
         });
       });
 
-      // Sumar pagos al saldo inicial que correspondan al periodo
+      // Pagos del periodo para "Recaudación Lograda"
+      let totalCobradoSI_Periodo = 0;
+      // Pagos globales para "Saldo Inicial Pendiente"
+      let pagosSIGlobal = 0;
+
       const pagosSI = Array.isArray(clientData?.pagosSaldoInicial) ? clientData.pagosSaldoInicial : [];
       pagosSI.forEach((m: any) => {
-        const d = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
-        if (d && d >= fromDate && d <= toDateObj && !m.anulado) {
-          if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
-            totalCobrado -= Number(m.monto || 0);
-          } else {
-            totalCobrado += Number(m.monto || 0);
+        if (!m.anulado) {
+          const mAmount = Number(m.monto || 0);
+          const isReverso = m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso';
+          
+          if (isReverso) pagosSIGlobal -= mAmount;
+          else pagosSIGlobal += mAmount;
+
+          const d = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
+          if (d && d >= fromDate && d <= toDateObj) {
+            if (isReverso) totalCobradoSI_Periodo -= mAmount;
+            else totalCobradoSI_Periodo += mAmount;
           }
         }
       });
 
-      const saldoPendienteGeneral = (baseDebt + totalFacturado) - totalCobrado;
+      const totalCobrado = totalCobradoFacturas + totalCobradoSI_Periodo;
+      const saldoInicialPendiente = baseDebt - pagosSIGlobal;
+      const saldoPendienteGeneral = (totalFacturado - totalCobradoFacturas) + saldoInicialPendiente;
 
       setAuditData({
         client: clientData,
         summary: {
           baseDebt,
+          saldoInicialPendiente,
           totalFacturado,
           totalCobrado,
           saldoPendienteGeneral
@@ -815,10 +827,14 @@ export default function HistorialPage() {
 
       {auditData && (
         <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 print-grid-2x2">
-            <div className="bg-card p-8 rounded-[2rem] border border-border text-center space-y-1 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 print-grid-2x2">
+            <div className="bg-card p-8 rounded-[2rem] border border-border text-center space-y-1 shadow-sm opacity-60">
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Saldo Inicial Base</p>
               <p className="text-3xl font-black text-foreground">{formatCurrency(auditData.summary.baseDebt)}</p>
+            </div>
+            <div className="bg-primary/5 p-8 rounded-[2rem] border border-primary/20 text-center space-y-1 shadow-sm">
+              <p className="text-[10px] font-black text-primary uppercase tracking-widest">Saldo Inicial Pendiente</p>
+              <p className="text-3xl font-black text-primary">{formatCurrency(auditData.summary.saldoInicialPendiente)}</p>
             </div>
             <div className="bg-card p-8 rounded-[2rem] border border-border text-center space-y-1 shadow-sm">
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Facturado</p>
@@ -828,7 +844,7 @@ export default function HistorialPage() {
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Recaudación Lograda</p>
               <p className="text-3xl font-black text-emerald-600">{formatCurrency(auditData.summary.totalCobrado)}</p>
             </div>
-            <div className="bg-primary/5 p-8 rounded-[2rem] border border-primary/20 text-center space-y-1 shadow-md">
+            <div className="bg-primary/10 p-8 rounded-[2rem] border border-primary/30 text-center space-y-1 shadow-md">
               <p className="text-[10px] font-black text-primary uppercase tracking-widest">Saldo Pendiente Global</p>
               <p className="text-4xl font-black text-primary tracking-tighter">{formatCurrency(auditData.summary.saldoPendienteGeneral)}</p>
             </div>
