@@ -155,6 +155,7 @@ export default function HistorialPage() {
   // Rol contador: acceso completo a edición y eliminación de cobros en Historial
   const isContador = authUser?.role === "contador" || authUser?.role === "CONTADOR";
   const canManagePayments = isAdmin || isCobranzas || isContador;
+  const isReadOnly = authUser?.role === "socio";
   
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
