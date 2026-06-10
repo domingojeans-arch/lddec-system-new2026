@@ -171,6 +171,7 @@ const MESES = [
 export default function EntregasPage() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const isReadOnly = user?.role === "socio";
   const [outputs, setOutputs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");

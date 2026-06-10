@@ -24,6 +24,7 @@ export default function InformesPage() {
   const [mounted, setMounted] = useState(false);
   const [loadingClients, setLoadingClients] = useState(true);
   const { user } = useAuth();
+  const isReadOnly = user?.role === "socio";
   
   const [clients, setClients] = useState<any[]>([]);
 
