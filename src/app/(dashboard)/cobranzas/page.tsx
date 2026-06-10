@@ -127,12 +127,15 @@ export default function CobranzasPage() {
     // 1. Process initial balance 2026 (virtual row) with date filter
     const baseDebt = Number(currentClient.baseDebt || currentClient.saldoInicial || 0);
     const pagosSI = Array.isArray(currentClient.pagosSaldoInicial) ? currentClient.pagosSaldoInicial : [];
-    const filteredPagosSI = filterPaymentsByDate(pagosSI, from, to);
-    const totalAbonadoSI = filteredPagosSI.reduce((acc: number, p: any) => {
+    
+    // EL SALDO PENDIENTE DEL "SALDO INICIAL" ES GLOBAL. NO DEBE FILTRARSE POR FECHAS PARA EL CÁLCULO.
+    const totalAbonadoSIGlobal = pagosSI.reduce((acc: number, p: any) => {
       if (p.anulado) return acc;
-      return p.tipoTransaccion === 'Reverso' ? acc - p.monto : acc + p.monto;
+      return p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0);
     }, 0);
-    const saldoSI = Math.max(0, baseDebt - totalAbonadoSI);
+    
+    const saldoSI = Math.max(0, baseDebt - totalAbonadoSIGlobal);
+    
     if (saldoSI > 0.01) {
       result.push({
         id: "INITIAL_BALANCE_2026",
@@ -141,7 +144,7 @@ export default function CobranzasPage() {
         _normalizedTotal: baseDebt,
         _normalizedSaldo: saldoSI,
         _normalizedDate: FECHA_BASE_2026,
-        estadoCobranza: totalAbonadoSI > 0 ? "Parcialmente Cobrada" : "Por Cobrar"
+        estadoCobranza: totalAbonadoSIGlobal > 0 ? "Parcialmente Cobrada" : "Por Cobrar"
       });
     }
 

@@ -365,6 +365,19 @@ export default function HistorialPage() {
         });
       });
 
+      // Sumar pagos al saldo inicial que correspondan al periodo
+      const pagosSI = Array.isArray(clientData?.pagosSaldoInicial) ? clientData.pagosSaldoInicial : [];
+      pagosSI.forEach((m: any) => {
+        const d = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
+        if (d && d >= fromDate && d <= toDateObj && !m.anulado) {
+          if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
+            totalCobrado -= Number(m.monto || 0);
+          } else {
+            totalCobrado += Number(m.monto || 0);
+          }
+        }
+      });
+
       const saldoPendienteGeneral = (baseDebt + totalFacturado) - totalCobrado;
 
       setAuditData({
