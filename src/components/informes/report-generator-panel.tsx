@@ -231,13 +231,35 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           let parsedDate = d.fechaFactura?.toDate ? d.fechaFactura.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.invoiceDate ? new Date(d.invoiceDate) : d.date ? new Date(d.date) : d.timestamp ? new Date(d.timestamp) : null;
           return parsedDate && parsedDate >= fromDate && parsedDate <= toDateObj;
         });
-        // Fetch payments (cobranzas)
-        const paymentsSnap = await getDocs(collection(db, "payments"));
-        const allPayments = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        let filteredPayments = allPayments;
+        // Fetch payments dynamically from facturas and clients
+        const allFacturaPayments = raw.flatMap(inv => {
+           const pagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+           return pagos.map(p => ({
+               ...p,
+               clienteId: inv.clientId || inv.clienteId || "",
+               clienteNombre: inv.clienteNombre || inv.clientName || "",
+               facturaId: inv.id,
+               numeroFactura: inv.numeroFactura || ""
+           }));
+        });
+
+        const clientsSnap = await getDocs(collection(db, "clients"));
+        let rawClients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (hasClientFilter && filters.clientId !== "all") {
-          filteredPayments = filteredPayments.filter(p => p.clientId === filters.clientId || p.clienteId === filters.clientId);
+            rawClients = rawClients.filter((c: any) => c.id === filters.clientId);
         }
+        const allClientsPayments = rawClients.flatMap(c => {
+            const pagosSI = Array.isArray(c.pagosSaldoInicial) ? c.pagosSaldoInicial : [];
+            return pagosSI.map(p => ({
+                ...p,
+                clienteId: c.id,
+                clienteNombre: c.name || c.nombre || "",
+                facturaId: "INITIAL_BALANCE_2026",
+                numeroFactura: "SALDO INICIAL 2026"
+            }));
+        });
+
+        let filteredPayments = [...allFacturaPayments, ...allClientsPayments];
         data.payments = filterPaymentsByDate(filteredPayments, fromDate, toDateObj);
 
       }

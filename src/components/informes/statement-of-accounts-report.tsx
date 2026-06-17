@@ -50,46 +50,29 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         if (!client) return null;
         const clientInvoices = invoices.filter(inv => inv && (inv.clientId === client.id || inv.clienteId === client.id || inv.clientName === client.name));
         
-        const saldoAnterior = Number(client.baseDebt || client.saldoInicial || 0);
-        
-        const fromDate = new Date(dateFrom + "T00:00:00");
-        const toDateObj = new Date(dateTo + "T23:59:59");
+        const clientPayments = clientInvoices.flatMap(inv => 
+           Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : [])
+        );
 
-        const invoicesInPeriod = clientInvoices.filter(inv => {
-          if (!inv) return false;
-          const d = toDate(inv.fechaFactura || inv.date);
-          return d && d >= fromDate && d <= toDateObj;
-        });
-
-        const totalDebe = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv?.totalFactura || inv?.total || 0), 0);
-
-        let totalHaber = 0;
-        invoicesInPeriod.forEach(inv => {
-          if (!inv) return;
-          const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
-          movimientos.forEach((m: any) => {
-            if (m && !m.anulado) {
-              if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
-                totalHaber -= Number(m.monto || 0);
-              } else {
-                totalHaber += Number(m.monto || 0);
-              }
-            }
-          });
-        });
-
-        const saldoActual = (saldoAnterior + totalDebe) - totalHaber;
+        const metrics = calculateClientAccountingMetrics(
+          Number(client.baseDebt || client.saldoInicial || 0),
+          dateFrom,
+          dateTo,
+          clientInvoices,
+          clientPayments,
+          client
+        );
 
         return {
           name: formatClientName(client.name || `${client.firstName || ""} ${client.lastName || ""}`),
-          saldoAnterior,
-          facturacion: totalDebe,
-          nd: 0,
-          nc: 0,
-          retencion: 0,
-          cobro: totalHaber,
-          saldoActual,
-          hasMovement: Math.abs(saldoAnterior) > 0.01 || Math.abs(totalDebe) > 0.01 || Math.abs(totalHaber) > 0.01
+          saldoAnterior: metrics.saldoAnterior,
+          facturacion: metrics.facturacion,
+          nd: metrics.nd,
+          nc: metrics.nc,
+          retencion: metrics.retencion,
+          cobro: metrics.cobro,
+          saldoActual: metrics.saldoActual,
+          hasMovement: Math.abs(metrics.saldoAnterior) > 0.01 || Math.abs(metrics.facturacion) > 0.01 || Math.abs(metrics.cobro) > 0.01 || Math.abs(metrics.nd) > 0.01 || Math.abs(metrics.nc) > 0.01
         };
       }).filter((r): r is NonNullable<typeof r> => r !== null);
 
@@ -141,26 +124,26 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         {reportData.map((group) => (
           group.clients.length > 0 && (
             <div key={group.id} className="space-y-4">
-              <div className="bg-gray-100 px-6 py-2 border-l-8 border-primary">
-                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-black">{group.label}</h3>
+              <div className="bg-gray-100 dark:bg-gray-800 px-6 py-2 border-l-8 border-primary">
+                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-black dark:text-gray-100">{group.label}</h3>
               </div>
               <div className="rounded-2xl border border-border overflow-hidden bg-card shadow-sm">
                 <Table>
-                  <TableHeader className="bg-gray-50">
+                  <TableHeader className="bg-gray-50 dark:bg-gray-800/50">
                     <TableRow>
-                      <TableHead onClick={() => handleSort("name")} className="cursor-pointer text-[9px] font-black uppercase text-black py-4 pl-6">CLIENTE <SortIcon colKey="name" /></TableHead>
-                      <TableHead onClick={() => handleSort("saldoAnterior")} className="text-right text-[9px] font-black uppercase text-black">S. ANTERIOR <SortIcon colKey="saldoAnterior" /></TableHead>
-                      <TableHead onClick={() => handleSort("facturacion")} className="text-right text-[9px] font-black uppercase text-black">FACTURACIÓN <SortIcon colKey="facturacion" /></TableHead>
-                      <TableHead onClick={() => handleSort("nd")} className="text-right text-[9px] font-black uppercase text-black">N/D <SortIcon colKey="nd" /></TableHead>
-                      <TableHead onClick={() => handleSort("nc")} className="text-right text-[9px] font-black uppercase text-black">N/C <SortIcon colKey="nc" /></TableHead>
-                      <TableHead onClick={() => handleSort("retencion")} className="text-right text-[9px] font-black uppercase text-black">RETENCIÓN <SortIcon colKey="retencion" /></TableHead>
-                      <TableHead onClick={() => handleSort("cobro")} className="text-right text-[9px] font-black uppercase text-black">COBRO <SortIcon colKey="cobro" /></TableHead>
-                      <TableHead onClick={() => handleSort("saldoActual")} className="text-right text-[9px] font-black uppercase text-black pr-6">SALDO ACTUAL <SortIcon colKey="saldoActual" /></TableHead>
+                      <TableHead onClick={() => handleSort("name")} className="cursor-pointer text-[9px] font-black uppercase text-black dark:text-gray-200 py-4 pl-6">CLIENTE <SortIcon colKey="name" /></TableHead>
+                      <TableHead onClick={() => handleSort("saldoAnterior")} className="text-right text-[9px] font-black uppercase text-black dark:text-gray-200">S. ANTERIOR <SortIcon colKey="saldoAnterior" /></TableHead>
+                      <TableHead onClick={() => handleSort("facturacion")} className="text-right text-[9px] font-black uppercase text-black dark:text-gray-200">FACTURACIÓN <SortIcon colKey="facturacion" /></TableHead>
+                      <TableHead onClick={() => handleSort("nd")} className="text-right text-[9px] font-black uppercase text-black dark:text-gray-200">N/D <SortIcon colKey="nd" /></TableHead>
+                      <TableHead onClick={() => handleSort("nc")} className="text-right text-[9px] font-black uppercase text-black dark:text-gray-200">N/C <SortIcon colKey="nc" /></TableHead>
+                      <TableHead onClick={() => handleSort("retencion")} className="text-right text-[9px] font-black uppercase text-black dark:text-gray-200">RETENCIÓN <SortIcon colKey="retencion" /></TableHead>
+                      <TableHead onClick={() => handleSort("cobro")} className="text-right text-[9px] font-black uppercase text-black dark:text-gray-200">COBRO <SortIcon colKey="cobro" /></TableHead>
+                      <TableHead onClick={() => handleSort("saldoActual")} className="text-right text-[9px] font-black uppercase text-black dark:text-gray-200 pr-6">SALDO ACTUAL <SortIcon colKey="saldoActual" /></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {group.clients.map((client, idx) => (
-                      <TableRow key={idx}>
+                      <TableRow key={idx} className="border-b border-gray-100 dark:border-gray-800">
                         <TableCell className="text-[10px] font-bold uppercase pl-6">{client.name}</TableCell>
                         <TableCell className="text-[10px] text-right">{formatNum(client.saldoAnterior)}</TableCell>
                         <TableCell className="text-[10px] text-right">{formatNum(client.facturacion)}</TableCell>
@@ -172,7 +155,7 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                       </TableRow>
                     ))}
                   </TableBody>
-                  <TableFooter className="bg-gray-100">
+                  <TableFooter className="bg-gray-100 dark:bg-gray-800">
                     <TableRow>
                       <TableCell className="text-[9px] font-black uppercase pl-6 py-4">TOTAL {group.label}</TableCell>
                       <TableCell className="text-[10px] text-right font-black">{formatNum(group.totals.saldoAnterior)}</TableCell>

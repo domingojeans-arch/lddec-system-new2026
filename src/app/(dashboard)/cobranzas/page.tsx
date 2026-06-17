@@ -209,7 +209,22 @@ export default function CobranzasPage() {
           newPayment.fechaCobro = line.fechaCobro || "";
         }
 
+        const globalPaymentRef = doc(collection(db, "payments"));
+        const globalPaymentData: any = {
+          ...newPayment,
+          clienteId: selectedClientId,
+          clienteNombre: currentClient?.displayName || currentClient?.name || currentClient?.nombre || "Socio",
+          origen: "factura",
+          migrado: false,
+          createdAt: nowServer
+        };
+
         if (line.invoiceId === "INITIAL_BALANCE_2026") {
+          globalPaymentData.origen = "saldoInicial";
+          globalPaymentData.facturaId = "INITIAL_BALANCE_2026";
+          globalPaymentData.numeroFactura = "SALDO INICIAL 2026";
+          batch.set(globalPaymentRef, globalPaymentData);
+
           const clientRef = doc(db, "clients", selectedClientId);
           const currentPagosSI = Array.isArray(currentClient.pagosSaldoInicial) ? currentClient.pagosSaldoInicial : [];
           batch.update(clientRef, {
@@ -220,6 +235,10 @@ export default function CobranzasPage() {
         else {
           const inv = allInvoices.find(i => i.id === line.invoiceId);
           if (!inv) continue;
+
+          globalPaymentData.facturaId = inv.id;
+          globalPaymentData.numeroFactura = inv.numeroFactura || inv.id;
+          batch.set(globalPaymentRef, globalPaymentData);
 
           const currentPagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : [];
           const updatedPagos = [...currentPagos, newPayment];
