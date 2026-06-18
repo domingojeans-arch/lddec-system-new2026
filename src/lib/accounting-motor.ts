@@ -42,7 +42,7 @@ export function calculateClientAccountingMetrics(
 
   // 1. Procesar Facturación (Solo 2026+)
   invoices.forEach(inv => {
-    const d = toDate(inv.fechaFactura || inv.date || inv.createdAt);
+    const d = toDate(inv.fechaFactura || inv.invoiceDate || inv.date || inv.createdAt);
     if (!d || d < FECHA_BASE_2026) return;
 
     const monto = Number(inv.totalFactura || inv.total || 0);
@@ -78,7 +78,7 @@ export function calculateClientAccountingMetrics(
       impact = monto;
       category = 'cobro';
     }
-    const pDate = toDate(p.fechaTransaccion);
+    const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
     if (pDate && pDate < effectiveFrom) {
       previousMovementsNet += impact;
     } else {
