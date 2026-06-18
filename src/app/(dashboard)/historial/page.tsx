@@ -354,14 +354,19 @@ export default function HistorialPage() {
       const totalFacturado = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
 
       let totalCobradoFacturas = 0;
-      invoicesInPeriod.forEach(inv => {
+      // Para "Recaudación Lograda", sumamos los movimientos de TODAS las facturas (no solo las del periodo)
+      // pero SOLO los movimientos que ocurrieron DENTRO del rango de fechas.
+      clientInvoices.forEach(inv => {
         const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
         movimientos.forEach((m: any) => {
           if (!m.anulado) {
-            if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
-              totalCobradoFacturas -= Number(m.monto || 0);
-            } else {
-              totalCobradoFacturas += Number(m.monto || 0);
+            const d = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
+            if (d && d >= fromDate && d <= toDateObj) {
+              if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
+                totalCobradoFacturas -= Number(m.monto || 0);
+              } else {
+                totalCobradoFacturas += Number(m.monto || 0);
+              }
             }
           }
         });
@@ -389,9 +394,23 @@ export default function HistorialPage() {
         }
       });
 
+      let saldoPendienteFacturas = 0;
+      invoicesInPeriod.forEach(inv => {
+        const total = Number(inv.totalFactura || inv.total || 0);
+        let cobradoTotal = 0;
+        const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+        movimientos.forEach((m: any) => {
+          if (!m.anulado) {
+            if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') cobradoTotal -= Number(m.monto || 0);
+            else cobradoTotal += Number(m.monto || 0);
+          }
+        });
+        saldoPendienteFacturas += Math.max(0, total - cobradoTotal);
+      });
+
       const totalCobrado = totalCobradoFacturas + totalCobradoSI_Periodo;
       const saldoInicialPendiente = baseDebt - pagosSIGlobal;
-      const saldoPendienteGeneral = (totalFacturado - totalCobradoFacturas) + saldoInicialPendiente;
+      const saldoPendienteGeneral = saldoPendienteFacturas + saldoInicialPendiente;
 
       setAuditData({
         client: clientData,
