@@ -159,7 +159,7 @@ export function BillingVsCollectionsReport({
         };
       })
       .sort((a, b) => b.ingreso.localeCompare(a.ingreso, undefined, { numeric: true }));
-  }, [entries, invoices, dateFrom, dateTo]);
+  }, [entries, invoices, payments, dateFrom, dateTo]);
 
   const displayedData = useMemo(() => {
     if (printFilter === 'FALTANTES') {
