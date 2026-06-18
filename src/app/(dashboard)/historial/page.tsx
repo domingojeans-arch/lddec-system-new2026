@@ -334,32 +334,9 @@ export default function HistorialPage() {
         const startTime = start.getTime();
         const endTime = end.getTime();
         filteredTimeline = timeline.filter(item => {
+          if (!item.date) return false;
           const itemTime = item.date.getTime();
-          if (itemTime >= startTime && itemTime <= endTime) return true;
-
-          if (item.type === "entry" && item.invoices && item.invoices.length > 0) {
-            const hasInvoiceInRange = item.invoices.some((inv: any) => {
-              if (inv.displayDate && inv.displayDate.getTime() >= startTime && inv.displayDate.getTime() <= endTime) return true;
-              if (inv.movimientos && inv.movimientos.length > 0) {
-                return inv.movimientos.some((m: any) => {
-                  const mDate = m.fechaCobro ? new Date(m.fechaCobro + "T12:00:00") : (m.fechaTransaccion ? new Date(m.fechaTransaccion.seconds * 1000) : new Date());
-                  return mDate.getTime() >= startTime && mDate.getTime() <= endTime;
-                });
-              }
-              return false;
-            });
-            if (hasInvoiceInRange) return true;
-          }
-
-          if (item.type === "invoice_standalone" && item.movimientos && item.movimientos.length > 0) {
-            const hasPaymentInRange = item.movimientos.some((m: any) => {
-              const mDate = m.fechaCobro ? new Date(m.fechaCobro + "T12:00:00") : (m.fechaTransaccion ? new Date(m.fechaTransaccion.seconds * 1000) : new Date());
-              return mDate.getTime() >= startTime && mDate.getTime() <= endTime;
-            });
-            if (hasPaymentInRange) return true;
-          }
-
-          return false;
+          return itemTime >= startTime && itemTime <= endTime;
         });
       }
 
