@@ -380,17 +380,51 @@ export default function SalidasPage() {
         ? garmentsSource.reduce((acc: number, g: any) => acc + (Number(g.cantidadConfirmada || g.quantity || 0)), 0)
         : Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || 0);
 
+      // Calcular cuánto se ha despachado en el historial cargado (outputsRaw, salidasRaw)
+      const getHistoricalDispatched = (tUpper?: string) => {
+        let historicalTotal = 0;
+        const allLocalHistory = [...outputsRaw, ...salidasRaw, ...muestrasRaw];
+        
+        allLocalHistory.forEach((out: any) => {
+          // Evitar contar si estamos editando la misma guía
+          if (editingDoc && (editingDoc.id === out.numeroSalida || editingDoc.id === out.id)) return;
+          
+          const items = out.itemsDispatched || out.raw?.itemsDispatched || [];
+          const lotItems = items.filter((it: any) => getVisibleLotName(it) === term);
+          
+          lotItems.forEach((it: any) => {
+            if (tUpper) {
+              const prendas = it.prendas || [];
+              const prendasOfType = prendas.filter((p: any) => (p.garmentType || p.tipo || "").toUpperCase() === tUpper);
+              const sumPrendas = prendasOfType.reduce((acc: number, p: any) => acc + (Number(p.quantityToDispatch || p.cantidad || p.quantity || 0)), 0);
+              
+              if (prendas.length > 0) {
+                historicalTotal += sumPrendas;
+              } else if ((it.garmentType || "").toUpperCase() === tUpper) {
+                historicalTotal += Number(it.quantityToDispatch || it.cantidad || it.quantity || 0);
+              }
+            } else {
+              historicalTotal += Number(it.quantityToDispatch || it.cantidad || it.quantity || 0);
+            }
+          });
+        });
+        return historicalTotal;
+      };
+
       // Sumar lo que ya existe agregado en la guía para este lote
       const existingQtyInGuide = itemsToDispatch
         .filter((it: any) => getVisibleLotName(it) === term)
         .reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
 
-      // Bloquear si el lote ya está agregado por completo
-      if (existingQtyInGuide >= originalTotalQty) {
+      const existingQtyHistorical = getHistoricalDispatched();
+      const totalAlreadyUsed = existingQtyInGuide + existingQtyHistorical;
+
+      // Bloquear si el lote ya está despachado por completo (historia + actual)
+      if (totalAlreadyUsed >= originalTotalQty) {
         toast({
           variant: "destructive",
           title: "Acción Bloqueada",
-          description: "El lote ya se encuentra agregado en esta guía o no tiene cantidades pendientes por despachar"
+          description: "El lote ya fue despachado en su totalidad o ya está agregado por completo en esta u otra guía."
         });
         setSearching(false);
         return;
@@ -401,30 +435,34 @@ export default function SalidasPage() {
         const typeUpper = (g.garmentType || g.tipo || "VARIOS").toUpperCase();
         
         // Calcular cuánto se ha despachado de este tipo específico en la guía actual
-        const alreadyDispatched = itemsToDispatch
+        const alreadyDispatchedInGuide = itemsToDispatch
           .filter((it: any) => getVisibleLotName(it) === term)
           .flatMap((it: any) => it.prendas || [])
           .filter((p: any) => (p.garmentType || p.tipo || "").toUpperCase() === typeUpper)
           .reduce((sum: number, p: any) => sum + (Number(p.quantityToDispatch || p.cantidad || p.quantity || 0)), 0);
 
-        const remaining = Math.max(0, Number(g.cantidadConfirmada || g.quantity || 0) - alreadyDispatched);
+        const alreadyDispatchedHist = getHistoricalDispatched(typeUpper);
+        const originalVal = Number(g.cantidadConfirmada || g.quantity || 0);
+        
+        const remaining = Math.max(0, originalVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
 
         return { 
           id: g.id || Math.random().toString(36).substr(2, 9), 
           type: typeUpper, 
-          original: Number(g.cantidadConfirmada || g.quantity || 0), 
+          original: originalVal, 
           toDispatch: remaining 
         };
       });
 
       if (breakdown.length === 0) {
         const typeUpper = (lot.garmentType || "VARIOS").toUpperCase();
-        const alreadyDispatched = itemsToDispatch
+        const alreadyDispatchedInGuide = itemsToDispatch
           .filter((it: any) => getVisibleLotName(it) === term)
           .reduce((sum: number, it: any) => sum + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
 
+        const alreadyDispatchedHist = getHistoricalDispatched(typeUpper);
         const originalVal = Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || 0);
-        const remaining = Math.max(0, originalVal - alreadyDispatched);
+        const remaining = Math.max(0, originalVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
 
         breakdown.push({
           id: "legacy",
@@ -441,7 +479,8 @@ export default function SalidasPage() {
         clientName: (entryData.clientName || entryData.clienteNombre || "SOCIO").toUpperCase(), 
         process: (lot.process || lot.proceso || "S/D").toUpperCase(),
         breakdown, 
-        isReviewed: lot.status === "reviewed" || lot.status === "ready" 
+        isReviewed: lot.status === "reviewed" || lot.status === "ready",
+        reportarFaltante: false
       });
       setIsQtyModalOpen(true);
     } catch (e) { 
@@ -455,6 +494,18 @@ export default function SalidasPage() {
     if (!foundLotResult) return;
     const totalQty = foundLotResult.breakdown.reduce((acc: number, g: any) => acc + (Number(g.toDispatch) || 0), 0);
     if (totalQty <= 0) return;
+
+    if (itemsToDispatch.length > 0) {
+      const currentClient = itemsToDispatch[0].clientName;
+      if (currentClient && foundLotResult.clientName !== currentClient) {
+        toast({
+          variant: "destructive",
+          title: "Cliente Incompatible",
+          description: "El lote pertenece a otro cliente. Una guía solo puede contener lotes del mismo cliente."
+        });
+        return;
+      }
+    }
 
     // Calcular cuánto ya hay agregado en la guía para este lote
     const existingQty = itemsToDispatch
@@ -515,6 +566,7 @@ export default function SalidasPage() {
       processType: foundLotResult.process,
       process: foundLotResult.process,
       quantityToDispatch: totalQty,
+      reportarFaltante: foundLotResult.reportarFaltante,
       prendas: foundLotResult.breakdown.map((g: any) => ({
         garmentType: g.type,
         quantityToDispatch: g.toDispatch,
@@ -529,6 +581,7 @@ export default function SalidasPage() {
       const updatedItems = [...itemsToDispatch];
       const existingItem = {
         ...updatedItems[existingIndex],
+        reportarFaltante: updatedItems[existingIndex].reportarFaltante || foundLotResult.reportarFaltante,
         prendas: updatedItems[existingIndex].prendas.map((p: any) => ({ ...p }))
       };
       
@@ -602,6 +655,18 @@ export default function SalidasPage() {
 
     const selectedClient = clients.find(c => c.id === clientId);
     const clientName = selectedClient ? (selectedClient.name || selectedClient.nombre || "SOCIO").toUpperCase() : "SOCIO";
+
+    if (itemsToDispatch.length > 0) {
+      const currentClient = itemsToDispatch[0].clientName;
+      if (currentClient && clientName !== currentClient) {
+        toast({
+          variant: "destructive",
+          title: "Cliente Incompatible",
+          description: "El lote pertenece a otro cliente. Una guía solo puede contener lotes del mismo cliente."
+        });
+        return;
+      }
+    }
 
     // Requisito 3: Identificador visual concatenando asteriscos en la fila impresa
     const pureLotName = lotNumber.trim().toUpperCase();
@@ -690,11 +755,57 @@ export default function SalidasPage() {
         createdAt: editingDoc?.createdAt || now
       };
       
+      const batch = writeBatch(db);
+      
       if (editingDoc && (editingDoc.id !== term || editingDoc.collection !== 'outputs')) {
-        await deleteDoc(doc(db, editingDoc.collection, editingDoc.id));
+        batch.delete(doc(db, editingDoc.collection, editingDoc.id));
       }
       
-      await setDoc(doc(db, "outputs", term), payload, { merge: true });
+      batch.set(doc(db, "outputs", term), payload, { merge: true });
+
+      // Gestión de Faltantes
+      itemsToDispatch.forEach(it => {
+        if (it.reportarFaltante) {
+          const totalOriginal = it.prendas?.reduce((sum: number, p: any) => sum + Number(p.originalEntryQuantity || 0), 0) || 0;
+          const totalDispatched = it.prendas?.reduce((sum: number, p: any) => sum + Number(p.quantityToDispatch || 0), 0) || it.quantityToDispatch;
+          const faltante = totalOriginal - totalDispatched;
+          
+          if (faltante > 0) {
+            const faltanteDocRef = doc(collection(db, "faltantes"));
+            batch.set(faltanteDocRef, {
+              loteId: it.lotNumber,
+              clientName: it.clientName,
+              faltanteOriginal: faltante,
+              cantidadDespachada: totalDispatched,
+              cantidadOriginal: totalOriginal,
+              estado: "PENDIENTE",
+              fechaReporte: now,
+              salidaReferencia: term,
+              createdAt: now
+            });
+          }
+        }
+      });
+
+      // Sincronización Inversa (resolver faltantes si se despachan después)
+      const faltantesQuery = query(collection(db, "faltantes"), where("estado", "==", "PENDIENTE"));
+      const faltantesSnap = await getDocs(faltantesQuery);
+      
+      faltantesSnap.forEach(fDoc => {
+        const fdata = fDoc.data();
+        const dispatchedItem = itemsToDispatch.find(it => getVisibleLotName(it) === fdata.loteId);
+        
+        if (dispatchedItem && !dispatchedItem.reportarFaltante) { 
+          // Si estamos despachando un lote que tenía faltante (y no se está marcando como nuevo faltante aquí)
+          batch.update(fDoc.ref, {
+            estado: "RESUELTO",
+            fechaResolucion: now,
+            salidaResolucion: term
+          });
+        }
+      });
+
+      await batch.commit();
       toast({ title: "Salida Guardada" });
       handleResetForm();
       loadHistory(); // Recargar tras guardar
@@ -1152,7 +1263,18 @@ export default function SalidasPage() {
                 </TableBody>
               </Table>
             </div>
-            <DialogFooter className="flex gap-3">
+            <div className="flex items-center space-x-2 px-2 mt-2">
+              <Checkbox 
+                id="reportarFaltante" 
+                checked={foundLotResult?.reportarFaltante || false}
+                onCheckedChange={(c) => setFoundLotResult({...foundLotResult, reportarFaltante: !!c})}
+                className="border-primary/50 data-[state=checked]:bg-primary"
+              />
+              <label htmlFor="reportarFaltante" className="text-xs font-bold uppercase cursor-pointer select-none">
+                Reportar Faltante
+              </label>
+            </div>
+            <DialogFooter className="flex gap-3 mt-4">
               <Button variant="ghost" onClick={() => setIsQtyModalOpen(false)} className="flex-1 rounded-xl h-11 font-bold text-xs uppercase">Cancelar</Button>
               <Button onClick={handleConfirmLotAddition} className="flex-1 bg-primary text-white rounded-xl h-11 font-black text-xs uppercase">Autorizar</Button>
             </DialogFooter>
