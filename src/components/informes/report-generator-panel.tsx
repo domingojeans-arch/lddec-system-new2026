@@ -248,18 +248,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         if (hasClientFilter && filters.clientId !== "all") {
             rawClients = rawClients.filter((c: any) => c.id === filters.clientId);
         }
-        const allClientsPayments = rawClients.flatMap((c: any) => {
-            const pagosSI = Array.isArray(c.pagosSaldoInicial) ? c.pagosSaldoInicial : [];
-            return pagosSI.map((p: any) => ({
-                ...p,
-                clienteId: c.id,
-                clienteNombre: c.name || c.nombre || "",
-                facturaId: "INITIAL_BALANCE_2026",
-                numeroFactura: "SALDO INICIAL 2026"
-            }));
-        });
-
-        let filteredPayments = [...allFacturaPayments, ...allClientsPayments];
+        let filteredPayments = [...allFacturaPayments];
         data.payments = filterPaymentsByDate(filteredPayments, new Date("2026-01-01T00:00:00"), toDateObj);
 
       }
