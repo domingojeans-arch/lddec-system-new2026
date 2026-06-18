@@ -152,8 +152,8 @@ export default function CobranzasPage() {
     const facturaRows = allInvoices.map(inv => {
       const invDate = toDate(inv.fechaFactura || inv.date);
       const pagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
-      const filteredPagos = filterPaymentsByDate(pagos, from, to);
-      const totalAbonado = filteredPagos.reduce((acc: any, p: any) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - p.monto : acc + p.monto), 0);
+      const filteredPagos = pagos.filter((p: any) => !p.anulado);
+      const totalAbonado = filteredPagos.reduce((acc: any, p: any) => p.tipoTransaccion === 'Reverso' || p.tipo === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0), 0);
       const saldo = Math.max(0, Number(inv.totalFactura || 0) - totalAbonado);
       return {
         ...inv,

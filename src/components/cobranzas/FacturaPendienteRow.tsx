@@ -67,7 +67,7 @@ export function FacturaPendienteRow({ invoice, isSelected, onToggle }: FacturaPe
       <TableCell className="text-right">
         <span className={cn(
           "font-black text-sm",
-          invoice.isInitialBalance ? "text-amber-600" : "text-red-500"
+          invoice.isInitialBalance ? "text-amber-600" : (saldo <= 0.01 || invoice.estadoCobranza === 'Pagada' ? "text-emerald-600 dark:text-emerald-500" : "text-red-500")
         )}>{formatCurrency(saldo)}</span>
       </TableCell>
       <TableCell className="text-right pr-6">
