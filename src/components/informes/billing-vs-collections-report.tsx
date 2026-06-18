@@ -70,9 +70,17 @@ export function BillingVsCollectionsReport({
     return safeEntries
       .filter(entry => {
         if (!entry) return false;
-        // Date of entry (ingreso)
-        const d = toDate(entry.date || entry.entryDate || entry.createdAt || entry.fecha);
-        return d && d >= from && d <= to;
+        const entryId = String(entry.id || "").toUpperCase();
+        const entryNum = String(entry.entryNumber || "").toUpperCase();
+        const invoiceFromId = entryId ? billedByEntryMap.get(entryId) : null;
+        const invoiceFromNum = entryNum ? billedByEntryMap.get(entryNum) : null;
+        const invoice = invoiceFromId || invoiceFromNum;
+
+        const refDate = invoice
+          ? toDate(invoice.fechaFactura || invoice.invoiceDate || invoice.createdAt || invoice.date)
+          : toDate(entry.date || entry.entryDate || entry.createdAt || entry.fecha);
+
+        return refDate && refDate >= from && refDate <= to;
       })
       .map(entry => {
         const entryId = String(entry.id || "").toUpperCase();
