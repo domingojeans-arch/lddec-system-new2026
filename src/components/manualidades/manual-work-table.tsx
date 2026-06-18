@@ -21,11 +21,13 @@ interface ManualWorkTableProps {
   onEdit: (work: ManualWork) => void;
 }
 
-const statusMap = {
+const statusMap: Record<string, { label: string, color: string }> = {
   pending: { label: "Pendiente", color: "bg-muted text-muted-foreground" },
   in_progress: { label: "En Proceso", color: "bg-amber-500/10 text-amber-600" },
   completed: { label: "Completado", color: "bg-emerald-500/10 text-emerald-600" },
   cancelled: { label: "Cancelado", color: "bg-destructive/10 text-destructive" },
+  approved: { label: "Aprobado", color: "bg-blue-500/10 text-blue-600" },
+  rejected: { label: "Rechazado", color: "bg-red-500/10 text-red-600" },
 };
 
 export function ManualWorkTable({ works, onView, onEdit }: ManualWorkTableProps) {

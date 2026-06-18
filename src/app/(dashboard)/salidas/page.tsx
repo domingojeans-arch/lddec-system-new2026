@@ -132,7 +132,7 @@ function getVisibleLotName(lote: any): string {
   return "S/L";
 }
 
-export function cleanClientNames(nameStr: string): string {
+function cleanClientNames(nameStr: string): string {
   if (!nameStr) return "";
   const parts = nameStr.split(",").map(p => p.trim()).filter(Boolean);
   const seenSignatures = new Set<string>();

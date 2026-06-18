@@ -29,8 +29,9 @@ export const mockInvoices: Invoice[] = [
         lotNumber: "LOT-001",
         garmentType: "Jeans Slim Fit",
         process: "Stone Wash",
-        washType: "Bio-Lavado",
-        quantityDispatched: 195,
+        washType: "Silicone Wash",
+        quantityOriginal: 200,
+        quantityDispatched: 200,
         quantityToInvoice: 195,
         quantityPendingInvoice: 0,
         unitPrice: 3.50,
@@ -48,6 +49,7 @@ export const mockInvoices: Invoice[] = [
         garmentType: "Camisa Denim",
         process: "Bleach",
         washType: "Químico",
+        quantityOriginal: 250,
         quantityDispatched: 245,
         quantityToInvoice: 245,
         quantityPendingInvoice: 0,
@@ -86,7 +88,8 @@ export const mockInvoices: Invoice[] = [
         garmentType: "Chaqueta Denim",
         process: "Enzyme Wash",
         washType: "Ecológico",
-        quantityDispatched: 60,
+        quantityOriginal: 120,
+        quantityDispatched: 120,
         quantityToInvoice: 60,
         quantityPendingInvoice: 0,
         unitPrice: 5.00,
@@ -95,4 +98,4 @@ export const mockInvoices: Invoice[] = [
       }
     ]
   }
-];
+] as any;

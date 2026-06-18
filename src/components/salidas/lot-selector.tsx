@@ -31,7 +31,7 @@ export function LotSelector({ onSelect, selectedLotIds }: LotSelectorProps) {
         const matches = 
           lot.lotNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
           entry.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          lot.garmentType.toLowerCase().includes(searchTerm.toLowerCase());
+          (lot.garmentType || "").toLowerCase().includes(searchTerm.toLowerCase());
         
         if (matches) {
           results.push({

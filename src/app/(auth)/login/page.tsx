@@ -50,7 +50,7 @@ const PUBLIC_ROLES = [
   { value: "admin", label: "Administrador / Gerencia" },
   { value: "socio", label: "Socio Industrial / Cliente" },
   { value: "bodega", label: "Bodeguero / Recepción" },
-  { value: "bodeguero_quimicos", label: "Bodeguero de Químicos" },
+  { value: "bodega_quimicos", label: "Bodeguero de Químicos" },
   { value: "produccion", label: "Jefe de Producción" },
   { value: "chofer", label: "Chofer / Despachador" },
   { value: "contador", label: "Contador / Auditor" },
@@ -96,7 +96,7 @@ export default function LoginPage() {
       else if (user.role === 'chofer') router.replace("/entregas");
       else if (user.role === 'banco') router.replace("/bancos");
       else if (user.role === 'cobranzas') router.replace("/cobranzas");
-      else if (user.role === 'bodeguero_quimicos') router.replace("/quimicos");
+      else if (user.role === 'bodega_quimicos') router.replace("/quimicos");
       else router.replace("/dashboard");
     }
   }, [user, loading, router]);
@@ -237,12 +237,12 @@ export default function LoginPage() {
       ]);
 
       const allOutDocs = [
-        ...outSnap.docs.map(d => ({ id: d.id, _source: 'outputs', ...d.data() })),
-        ...salSnap.docs.map(d => ({ id: d.id, _source: 'salidas', ...d.data() })),
-        ...mueSnap.docs.map(d => ({ id: d.id, _source: 'muestras', ...d.data() }))
+        ...outSnap.docs.map(d => ({ id: d.id, _source: 'outputs', ...d.data() } as any)),
+        ...salSnap.docs.map(d => ({ id: d.id, _source: 'salidas', ...d.data() } as any)),
+        ...mueSnap.docs.map(d => ({ id: d.id, _source: 'muestras', ...d.data() } as any))
       ];
 
-      const allManuDocs = manuSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const allManuDocs = manuSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
       const relatedOutputs = allOutDocs.filter((o: any) => {
         const items = Array.isArray(o.itemsDispatched) ? o.itemsDispatched : (Array.isArray(o.lotes) ? o.lotes : []);

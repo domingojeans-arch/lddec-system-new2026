@@ -1,38 +1,48 @@
 export type OutputStatus = 'draft' | 'active' | 'completed';
 
-export interface OutputItemDispatched {
-  id?: string; // Para filas manuales
-  entryLotNumber: string;
-  parentIngresoMaestro: string; // ID del documento entries
-  parentIngresoNumber?: string; // Número visible del ingreso (ej: 4773)
-  clientName: string;
-  clientId: string;
+export interface OutputLine {
+  id: string;
+  entryId: string;
+  entryNumber: string;
+  lotId: string;
+  lotNumber: string;
   garmentType: string;
-  processType: string;
-  originalEntryQuantity: number;
-  quantityToDispatch: number;
-  prendas?: any[];
-  dispatchedPreviously?: number;
-  availableToDispatch?: number;
-  isPartialDispatchDueToMissing?: boolean;
-  productionStatus?: "Ready for Delivery";
-  isManual?: boolean; // Flag para identificar filas agregadas a mano
+  process: string;
+  washType?: string;
+  quantityOriginal: number;
+  quantityDispatched: number;
+  quantitySamples: number;
+  quantityMissing: number;
+  quantityDamaged: number;
+  quantityPending: number;
+  status: string;
+  clientId: string;
+  clientName: string;
+  notes?: string;
+  deliveryStatus?: string;
+  deliveredBy?: string;
 }
 
 export interface Output {
   id: string;
-  numeroSalida: string;
-  date: string;
-  responsiblePerson: string; // Chofer/Responsable
+  outputNumber: string;
+  clientId: string;
+  clientName: string;
+  outputDate: string;
+  driver: string;
+  responsible: string;
+  totalOriginal?: number;
+  totalDispatched?: number;
+  totalDamaged?: number;
+  totalMissing?: number;
+  totalSamples?: number;
+  totalPending?: number;
   notes?: string;
-  isSample: boolean;
   status: OutputStatus;
-  itemsDispatched: OutputItemDispatched[];
-  containedClientNames: string[];
-  numeroMuestras: number;
-  lastPrintedLine?: number; // Memoria de última línea impresa
+  isSample?: boolean;
+  lines: OutputLine[];
   createdAt: string;
   updatedAt: string;
 }
 
-export type OutputInput = Omit<Output, 'id' | 'createdAt' | 'updatedAt' | 'itemsDispatched' | 'containedClientNames'>;
+export type OutputInput = Omit<Output, 'id' | 'createdAt' | 'updatedAt' | 'lines'>;

@@ -94,7 +94,7 @@ function getInvoiceBadgeInfo(inv: any) {
   const num = inv.numeroFactura || inv.id;
   const total = Number(inv.totalFactura || inv.total || 0);
   const pagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
-  const abonado = pagos.reduce((acc, p) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0)), 0);
+  const abonado = pagos.reduce((acc: number, p: any) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0)), 0);
   const saldo = Math.max(0, total - abonado);
   
   const d = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate || Date.now());
@@ -150,10 +150,10 @@ function checkPaymentAutoConfirm(pago: any): { isAutoConfirmed: boolean; daysDif
 export default function HistorialPage() {
   const { toast } = useToast();
   const { user: authUser } = useAuth();
-  const isAdmin = authUser?.role === "administrador" || authUser?.role === "admin" || authUser?.role === "ADMIN";
-  const isCobranzas = authUser?.role === "cobranzas" || authUser?.role === "COBRANZAS";
+  const isAdmin = authUser?.role === "admin" || (authUser?.role as any) === "administrador" || (authUser?.role as any) === "ADMIN";
+  const isCobranzas = authUser?.role === "cobranzas" || (authUser?.role as any) === "COBRANZAS";
   // Rol contador: acceso completo a edición y eliminación de cobros en Historial
-  const isContador = authUser?.role === "contador" || authUser?.role === "CONTADOR";
+  const isContador = authUser?.role === "contador" || (authUser?.role as any) === "CONTADOR";
   const canManagePayments = isAdmin || isCobranzas || isContador;
   const isReadOnly = authUser?.role === "socio";
   

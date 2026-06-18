@@ -28,12 +28,12 @@ export function InvoiceItemsEditor({ items, onChange }: InvoiceItemsEditorProps)
       updated.lineTotal = (updated.quantityToInvoice || 0) * (updated.unitPrice || 0);
       
       // Calculate pending
-      updated.quantityPendingInvoice = updated.quantityDispatched - updated.quantityToInvoice;
+      updated.quantityPendingInvoice = updated.quantityDispatched - (updated.quantityToInvoice || 0);
       
       // Update status
-      if (updated.quantityPendingInvoice <= 0) {
+      if ((updated.quantityPendingInvoice || 0) <= 0) {
         updated.status = 'invoiced';
-      } else if (updated.quantityToInvoice > 0) {
+      } else if ((updated.quantityToInvoice || 0) > 0) {
         updated.status = 'partial_invoiced';
       } else {
         updated.status = 'pending_invoice';

@@ -20,6 +20,7 @@ export interface InvoiceItem {
   status?: string;
   quantityToInvoice?: number;
   quantityPendingInvoice?: number;
+  outputId?: string;
 }
 
 /**
@@ -52,6 +53,12 @@ export interface Invoice {
   invoiceDate?: string;
   dueDate?: string;
   items?: InvoiceItem[];
+  // Legacy Spanish-named fields
+  clienteNombre?: string;
+  numeroSalida?: string;
+  tax?: number;
+  discount?: number;
+  retention?: number;
 }
 
 export type InvoiceInput = Omit<Invoice, 'id' | 'createdAt' | 'updatedAt' | 'fechaFactura' | 'pagosYajustes'>;

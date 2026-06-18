@@ -67,7 +67,7 @@ function mapFirestoreToEntry(docSnap: any): Entry {
   const visibleNumber = getEntryVisible(data, id);
   const mappedLots = (data.lotes || []).map((lot: any) => ({ ...lot, id: lot.id || getVisibleLotNumber(lot), lotNumber: getVisibleLotNumber(lot) }));
   const totalGarments = mappedLots.reduce((acc: number, lot: any) => acc + (Number(lot.cantidad || lot.quantity || lot.cantidadConfirmada || 0)), 0);
-  return { id, entryNumber: visibleNumber, clientName: data.clientName || "Socio", entryDate, responsible: data.responsible || "N/A", isSample: !!data.isSample, status: data.status || "active", totalGarments, lots: mappedLots, notes: data.notes || "" } as Entry;
+  return { id, entryNumber: visibleNumber, clientId: data.clientId || "", clientName: data.clientName || "Socio", entryDate, responsible: data.responsible || "N/A", isSample: !!data.isSample, status: data.status || "active", totalGarments, lots: mappedLots, notes: data.notes || "" } as any as Entry;
 }
 
 export default function ResumenesPage() {

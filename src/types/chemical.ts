@@ -40,3 +40,19 @@ export interface ChemicalMovement {
   movementDate: string;
   createdAt: string;
 }
+
+export interface ChemicalRecipeItem {
+  chemicalId: string;
+  chemicalName: string;
+  quantityKg: number;
+}
+
+export interface ChemicalRecipe {
+  id: string;
+  recipeName: string;
+  processType: string;
+  items: ChemicalRecipeItem[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}

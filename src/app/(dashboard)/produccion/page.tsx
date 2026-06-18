@@ -123,7 +123,7 @@ export default function ProduccionPage() {
 
       // Filtrar y ordenar en memoria estrictamente por la fecha de origen real
       const manualList = allManualList
-        .filter(work => {
+        .filter((work: any) => {
           if (busquedaGlobal) return true; // Si Búsqueda Global está activa, omite los límites de fecha
           
           const fechaStr = work.fecha || work.fechaStr || "";
@@ -148,7 +148,7 @@ export default function ProduccionPage() {
             String(d.getFullYear()) === targetYearStr
           );
         })
-        .sort((a, b) => {
+        .sort((a: any, b: any) => {
           const timeA = toDate(a.fecha || a.fechaStr || a.workDate || a.createdAt)?.getTime() || 0;
           const timeB = toDate(b.fecha || b.fechaStr || b.workDate || b.createdAt)?.getTime() || 0;
           return timeB - timeA; // orden descendente
@@ -452,7 +452,7 @@ export default function ProduccionPage() {
     try {
       // 1. Obtener todas las tarifas
       const tariffSnap = await getDocs(collection(db, "manualidad_tarifas"));
-      const tariffsList = tariffSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const tariffsList = tariffSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
       if (tariffsList.length === 0) {
         toast({
@@ -481,7 +481,7 @@ export default function ProduccionPage() {
           const proceso = String(data.proceso || "").trim().toUpperCase();
           const tipoPrenda = String(data.tipoPrenda || "Adulto").trim();
           
-          const tariff = tariffsList.find(t => 
+          const tariff = tariffsList.find((t: any) => 
             String(t.manualidad || t.processName || t.id).trim().toUpperCase() === proceso
           );
 
@@ -585,7 +585,7 @@ export default function ProduccionPage() {
           </Button>
           <div className="w-px h-8 bg-border mx-2" />
           <Button 
-            onClick={loadData} 
+            onClick={() => loadData()} 
             disabled={loading}
             className="h-10 px-4 bg-muted hover:bg-muted/80 text-foreground font-black text-[10px] uppercase tracking-widest gap-2 rounded-xl border border-border"
           >

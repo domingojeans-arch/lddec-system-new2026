@@ -11,7 +11,10 @@ export type SystemRole =
   | "produccion" 
   | "cobranzas" 
   | "operario_manualidades"
-  | "bodeguero_quimicos";
+  | "bodega_quimicos";
+
+// Legacy alias export
+export type Entry = EntryMaestro;
 
 export interface UserRoleProfile {
   uid: string;

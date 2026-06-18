@@ -71,7 +71,7 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
       // 2. Indexar facturación para cruce rápido por relación directa
       const billedByEntryMap = new Map<string, any>();
 
-      allInvoices.forEach(inv => {
+      allInvoices.forEach((inv: any) => {
         const refs = [
           inv.ingresoMaestroId,
           inv.numeroIngreso,

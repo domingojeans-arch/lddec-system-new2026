@@ -212,8 +212,8 @@ export default function RevisionLotePage() {
             const processParts = savedProcessesString.split(" + ").map((p: string) => p.trim().toLowerCase()).filter(Boolean);
             
             const reconstructedSelected = processParts
-              .map(name => processCatalog.find(cat => cat.name.toLowerCase() === name))
-              .filter(p => !!p) as LaundryProcess[];
+              .map((name: string) => processCatalog.find(cat => cat.name.toLowerCase() === name))
+              .filter((p: any) => !!p) as LaundryProcess[];
 
             return {
               id: gid,

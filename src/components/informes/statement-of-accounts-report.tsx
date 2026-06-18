@@ -50,9 +50,36 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         if (!client) return null;
         const clientInvoices = invoices.filter(inv => inv && (inv.clientId === client.id || inv.clienteId === client.id || inv.clientName === client.name));
         
-        const clientPayments = clientInvoices.flatMap(inv => 
-           Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : [])
-        );
+        const uniqueMvs = new Map<string, any>();
+        clientInvoices.forEach(inv => {
+          const invoiceMovs = Array.isArray(inv.pagosYajustes) 
+            ? inv.pagosYajustes 
+            : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+          
+          invoiceMovs.forEach((m: any) => {
+            if (!m || m.anulado) return;
+            const pDate = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
+            const key = `${m.tipoTransaccion || m.tipo || 'PAGO'}-${Number(m.monto || 0)}-${pDate?.getTime() || 0}`;
+            uniqueMvs.set(key, m);
+          });
+
+          const globalPayDocs = (payments || []).filter((p: any) => {
+            if (!p || p.anulado) return false;
+            const matchFacturaId = p.facturaId && inv.id && String(p.facturaId).trim().toUpperCase() === String(inv.id).trim().toUpperCase();
+            const matchNumeroFactura = p.numeroFactura && inv.numeroFactura && String(p.numeroFactura).trim().toUpperCase() === String(inv.numeroFactura).trim().toUpperCase();
+            return matchFacturaId || matchNumeroFactura;
+          });
+
+          globalPayDocs.forEach((p: any) => {
+            if (!p) return;
+            const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
+            const key = `${p.tipoTransaccion || 'PAGO'}-${Number(p.monto || 0)}-${pDate?.getTime() || 0}`;
+            if (!uniqueMvs.has(key)) {
+              uniqueMvs.set(key, p);
+            }
+          });
+        });
+        const clientPayments = Array.from(uniqueMvs.values());
 
         const metrics = calculateClientAccountingMetrics(
           Number(client.baseDebt || client.saldoInicial || 0),

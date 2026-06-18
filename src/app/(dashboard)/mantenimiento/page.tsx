@@ -82,7 +82,7 @@ import { useRouter } from "next/navigation";
 const SYSTEM_ROLES: SystemRole[] = [
   "admin", 
   "bodega", 
-  "bodeguero_quimicos",
+  "bodega_quimicos",
   "produccion", 
   "chofer", 
   "contador", 
@@ -112,7 +112,7 @@ export default function MantenimientoPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const router = useRouter();
-  const isAdmin = user?.role === "admin" || user?.role === "administrador" || user?.displayName === "EDGAR ADMIN";
+  const isAdmin = user?.role === "admin" || (user?.role as any) === "administrador" || (user as any)?.displayName === "EDGAR ADMIN";
   
   useEffect(() => {
     if (user && !isAdmin) {
@@ -174,7 +174,7 @@ export default function MantenimientoPage() {
     try {
       const snap = await getDocs(collection(db, "roles_usuarios"));
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setUsers(list.sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")));
+      setUsers((list as any[]).sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")));
     } catch (e) {
       console.error("Error loading users:", e);
     } finally {
@@ -441,10 +441,10 @@ export default function MantenimientoPage() {
 
     const unsubs = [
       onSnapshot(collection(db, "trabajadores_manualidades"), (snap) => {
-        setWorkers(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")));
+        setWorkers((snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]).sort((a,b) => (a.nombre||"").localeCompare(b.nombre||"")));
       }),
       onSnapshot(collection(db, "quimicos_procesos_maestro"), (snap) => {
-        setChemMaestro(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.proceso||"").localeCompare(b.proceso||"")));
+        setChemMaestro((snap.docs.map(d => ({ id: d.id, ...d.data() })) as any[]).sort((a,b) => (a.proceso||"").localeCompare(b.proceso||"")));
       })
     ];
     setLoading(false);

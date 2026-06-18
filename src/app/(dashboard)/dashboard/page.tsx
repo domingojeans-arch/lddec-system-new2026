@@ -93,7 +93,7 @@ export default function DashboardPage() {
         else if (user.role === 'produccion') router.replace('/produccion');
         else if (user.role === 'bodega') router.replace('/ingresos');
         else if (user.role === 'chofer') router.replace('/entregas');
-        else if (user.role === 'bodeguero_quimicos') router.replace('/quimicos');
+        else if (user.role === 'bodega_quimicos') router.replace('/quimicos');
         else router.replace('/ingresos');
       }
     }
@@ -150,14 +150,14 @@ export default function DashboardPage() {
         getDocs(collection(db, "payments"))
       ]);
 
-      const entriesRaw = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const entriesRaw = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
       const outputsRaw = [
-        ...outputsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-        ...legacySalidasSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-        ...legacyMuestrasSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        ...outputsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)),
+        ...legacySalidasSnap.docs.map(d => ({ id: d.id, ...d.data() } as any)),
+        ...legacyMuestrasSnap.docs.map(d => ({ id: d.id, ...d.data() } as any))
       ];
-      const invoicesRaw = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const paymentsRaw = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const invoicesRaw = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      const paymentsRaw = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
       // 2. Cálculos de KPIs
       const today = new Date();

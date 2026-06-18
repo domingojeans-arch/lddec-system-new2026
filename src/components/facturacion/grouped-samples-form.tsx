@@ -115,7 +115,7 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
               id: doc.id,
               ...data,
               displayDate: dateStr
-            };
+            } as any;
           })
           .filter(s => {
             const isNotBilled = !billedEntryIds.has(s.id);

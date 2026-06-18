@@ -158,7 +158,7 @@ export default function ChemicalInventoryPage() {
   
   const isAdmin = user?.role === "admin";
   const isReadOnly = user?.role === "socio";
-  const isBodegueroQuimicos = user?.role === "bodeguero_quimicos";
+  const isBodegueroQuimicos = user?.role === "bodega_quimicos";
   const canManagePurchases = user?.role === "admin" || user?.role === "produccion";
 
   const [chemicals, setChemicals] = useState<any[]>([]);
@@ -729,7 +729,7 @@ export default function ChemicalInventoryPage() {
 
       {!isReadOnly && (
         <div className="grid grid-cols-1 gap-10 items-start">
-          {canManagePurchases && user?.role !== "bodega" && user?.role !== "bodeguero_quimicos" && (
+          {canManagePurchases && user?.role !== "bodega" && user?.role !== "bodega_quimicos" && (
             <Card className="rounded-[2.5rem] border border-border shadow-premium overflow-hidden bg-card lg:col-span-12">
               <CardHeader className="bg-primary/5 border-b p-6 flex items-center justify-between">
                 <CardTitle className="text-sm font-black uppercase flex items-center gap-3"><Package className="h-5 w-5 text-primary" /> A. COMPRA DE INSUMOS</CardTitle>

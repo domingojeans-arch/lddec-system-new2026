@@ -80,7 +80,7 @@ import { saveAs } from "file-saver";
 const SYSTEM_ROLES: SystemRole[] = [
   "admin", 
   "bodega", 
-  "bodeguero_quimicos",
+  "bodega_quimicos",
   "produccion", 
   "chofer", 
   "contador", 

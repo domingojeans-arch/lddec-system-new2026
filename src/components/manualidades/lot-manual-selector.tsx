@@ -23,7 +23,7 @@ export function LotManualSelector({ onSelect, selectedLotId }: LotManualSelector
         const matches = 
           lot.lotNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
           entry.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          lot.garmentType.toLowerCase().includes(searchTerm.toLowerCase());
+          (lot.garmentType || "").toLowerCase().includes(searchTerm.toLowerCase());
         
         if (matches) {
           results.push({
@@ -83,7 +83,9 @@ export function LotManualSelector({ onSelect, selectedLotId }: LotManualSelector
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <p className="text-xs font-black text-primary">{item.quantity} unds</p>
-                    <p className="text-[9px] uppercase font-bold text-muted-foreground">{item.garmentType}</p>
+                    <div>
+                      <div className="font-bold text-base group-hover:text-primary transition-colors">{item.garmentType || "-"}</div>
+                    </div>
                   </div>
                   
                   <Button

@@ -4,7 +4,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { filterPaymentsByDate } from "@/lib/accounting-motor";
+import { filterPaymentsByDate, calculateClientAccountingMetrics } from "@/lib/accounting-motor";
 import { collection, getDocs } from "firebase/firestore";
 import { toDate } from "@/lib/toDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
@@ -27,13 +27,15 @@ function PrintContent() {
       
       try {
         // Carga paralela de colecciones completas
-        const [clientsSnap, invoicesSnap] = await Promise.all([
+        const [clientsSnap, invoicesSnap, paymentsSnap] = await Promise.all([
           getDocs(collection(db, "clients")),
-          getDocs(collection(db, "facturas"))
+          getDocs(collection(db, "facturas")),
+          getDocs(collection(db, "payments"))
         ]);
 
         const clients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
         const invoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+        const payments = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
 
         const groups = [
           { id: "nacional", label: "CLIENTE NACIONAL" },
@@ -49,34 +51,55 @@ function PrintContent() {
           });
 
           const rows = groupClients.map(client => {
-            const cInvoices = invoices.filter(inv => inv.clientId === client.id || inv.clienteId === client.id);
+            const clientInvoices = invoices.filter(inv => inv && (inv.clientId === client.id || inv.clienteId === client.id || inv.clientName === client.name));
             
-            const saldoAnterior = Number(client.baseDebt || client.saldoInicial || 0);
-            
-            const fromDate = new Date(dateFrom + "T00:00:00");
-            const toDateObj = new Date(dateTo + "T23:59:59");
+            // Merge embedded and global payments
+            const uniqueMvs = new Map<string, any>();
+            clientInvoices.forEach(inv => {
+              const invoiceMovs = Array.isArray(inv.pagosYajustes) 
+                ? inv.pagosYajustes 
+                : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+              
+              invoiceMovs.forEach((m: any) => {
+                if (!m || m.anulado) return;
+                const pDate = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
+                const key = `${m.tipoTransaccion || m.tipo || 'PAGO'}-${Number(m.monto || 0)}-${pDate?.getTime() || 0}`;
+                uniqueMvs.set(key, m);
+              });
 
-            const invoicesInPeriod = cInvoices.filter(inv => {
-              const d = toDate(inv.fechaFactura || inv.date);
-              return d && d >= fromDate && d <= toDateObj;
-            });
+              const globalPayDocs = payments.filter((p: any) => {
+                if (!p || p.anulado) return false;
+                const matchFacturaId = p.facturaId && inv.id && String(p.facturaId).trim().toUpperCase() === String(inv.id).trim().toUpperCase();
+                const matchNumeroFactura = p.numeroFactura && inv.numeroFactura && String(p.numeroFactura).trim().toUpperCase() === String(inv.numeroFactura).trim().toUpperCase();
+                return matchFacturaId || matchNumeroFactura;
+              });
 
-            const totalDebe = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
-
-            let totalHaber = 0;
-            invoicesInPeriod.forEach(inv => {
-              const rawMov = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
-              const movimientos = filterPaymentsByDate(rawMov, fromDate, toDateObj);
-              movimientos.forEach((m: any) => {
-                if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') {
-                  totalHaber -= Number(m.monto || 0);
-                } else {
-                  totalHaber += Number(m.monto || 0);
+              globalPayDocs.forEach((p: any) => {
+                if (!p) return;
+                const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
+                const key = `${p.tipoTransaccion || 'PAGO'}-${Number(p.monto || 0)}-${pDate?.getTime() || 0}`;
+                if (!uniqueMvs.has(key)) {
+                  uniqueMvs.set(key, p);
                 }
               });
             });
+            const clientPayments = Array.from(uniqueMvs.values());
 
-            const saldoActual = (saldoAnterior + totalDebe) - totalHaber;
+            const metrics = calculateClientAccountingMetrics(
+              Number(client.baseDebt || client.saldoInicial || 0),
+              dateFrom,
+              dateTo,
+              clientInvoices,
+              clientPayments,
+              client
+            );
+
+            const fromDate = new Date(dateFrom + "T00:00:00");
+            const toDateObj = new Date(dateTo + "T23:59:59");
+            const invoicesInPeriod = clientInvoices.filter(inv => {
+              const d = toDate(inv.fechaFactura || inv.date);
+              return d && d >= fromDate && d <= toDateObj;
+            });
 
             const lastInvoice = invoicesInPeriod.sort((a,b) => {
               const dA = toDate(a.fechaFactura || a.date) || new Date(0);
@@ -87,24 +110,24 @@ function PrintContent() {
             const daysDiff = lastDate ? Math.floor((new Date().getTime() - new Date(lastDate).getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
             let bgClass = "";
-            if (saldoActual > 0) {
+            if (metrics.saldoActual > 0) {
               if (daysDiff >= 9 && daysDiff <= 14) bgClass = "bg-yellow-50";
               else if (daysDiff >= 15 && daysDiff <= 29) bgClass = "bg-amber-50";
               else if (daysDiff >= 30) bgClass = "bg-rose-50";
             }
 
             return {
-              name: formatClientName(client.name || client.firstName || ""),
-              saldoAnterior,
-              facturacion: totalDebe,
-              nd: 0,
-              nc: 0,
-              retencion: 0,
-              cobro: totalHaber,
-              saldoActual,
+              name: formatClientName(client.name || `${client.firstName || ""} ${client.lastName || ""}`),
+              saldoAnterior: metrics.saldoAnterior,
+              facturacion: metrics.facturacion,
+              nd: metrics.nd,
+              nc: metrics.nc,
+              retencion: metrics.retencion,
+              cobro: metrics.cobro,
+              saldoActual: metrics.saldoActual,
               bgClass
             };
-          }).filter(r => Math.abs(r.saldoAnterior) > 0.01 || Math.abs(r.facturacion) > 0.01 || Math.abs(r.cobro) > 0.01 || Math.abs(r.saldoActual) > 0.01);
+          }).filter(r => Math.abs(r.saldoAnterior) > 0.01 || Math.abs(r.facturacion) > 0.01 || Math.abs(r.cobro) > 0.01 || Math.abs(r.nd) > 0.01 || Math.abs(r.nc) > 0.01 || Math.abs(r.saldoActual) > 0.01);
 
           /**
            * MOTOR DE ORDENAMIENTO LDDEC 1.4 (ALFABÉTICO DIRECTO)

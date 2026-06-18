@@ -102,7 +102,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
     const role = user?.role || "socio";
     if (role === "admin" || role === "contador" || role === "financiero" || role === "socio") return ALL_REPORT_TYPES;
     if (role === "bodega") return ["Resumen Operativo Mes a Mes", "Informe de Ingresos Detallado", "Informe de Salidas Detallado"];
-    if (role === "bodeguero_quimicos") return ["Informe Detallado de Movimientos Químicos"];
+    if (role === "bodega_quimicos") return ["Informe Detallado de Movimientos Químicos"];
     if (role === "facturacion") return ["Informe de Ingresos vs. Facturación", "Informe de Salidas Detallado", "Informe Detallado de Ventas (Libro de Ventas)"];
     if (role === "produccion") return ["Informe Detallado de Manualidades", "Liquidación de Pagos a Operarios", "Informe Detallado de Movimientos Químicos"];
     if (role === "banco") return ["Informe de Movimientos Bancarios"];
@@ -232,9 +232,9 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           return parsedDate && parsedDate >= fromDate && parsedDate <= toDateObj;
         });
         // Fetch payments dynamically from facturas and clients
-        const allFacturaPayments = raw.flatMap(inv => {
+        const allFacturaPayments = raw.flatMap((inv: any) => {
            const pagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
-           return pagos.map(p => ({
+           return pagos.map((p: any) => ({
                ...p,
                clienteId: inv.clientId || inv.clienteId || "",
                clienteNombre: inv.clienteNombre || inv.clientName || "",
@@ -248,9 +248,9 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         if (hasClientFilter && filters.clientId !== "all") {
             rawClients = rawClients.filter((c: any) => c.id === filters.clientId);
         }
-        const allClientsPayments = rawClients.flatMap(c => {
+        const allClientsPayments = rawClients.flatMap((c: any) => {
             const pagosSI = Array.isArray(c.pagosSaldoInicial) ? c.pagosSaldoInicial : [];
-            return pagosSI.map(p => ({
+            return pagosSI.map((p: any) => ({
                 ...p,
                 clienteId: c.id,
                 clienteNombre: c.name || c.nombre || "",

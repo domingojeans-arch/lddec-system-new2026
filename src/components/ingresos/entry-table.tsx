@@ -108,7 +108,7 @@ export function EntryTable({ entries, onView, onEdit, onDelete, onPrint, canEdit
                     <span className="font-black text-sm text-primary tracking-tight">
                       {entry.entryNumber}
                     </span>
-                    {(entry as any).reconciledBy && <ShieldCheck className="h-3 w-3 text-emerald-500" title="Reconciliado con Salidas" />}
+                    {(entry as any).reconciledBy && <span title="Reconciliado con Salidas"><ShieldCheck className="h-3 w-3 text-emerald-500" /></span>}
                   </div>
                 </TableCell>
 

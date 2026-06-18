@@ -48,6 +48,7 @@ interface PendingPayment {
   numeroCheque?: string;
   bancoCheque?: string;
   estado: "Pendiente" | "Pagado";
+  esRecurrente?: boolean;
   createdAt: any;
 }
 

@@ -37,7 +37,8 @@ export const mockOutputs: Output[] = [
         status: "dispatched",
         deliveryStatus: "delivered",
         deliveredBy: "Pedro Castillo",
-        deliveryDate: "2024-03-25 17:30"
+        clientId: "1",
+        clientName: "Textil del Pacífico S.A.",
       },
       {
         id: "ol2",
@@ -55,7 +56,9 @@ export const mockOutputs: Output[] = [
         quantityDamaged: 2,
         quantityPending: 0,
         status: "dispatched",
-        deliveryStatus: "pending"
+        deliveryStatus: "pending",
+        clientId: "1",
+        clientName: "Textil del Pacífico S.A.",
       }
     ]
   },
@@ -93,7 +96,9 @@ export const mockOutputs: Output[] = [
         quantityDamaged: 0,
         quantityPending: 60,
         status: "partial",
-        deliveryStatus: "pending"
+        deliveryStatus: "pending",
+        clientId: "2",
+        clientName: "Denim World Export",
       }
     ]
   }

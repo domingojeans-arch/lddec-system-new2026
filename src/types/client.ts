@@ -19,6 +19,11 @@ export interface Client {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  // Legacy fields for backward compatibility
+  code?: string;
+  contactName?: string;
+  sinceYear?: number;
+  nombre?: string;
 }
 
 export type ClientInput = Omit<Client, 'id' | 'name' | 'createdAt' | 'updatedAt' | 'createdBy'>;

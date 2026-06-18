@@ -13,9 +13,9 @@ interface OutputsReportProps {
 }
 
 export function OutputsReport({ outputs }: OutputsReportProps) {
-  const totalDispatched = outputs.reduce((acc, o) => acc + o.totalDispatched, 0);
-  const totalDamaged = outputs.reduce((acc, o) => acc + o.totalDamaged, 0);
-  const totalIssues = outputs.filter(o => o.totalDamaged > 0 || o.totalMissing > 0).length;
+  const totalDispatched = outputs.reduce((acc, o) => acc + (o.totalDispatched || 0), 0);
+  const totalDamaged = outputs.reduce((acc, o) => acc + (o.totalDamaged || 0), 0);
+  const totalIssues = outputs.filter(o => (o.totalDamaged || 0) > 0 || (o.totalMissing || 0) > 0).length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -75,7 +75,7 @@ export function OutputsReport({ outputs }: OutputsReportProps) {
                 <TableCell className="text-sm font-medium print:text-black">{output.clientName}</TableCell>
                 <TableCell className="text-sm text-muted-foreground print:text-black">{output.outputDate}</TableCell>
                 <TableCell className="text-right font-black text-emerald-600 print:text-black">{output.totalDispatched}</TableCell>
-                <TableCell className="text-right font-bold text-destructive print:text-black">{output.totalDamaged + output.totalMissing}</TableCell>
+                <TableCell className="text-right font-bold text-destructive print:text-black">{(output.totalDamaged || 0) + (output.totalMissing || 0)}</TableCell>
                 <TableCell className="text-sm truncate max-w-[150px] print:text-black">{output.driver}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className="text-[10px] uppercase font-black print:text-black print:border-black">

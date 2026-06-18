@@ -1,4 +1,4 @@
-export type ManualWorkStatus = 'pending' | 'approved' | 'rejected' | 'in_progress' | 'cancelled';
+export type ManualWorkStatus = 'pending' | 'approved' | 'rejected' | 'in_progress' | 'cancelled' | 'completed';
 
 export type ManualWorkTypeId = 
   | 'whiskers' 

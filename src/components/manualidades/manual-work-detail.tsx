@@ -23,11 +23,13 @@ interface ManualWorkDetailProps {
   work: ManualWork;
 }
 
-const statusMap = {
+const statusMap: Record<string, { label: string, icon: any, color: string }> = {
   pending: { label: "Pendiente", icon: Clock, color: "text-zinc-500 bg-zinc-500/10" },
   in_progress: { label: "En Proceso", icon: AlertCircle, color: "text-amber-500 bg-amber-500/10" },
   completed: { label: "Completado", icon: CheckCircle2, color: "text-emerald-500 bg-emerald-500/10" },
   cancelled: { label: "Cancelado", icon: AlertCircle, color: "text-destructive bg-destructive/10" },
+  approved: { label: "Aprobado", icon: CheckCircle2, color: "text-blue-500 bg-blue-500/10" },
+  rejected: { label: "Rechazado", icon: AlertCircle, color: "text-red-500 bg-red-500/10" },
 };
 
 export function ManualWorkDetail({ work }: ManualWorkDetailProps) {

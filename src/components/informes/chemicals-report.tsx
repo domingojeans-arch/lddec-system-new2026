@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 
 interface ChemicalsReportProps {
   chemicals: Chemical[];
-  recipes: ChemicalRecipe[];
+  recipes: any[];
 }
 
 export function ChemicalsReport({ chemicals, recipes }: ChemicalsReportProps) {

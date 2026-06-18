@@ -35,7 +35,7 @@ export default function InformesPage() {
     const loadClients = async () => {
       try {
         const snap = await getDocs(collection(db, "clients"));
-        const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
         
         const sorted = data.sort((a, b) => {
           const nameA = (a.name || a.nombre || "").trim().toUpperCase();

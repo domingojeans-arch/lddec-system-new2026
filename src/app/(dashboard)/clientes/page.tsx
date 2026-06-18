@@ -97,7 +97,7 @@ export default function ClientesPage() {
 
   const canDelete = useMemo(() => {
     if (!user || isReadOnly) return false;
-    return user.role === "admin" || user.role === "administrador";
+    return (user.role as any) === "admin" || (user.role as any) === "administrador";
   }, [user, isReadOnly]);
 
   const hideFinancials = isBodeguero;
@@ -157,7 +157,7 @@ export default function ClientesPage() {
     try {
       const payload: any = {
         ...data,
-        name: `${data.lastName || ""} ${data.firstName || ""}`.trim() || data.name || "",
+        name: `${data.lastName || ""} ${data.firstName || ""}`.trim() || (data as any).name || "",
         updatedAt: new Date().toISOString()
       };
 

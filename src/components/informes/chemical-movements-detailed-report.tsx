@@ -133,7 +133,7 @@ export function ChemicalMovementsDetailedReport({ movements, chemicals, dateFrom
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Movimientos Químicos");
 
-    const summaryData = [
+    const summaryData: { Métrica: string; Valor: string | number }[] = [
       { Métrica: "Sustancia Filtrada", Valor: selectedSubstance === 'all' ? 'TODOS LOS INSUMOS' : selectedSubstance.toUpperCase() },
       { Métrica: "Periodo Desde", Valor: dateFrom },
       { Métrica: "Periodo Hasta", Valor: dateTo }

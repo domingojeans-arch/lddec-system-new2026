@@ -3,7 +3,8 @@ import { Output } from "@/types/output";
 import { Invoice } from "@/types/invoice";
 import { Collection } from "@/types/collection";
 import { ManualWork } from "@/types/manual-work";
-import { Chemical, ChemicalRecipe } from "@/types/chemical";
+import { Chemical } from "@/types/chemical";
+import { ChemicalRecipe } from "@/types/chemical-recipe";
 import { Client } from "@/types/client";
 import { toDate } from "./toDate";
 
@@ -18,8 +19,8 @@ export const calculateOperationalMetrics = (
   recipes: ChemicalRecipe[]
 ) => {
   const totalGarmentsIn = entries.reduce((acc, curr) => acc + curr.totalGarments, 0);
-  const totalGarmentsOut = outputs.reduce((acc, curr) => acc + curr.totalDispatched, 0);
-  const totalInvoiced = invoices.reduce((acc, curr) => acc + curr.total, 0);
+  const totalGarmentsOut = outputs.reduce((acc, curr) => acc + (curr.totalDispatched || 0), 0);
+  const totalInvoiced = invoices.reduce((acc, curr) => acc + (curr.total || 0), 0);
   const totalCollected = collections.reduce((acc, curr) => acc + curr.totalReceived, 0);
   
   // Production stats from Entry Lots

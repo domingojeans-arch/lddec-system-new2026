@@ -13,7 +13,7 @@ interface InvoiceCardProps {
   onEdit: (invoice: Invoice) => void;
 }
 
-const statusMap = {
+const statusMap: Record<string, { label: string; color: string }> = {
   draft: { label: "Borrador", color: "bg-zinc-500/10 text-zinc-600" },
   issued: { label: "Emitida", color: "bg-blue-500/10 text-blue-600" },
   partial_paid: { label: "Parcial", color: "bg-amber-500/10 text-amber-600" },
@@ -54,13 +54,13 @@ export function InvoiceCard({ invoice, onView, onEdit }: InvoiceCardProps) {
             <div className="space-y-1">
               <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em]">Total Comprobante</p>
               <div className="text-3xl font-black text-emerald-600 tracking-tighter">
-                ${invoice.total.toFixed(2)}
+                ${(invoice.total || 0).toFixed(2)}
               </div>
             </div>
             <div className="text-right">
               <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] mb-1">Saldo Pend.</p>
-              <Badge className={`text-[10px] font-black tracking-widest px-3 h-6 border-none ${invoice.balancePending > 0 ? "bg-amber-500/10 text-amber-600" : "bg-emerald-500/10 text-emerald-600"}`}>
-                ${invoice.balancePending.toFixed(2)}
+              <Badge className={`text-[10px] font-black tracking-widest px-3 h-6 border-none ${(invoice.balancePending || 0) > 0 ? "bg-amber-500/10 text-amber-600" : "bg-emerald-500/10 text-emerald-600"}`}>
+                ${(invoice.balancePending || 0).toFixed(2)}
               </Badge>
             </div>
           </div>
@@ -74,9 +74,9 @@ export function InvoiceCard({ invoice, onView, onEdit }: InvoiceCardProps) {
             </div>
             <Badge 
               variant="outline"
-              className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border-none ${statusMap[invoice.status].color}`}
+              className={`text-[9px] px-3 py-1 rounded-full font-black uppercase tracking-widest border-none ${invoice.status ? (statusMap[invoice.status]?.color || "") : ""}`}
             >
-              {statusMap[invoice.status].label}
+              {invoice.status ? (statusMap[invoice.status]?.label || invoice.status) : ""}
             </Badge>
           </div>
         </div>

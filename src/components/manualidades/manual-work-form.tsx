@@ -61,7 +61,7 @@ const manualWorkSchema = z.object({
   workDate: z.string().min(1, "Fecha obligatoria"),
   unitCost: z.coerce.number().min(0, "El costo no puede ser negativo"),
   notes: z.string().optional(),
-  status: z.enum(["pending", "in_progress", "completed", "cancelled"]),
+  status: z.enum(["pending", "in_progress", "completed", "cancelled", "approved", "rejected"]),
 });
 
 interface ManualWorkFormProps {

@@ -31,13 +31,13 @@ export const navItems: NavItem[] = [
     title: "Ingresos", 
     path: "/ingresos", 
     icon: CircleArrowDown, 
-    allowedRoles: ["admin", "bodega", "socio", "bodeguero_quimicos"] 
+    allowedRoles: ["admin", "bodega", "socio", "bodega_quimicos"] 
   },
   { 
     title: "Revisión Lote", 
     path: "/revision-lote", 
     icon: ClipboardCheck, 
-    allowedRoles: ["admin", "bodega", "socio", "bodeguero_quimicos"] 
+    allowedRoles: ["admin", "bodega", "socio", "bodega_quimicos"] 
   },
   { 
     title: "Producción", 
@@ -55,13 +55,13 @@ export const navItems: NavItem[] = [
     title: "Bodega Químicos", 
     path: "/quimicos", 
     icon: Beaker, 
-    allowedRoles: ["admin", "bodega", "produccion", "socio", "bodeguero_quimicos"] 
+    allowedRoles: ["admin", "bodega", "produccion", "socio", "bodega_quimicos"] 
   },
   { 
     title: "Salidas", 
     path: "/salidas", 
     icon: CircleArrowUp, 
-    allowedRoles: ["admin", "bodega", "chofer", "socio", "bodeguero_quimicos"] 
+    allowedRoles: ["admin", "bodega", "chofer", "socio", "bodega_quimicos"] 
   },
   { 
     title: "Entregas", 
@@ -97,7 +97,7 @@ export const navItems: NavItem[] = [
     title: "INFORMES", 
     path: "/informes", 
     icon: FileText, 
-    allowedRoles: ["admin", "socio", "contador", "financiero", "facturacion", "bodega", "banco", "produccion", "bodeguero_quimicos"] 
+    allowedRoles: ["admin", "socio", "contador", "financiero", "facturacion", "bodega", "banco", "produccion", "bodega_quimicos"] 
   },
   { 
     title: "Faltantes", 

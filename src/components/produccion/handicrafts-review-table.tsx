@@ -53,7 +53,7 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
   const { user } = useAuth();
   const { toast } = useToast();
   const isReadOnly = user?.role === "socio";
-  const canFullEdit = (user?.role === "administrador" || user?.role === "produccion") && !isReadOnly;
+  const canFullEdit = (user?.role === "admin" || user?.role === "produccion") && !isReadOnly;
   
   const handleVolverAprobar = (workId: string) => {
     if (isReadOnly) return;

@@ -14,11 +14,13 @@ interface ManualWorkCardProps {
   onEdit: (work: ManualWork) => void;
 }
 
-const statusMap = {
-  pending: { label: "Pendiente", color: "bg-zinc-500/10 text-zinc-600" },
-  in_progress: { label: "En Proceso", color: "bg-amber-500/10 text-amber-600" },
-  completed: { label: "Completado", color: "bg-emerald-500/10 text-emerald-600" },
-  cancelled: { label: "Cancelado", color: "bg-destructive/10 text-destructive" },
+const statusMap: Record<string, { label: string, color: string }> = {
+  pending: { label: "Pendiente", color: "bg-muted text-muted-foreground border-transparent" },
+  in_progress: { label: "En Proceso", color: "bg-amber-500/10 text-amber-600 border-amber-500/20" },
+  completed: { label: "Completado", color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" },
+  cancelled: { label: "Cancelado", color: "bg-destructive/10 text-destructive border-destructive/20" },
+  approved: { label: "Aprobado", color: "bg-blue-500/10 text-blue-600 border-blue-500/20" },
+  rejected: { label: "Rechazado", color: "bg-red-500/10 text-red-600 border-red-500/20" },
 };
 
 export function ManualWorkCard({ work, onView, onEdit }: ManualWorkCardProps) {

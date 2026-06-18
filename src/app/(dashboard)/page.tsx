@@ -28,7 +28,7 @@ export default function DashboardRootPage() {
         router.replace("/bancos");
       } else if (user.role === 'cobranzas') {
         router.replace("/cobranzas");
-      } else if (user.role === 'bodeguero_quimicos') {
+      } else if (user.role === 'bodega_quimicos') {
         router.replace("/quimicos");
       } else {
         router.replace("/ingresos");

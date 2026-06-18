@@ -21,9 +21,9 @@ export function InvoiceSelector({ clientId, onSelect, selectedInvoiceIds }: Invo
   const availableInvoices = useMemo(() => {
     return mockInvoices.filter(invoice => {
       const isClientMatch = !clientId || invoice.clientId === clientId;
-      const isNotSettled = invoice.balancePending > 0;
+      const isNotSettled = (invoice.balancePending || 0) > 0;
       const matchesSearch = 
-        invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (invoice.invoiceNumber || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
         invoice.clientName.toLowerCase().includes(searchTerm.toLowerCase());
       
       return isClientMatch && isNotSettled && matchesSearch;
@@ -63,7 +63,7 @@ export function InvoiceSelector({ clientId, onSelect, selectedInvoiceIds }: Invo
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm">{invoice.invoiceNumber}</span>
                       <Badge variant="outline" className="text-[9px] font-black border-none bg-muted/50 px-1.5 h-4">
-                        Total: ${invoice.total.toFixed(2)}
+                        Total: ${(invoice.total || 0).toFixed(2)}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
@@ -77,7 +77,7 @@ export function InvoiceSelector({ clientId, onSelect, selectedInvoiceIds }: Invo
 
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="text-xs font-black text-amber-600">${invoice.balancePending.toFixed(2)}</p>
+                    <p className="text-xs font-black text-amber-600">${(invoice.balancePending || 0).toFixed(2)}</p>
                     <p className="text-[9px] uppercase font-bold text-muted-foreground">Saldo Pendiente</p>
                   </div>
                   

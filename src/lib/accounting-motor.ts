@@ -56,7 +56,7 @@ export function calculateClientAccountingMetrics(
 
   // 2. Procesar Movimientos de Facturas (Payments)
   // Use helper to filter payments within the period
-  const filteredPayments = filterPaymentsByDate(payments, effectiveFrom, to);
+  const filteredPayments = filterPaymentsByDate(payments, FECHA_BASE_2026, to);
   filteredPayments.forEach(p => {
     const monto = Number(p.monto || 0);
     const tipo = (p.tipoTransaccion || "").toString();

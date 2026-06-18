@@ -45,7 +45,7 @@ export function MobileNav() {
       ];
       return allowedTitles.includes(item.title);
     }
-    if (user?.role === "bodega_quimicos" || user?.role === "bodeguero_quimicos") {
+    if ((user?.role as string) === "bodega_quimicos") {
       return item.title === "Bodega Químicos";
     }
     return user?.role === "admin" || (item.allowedRoles as string[]).includes(user?.role || "");
