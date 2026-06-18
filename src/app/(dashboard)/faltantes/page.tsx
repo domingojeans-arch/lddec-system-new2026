@@ -155,6 +155,8 @@ export default function FaltantesPage() {
         const qtyFromArr = garmentsArr.reduce((sum: number, p: any) => sum + (Number(p.quantity || p.cantidad || 0)), 0);
         const originalQuantity = qtyFromArr > 0 ? qtyFromArr : Number(lote.cantidadConfirmada || lote.quantity || lote.cantidad || 0);
 
+        let salidaReferencia = "S/D";
+
         const totalDispatched = outputs.reduce((sum, out) => {
           const items = out.itemsDispatched || [];
           const itemMatch = items.find((it: any) => {
@@ -162,7 +164,16 @@ export default function FaltantesPage() {
             const itVisible = getVisibleLotName(it);
             return itInternal === internalId || itVisible === visibleLotName;
           });
-          return sum + (itemMatch ? Number(itemMatch.quantityToDispatch || 0) : 0);
+          
+          if (itemMatch) {
+            if (itemMatch.reportarFaltante) {
+               salidaReferencia = out.numeroSalida || "S/D";
+            } else if (salidaReferencia === "S/D") {
+               salidaReferencia = out.numeroSalida || "S/D";
+            }
+            return sum + (Number(itemMatch.quantityToDispatch || 0));
+          }
+          return sum;
         }, 0);
 
         // 1. Definición estricta de variables de negocio y cálculo de saldo pendiente
@@ -189,6 +200,7 @@ export default function FaltantesPage() {
             originalQuantity,
             totalDispatched,
             faltante: cantidadFaltante,
+            salidaReferencia,
             productionStatus: lote.productionStatus,
             entryDate: entry.entryDate || (entry.date?.toDate ? entry.date.toDate().toLocaleDateString('es-EC') : 'S/F'),
             loteRaw: lote,
@@ -332,6 +344,7 @@ export default function FaltantesPage() {
                 <TableHead className="text-[10px] font-black uppercase text-muted-foreground py-5 pl-8 print:text-black">Fecha Ingreso</TableHead>
                 <TableHead className="text-[10px] font-black uppercase text-muted-foreground print:text-black">N° Ingreso</TableHead>
                 <TableHead className="text-[10px] font-black uppercase text-muted-foreground print:text-black">N° Lote</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-muted-foreground print:text-black">N° Salida</TableHead>
                 <TableHead className="text-[10px] font-black uppercase text-muted-foreground print:text-black">Cliente</TableHead>
                 <TableHead className="text-[10px] font-black uppercase text-muted-foreground print:text-black">Prenda</TableHead>
                 <TableHead className="text-[10px] font-black uppercase text-center print:text-black">Cant. Orig.</TableHead>
@@ -352,6 +365,9 @@ export default function FaltantesPage() {
                     </TableCell>
                     <TableCell>
                       <span className="text-sm font-black print:text-black">{item.loteId}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-[11px] font-bold text-amber-600 print:text-black">{item.salidaReferencia}</span>
                     </TableCell>
                     <TableCell>
                       <span className="text-[11px] font-bold uppercase truncate block max-w-[150px] print:text-black">{item.clientName}</span>
@@ -382,7 +398,7 @@ export default function FaltantesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={9} className="h-64 text-center">
+                  <TableCell colSpan={10} className="h-64 text-center">
                     <div className="flex flex-col items-center justify-center opacity-20">
                       <ClipboardList className="h-16 w-16 mb-4" />
                       <p className="text-sm font-black uppercase tracking-[0.3em]">Sin faltantes pendientes de resolución</p>
