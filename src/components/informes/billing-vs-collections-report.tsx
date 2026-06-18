@@ -148,7 +148,10 @@ export function BillingVsCollectionsReport({
 
         return {
           id: entry.id,
-          fecha: toDate(entry.date || entry.entryDate || entry.createdAt || entry.fecha)?.toLocaleDateString('es-EC') || 'S/F',
+          fecha: (invoice
+            ? toDate(invoice.fechaFactura || invoice.invoiceDate || invoice.createdAt || invoice.date)
+            : toDate(entry.date || entry.entryDate || entry.createdAt || entry.fecha)
+          )?.toLocaleDateString('es-EC') || 'S/F',
           ingreso: String(entry.entryNumber || entry.id || ""),
           cliente: (entry.clientName || entry.clienteNombre || "Socio").toUpperCase(),
           factura: invoiceNumberStr,
