@@ -260,7 +260,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         });
 
         let filteredPayments = [...allFacturaPayments, ...allClientsPayments];
-        data.payments = filterPaymentsByDate(filteredPayments, fromDate, toDateObj);
+        data.payments = filterPaymentsByDate(filteredPayments, new Date("2026-01-01T00:00:00"), toDateObj);
 
       }
 

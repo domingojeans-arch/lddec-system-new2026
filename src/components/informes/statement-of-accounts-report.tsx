@@ -51,6 +51,8 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         const clientInvoices = invoices.filter(inv => inv && (inv.clientId === client.id || inv.clienteId === client.id || inv.clientName === client.name));
         
         const uniqueMvs = new Map<string, any>();
+        
+        // 1. Procesar pagos embebidos de las facturas del cliente
         clientInvoices.forEach(inv => {
           const invoiceMovs = Array.isArray(inv.pagosYajustes) 
             ? inv.pagosYajustes 
@@ -62,23 +64,20 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
             const key = `${m.tipoTransaccion || m.tipo || 'PAGO'}-${Number(m.monto || 0)}-${pDate?.getTime() || 0}`;
             uniqueMvs.set(key, m);
           });
+        });
 
-          const globalPayDocs = (payments || []).filter((p: any) => {
-            if (!p || p.anulado) return false;
-            const matchFacturaId = p.facturaId && inv.id && String(p.facturaId).trim().toUpperCase() === String(inv.id).trim().toUpperCase();
-            const matchNumeroFactura = p.numeroFactura && inv.numeroFactura && String(p.numeroFactura).trim().toUpperCase() === String(inv.numeroFactura).trim().toUpperCase();
-            return matchFacturaId || matchNumeroFactura;
-          });
-
-          globalPayDocs.forEach((p: any) => {
-            if (!p) return;
+        // 2. Procesar pagos globales filtrando por ID de cliente
+        (payments || []).forEach((p: any) => {
+          if (!p || p.anulado) return;
+          if (p.clienteId === client.id || p.clientId === client.id) {
             const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
-            const key = `${p.tipoTransaccion || 'PAGO'}-${Number(p.monto || 0)}-${pDate?.getTime() || 0}`;
+            const key = `${p.tipoTransaccion || p.tipo || 'PAGO'}-${Number(p.monto || 0)}-${pDate?.getTime() || 0}`;
             if (!uniqueMvs.has(key)) {
               uniqueMvs.set(key, p);
             }
-          });
+          }
         });
+
         const clientPayments = Array.from(uniqueMvs.values());
 
         const metrics = calculateClientAccountingMetrics(
