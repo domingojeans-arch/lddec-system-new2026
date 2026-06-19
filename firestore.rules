@@ -82,6 +82,11 @@ service cloud.firestore {
       allow write: if isAdmin() || isBodega() || hasRole('facturacion');
     }
 
+    match /faltantes/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isBodega() || hasRole('chofer');
+    }
+
     // FACTURACIÓN Y COBROS
     match /facturas/{invoiceId} {
       allow read: if isAuthenticated();
