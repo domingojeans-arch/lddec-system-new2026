@@ -563,14 +563,14 @@ export default function SalidasPage() {
       parentIngresoNumber: foundLotResult.entryNumber,
       clientName: foundLotResult.clientName,
       garmentType: foundLotResult.breakdown[0]?.type || "VARIOS",
-      processType: foundLotResult.process,
-      process: foundLotResult.process,
-      quantityToDispatch: totalQty,
-      reportarFaltante: foundLotResult.reportarFaltante,
+      processType: foundLotResult.process || "S/D",
+      process: foundLotResult.process || "S/D",
+      quantityToDispatch: totalQty || 0,
+      reportarFaltante: foundLotResult.reportarFaltante || false,
       prendas: foundLotResult.breakdown.map((g: any) => ({
-        garmentType: g.type,
-        quantityToDispatch: g.toDispatch,
-        originalEntryQuantity: g.original
+        garmentType: g.type || "VARIOS",
+        quantityToDispatch: g.toDispatch || 0,
+        originalEntryQuantity: g.original || 0
       }))
     };
 
@@ -677,17 +677,18 @@ export default function SalidasPage() {
       lotNumber: pureLotName,
       parentIngresoMaestro: `manual-${Date.now()}`,
       parentIngresoNumber: entryNumber.trim().toUpperCase(),
-      clientName: clientName,
-      garmentType: garmentType.trim().toUpperCase(),
+      clientName: clientName || "SOCIO",
+      garmentType: garmentType.trim().toUpperCase() || "VARIOS",
       processType: manualProcessName,
       process: manualProcessName,
-      quantityToDispatch: qtyNum,
+      quantityToDispatch: qtyNum || 0,
+      reportarFaltante: false,
       isManual: true,
       prendas: [
         {
-          garmentType: garmentType.trim().toUpperCase(),
-          quantityToDispatch: qtyNum,
-          originalEntryQuantity: qtyNum
+          garmentType: garmentType.trim().toUpperCase() || "VARIOS",
+          quantityToDispatch: qtyNum || 0,
+          originalEntryQuantity: qtyNum || 0
         }
       ]
     };
@@ -746,7 +747,7 @@ export default function SalidasPage() {
       const payload = { 
         ...guideInfo, 
         numeroSalida: term, 
-        date: Timestamp.fromDate(new Date(guideInfo.fecha + "T12:00:00")), 
+        date: guideInfo.fecha ? Timestamp.fromDate(new Date(guideInfo.fecha + "T12:00:00")) : serverTimestamp(), 
         itemsDispatched: itemsToDispatch, 
         containedClientNames: clientNames,
         status: "completed", 
@@ -767,17 +768,17 @@ export default function SalidasPage() {
       itemsToDispatch.forEach(it => {
         if (it.reportarFaltante) {
           const totalOriginal = it.prendas?.reduce((sum: number, p: any) => sum + Number(p.originalEntryQuantity || 0), 0) || 0;
-          const totalDispatched = it.prendas?.reduce((sum: number, p: any) => sum + Number(p.quantityToDispatch || 0), 0) || it.quantityToDispatch;
+          const totalDispatched = it.prendas?.reduce((sum: number, p: any) => sum + Number(p.quantityToDispatch || 0), 0) || Number(it.quantityToDispatch || 0);
           const faltante = totalOriginal - totalDispatched;
           
           if (faltante > 0) {
             const faltanteDocRef = doc(collection(db, "faltantes"));
             batch.set(faltanteDocRef, {
-              loteId: it.lotNumber,
-              clientName: it.clientName,
-              faltanteOriginal: faltante,
-              cantidadDespachada: totalDispatched,
-              cantidadOriginal: totalOriginal,
+              loteId: it.lotNumber || "S/L",
+              clientName: it.clientName || "Socio",
+              faltanteOriginal: faltante || 0,
+              cantidadDespachada: totalDispatched || 0,
+              cantidadOriginal: totalOriginal || 0,
               estado: "PENDIENTE",
               fechaReporte: now,
               salidaReferencia: term,
@@ -809,8 +810,9 @@ export default function SalidasPage() {
       toast({ title: "Salida Guardada" });
       handleResetForm();
       loadHistory(); // Recargar tras guardar
-    } catch (e) { 
-      toast({ variant: "destructive", title: "Error al guardar" });
+    } catch (e: any) { 
+      console.error("Error al guardar salida:", e);
+      toast({ variant: "destructive", title: "Error al guardar", description: e.message || "Revisa la consola para más detalles." });
     } finally { 
       setIsSaving(false); 
       setIsSampleModalOpen(false); 
