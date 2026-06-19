@@ -202,6 +202,7 @@ export default function FaltantesPage() {
             faltante: cantidadFaltante,
             salidaReferencia,
             productionStatus: lote.productionStatus,
+            entryDateMs: entry.date?.toMillis ? entry.date.toMillis() : (entry.date?.seconds ? entry.date.seconds * 1000 : new Date(entry.entryDate || entry.date || 0).getTime()),
             entryDate: entry.entryDate || (entry.date?.toDate ? entry.date.toDate().toLocaleDateString('es-EC') : 'S/F'),
             loteRaw: lote,
             parentEntry: entry
@@ -214,7 +215,7 @@ export default function FaltantesPage() {
       f.loteId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       f.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       f.visibleIngresoNumber.toLowerCase().includes(searchTerm.toLowerCase())
-    ).sort((a, b) => b.faltante - a.faltante);
+    ).sort((a, b) => b.entryDateMs - a.entryDateMs);
   }, [entries, outputs, searchTerm]);
 
   const handleOpenResolution = (item: any) => {
