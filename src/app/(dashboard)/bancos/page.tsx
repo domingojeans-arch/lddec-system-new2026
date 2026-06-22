@@ -273,7 +273,7 @@ export default function BancosPage() {
       
       await batch.commit();
       
-      toast({ title: "Movimiento Anulado", description: `Saldo recalculado: $${nuevoSaldo.toFixed(2)}` });
+      toast({ title: "Movimiento Eliminado", description: `Saldo recalculado: $${nuevoSaldo.toFixed(2)}` });
     } catch (e) {
       toast({ variant: "destructive", title: "Error al eliminar transacción" });
     }
