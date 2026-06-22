@@ -249,6 +249,36 @@ export default function BancosPage() {
     }
   };
 
+  const handleDeleteTransaction = async (tx: any) => {
+    if (!isAdmin || !selectedAccount) {
+      toast({ variant: "destructive", title: "Acceso Denegado" });
+      return;
+    }
+    
+    if (!window.confirm(`¿Estás seguro de eliminar esta transacción de $${tx.monto}? El saldo de la cuenta será recalculado automáticamente.`)) return;
+
+    try {
+      const batch = writeBatch(db);
+      const accRef = doc(db, "cuentas_bancarias", selectedAccount.id);
+      
+      const freshAccount = accounts.find(a => a.id === selectedAccount.id) || selectedAccount;
+      
+      const impact = tx.tipo === "Deposito" ? -tx.monto : tx.monto;
+      const nuevoSaldo = (freshAccount.saldoActual || 0) + impact;
+
+      const txRef = doc(db, "cuentas_bancarias", selectedAccount.id, "transacciones", tx.id);
+      batch.delete(txRef);
+      
+      batch.update(accRef, { saldoActual: nuevoSaldo });
+      
+      await batch.commit();
+      
+      toast({ title: "Movimiento Anulado", description: `Saldo recalculado: $${nuevoSaldo.toFixed(2)}` });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error al eliminar transacción" });
+    }
+  };
+
   const handleRestoreAccount = async (account: any) => {
     if (!isAdmin) {
       toast({ variant: "destructive", title: "Acceso Denegado" });
@@ -483,6 +513,7 @@ export default function BancosPage() {
                       <TableHead className="text-[10px] font-black uppercase">Concepto / Referencia</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-right">Monto</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-right pr-6">Saldo</TableHead>
+                      {isAdmin && <TableHead className="w-10 pr-6"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -508,13 +539,25 @@ export default function BancosPage() {
                             ${tx.monto.toFixed(2)}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right pr-6 font-bold text-xs text-foreground">
+                        <TableCell className={cn("text-right font-bold text-xs text-foreground", !isAdmin && "pr-6")}>
                           ${tx.saldoPosterior?.toFixed(2)}
                         </TableCell>
+                        {isAdmin && (
+                          <TableCell className="pr-4 py-2">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleDeleteTransaction(tx)}
+                              className="h-7 w-7 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                     {history.length === 0 && !historyLoading && (
-                      <TableRow><TableCell colSpan={4} className="h-32 text-center text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest italic">Sin movimientos registrados</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={isAdmin ? 5 : 4} className="h-32 text-center text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest italic">Sin movimientos registrados</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
