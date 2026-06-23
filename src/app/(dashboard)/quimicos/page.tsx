@@ -36,7 +36,8 @@ import {
   Settings2,
   Power,
   PowerOff,
-  RefreshCcw
+  RefreshCcw,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
