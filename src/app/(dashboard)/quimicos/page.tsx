@@ -434,6 +434,10 @@ export default function ChemicalInventoryPage() {
       newHeader.clientRef = "LABORATORIO DEL DENIM";
       newHeader.lotSearch = type === "LAVADO_MAQUINA" ? "LAVADO" : "MUESTRA";
       setLotFound(true);
+    } else if (type === "REPROCESO") {
+      newHeader.clientRef = "REPROCESO";
+      newHeader.lotSearch = "REPROCESO";
+      setLotFound(true);
     } else setLotFound(false);
     setPesadaHeader(newHeader);
   };
@@ -552,7 +556,7 @@ export default function ChemicalInventoryPage() {
           chemicalId: item.chemicalId,
           order: pesadaHeader.order.toUpperCase(),
           orderType: pesadaHeader.orderType,
-          tipoSalida: pesadaHeader.orderType === "NORMAL" ? "produccion" : (pesadaHeader.orderType === "LAVADO_MAQUINA" ? "lavado_maquina" : "muestras"),
+          tipoSalida: pesadaHeader.orderType === "NORMAL" ? "produccion" : (pesadaHeader.orderType === "REPROCESO" ? "reproceso" : (pesadaHeader.orderType === "LAVADO_MAQUINA" ? "lavado_maquina" : "muestras")),
           procesoTecnico: item.procesoTecnico,
           pesoOrden: parseFloat(pesadaHeader.orderWeight) || 0,
           cant: qtyGrams,
@@ -573,7 +577,7 @@ export default function ChemicalInventoryPage() {
             fecha: pesadaDate, 
             tipo: "SALIDA", 
             orderType: pesadaHeader.orderType,
-            tipoSalida: pesadaHeader.orderType === "NORMAL" ? "produccion" : (pesadaHeader.orderType === "LAVADO_MAQUINA" ? "lavado_maquina" : "muestras"),
+            tipoSalida: pesadaHeader.orderType === "NORMAL" ? "produccion" : (pesadaHeader.orderType === "REPROCESO" ? "reproceso" : (pesadaHeader.orderType === "LAVADO_MAQUINA" ? "lavado_maquina" : "muestras")),
             chemicalId: item.chemicalId, 
             quimico: targetChem?.chemicalName.toUpperCase() || "UNKNOWN", 
             order: pesadaHeader.order.toUpperCase(), 
@@ -679,6 +683,15 @@ export default function ChemicalInventoryPage() {
   const updatePesadaItem = (id: string, updates: Partial<PesadaItem>) => setPesadaItems(pesadaItems.map(item => item.id === id ? { ...item, ...updates } : item));
 
   const uniqueChemicals = useMemo(() => chemicals.filter(c => c.active !== false).sort((a, b) => a.chemicalName.localeCompare(b.chemicalName, 'es')), [chemicals]);
+
+  const processesByChemicalId = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    chemicals.forEach(c => {
+      const pList = chemMaestro.filter(m => m.sustancia === c.chemicalName.toUpperCase()).map(m => m.proceso);
+      map[c.id] = Array.from(new Set(pList));
+    });
+    return map;
+  }, [chemicals, chemMaestro]);
   
   const handleSort = (field: "fecha" | "order") => {
     if (sortField === field) setSortDirection(sortDirection === "asc" ? "desc" : "asc");
@@ -801,24 +814,27 @@ export default function ChemicalInventoryPage() {
                       <SelectTrigger className="erp-input h-11 font-black text-[11px] uppercase"><SelectValue /></SelectTrigger>
                       <SelectContent className="rounded-2xl">
                         <SelectItem value="NORMAL" className="font-bold text-xs">PRODUCCIÓN NORMAL</SelectItem>
+                        <SelectItem value="REPROCESO" className="font-bold text-xs">REPROCESO</SelectItem>
                         <SelectItem value="LAVADO_MAQUINA" className="font-bold text-xs">LAVADO DE MÁQUINA</SelectItem>
                         <SelectItem value="MUESTRA" className="font-bold text-xs">MUESTRAS</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5 xl:col-span-2">
+                  <div className={cn("space-y-1.5", pesadaHeader.orderType === "REPROCESO" ? "xl:col-span-5" : "xl:col-span-2")}>
                     <Label className="text-[10px] font-black uppercase text-primary ml-1">N° ORDEN / CONTROL</Label>
-                    <Input className="erp-input h-11 font-black" value={pesadaHeader.order} onChange={e => setPesadaHeader({...pesadaHeader, order: e.target.value.toUpperCase()})} readOnly={pesadaHeader.orderType !== "NORMAL"} />
+                    <Input className="erp-input h-11 font-black" value={pesadaHeader.order} onChange={e => setPesadaHeader({...pesadaHeader, order: e.target.value.toUpperCase()})} readOnly={pesadaHeader.orderType === "LAVADO_MAQUINA" || pesadaHeader.orderType === "MUESTRA"} />
                   </div>
-                  <div className="space-y-1.5 xl:col-span-3">
-                    <Label className="text-[10px] font-black uppercase text-primary ml-1">ID Lote Planta</Label>
-                    <div className="flex gap-1.5">
-                      <Input className="erp-input h-11 font-black flex-1" placeholder="Lote" value={pesadaHeader.lotSearch} onChange={e => setPesadaHeader({...pesadaHeader, lotSearch: e.target.value.toUpperCase()})} readOnly={pesadaHeader.orderType !== "NORMAL"} />
-                      <Button onClick={handleSearchLot} disabled={isSearchingLot || pesadaHeader.orderType !== "NORMAL"} size="icon" className="h-11 w-11 shrink-0 bg-amber-500 rounded-xl">
-                        {isSearchingLot ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-5 w-5" />}
-                      </Button>
+                  {pesadaHeader.orderType !== "REPROCESO" && (
+                    <div className="space-y-1.5 xl:col-span-3">
+                      <Label className="text-[10px] font-black uppercase text-primary ml-1">ID Lote Planta</Label>
+                      <div className="flex gap-1.5">
+                        <Input className="erp-input h-11 font-black flex-1" placeholder="Lote" value={pesadaHeader.lotSearch} onChange={e => setPesadaHeader({...pesadaHeader, lotSearch: e.target.value.toUpperCase()})} readOnly={pesadaHeader.orderType !== "NORMAL"} />
+                        <Button onClick={handleSearchLot} disabled={isSearchingLot || pesadaHeader.orderType !== "NORMAL"} size="icon" className="h-11 w-11 shrink-0 bg-amber-500 rounded-xl">
+                          {isSearchingLot ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-5 w-5" />}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div className="space-y-1.5 xl:col-span-2">
                     <Label className="text-[10px] font-black uppercase text-primary ml-1">Peso Orden (Kg)</Label>
                     <Input type="number" step="0.01" className="erp-input h-11 font-black text-amber-600" value={pesadaHeader.orderWeight} onChange={e => setPesadaHeader({...pesadaHeader, orderWeight: e.target.value})}/>
@@ -837,12 +853,10 @@ export default function ChemicalInventoryPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border-b pb-2">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Insumos de la Mezcla</Label>
-                    {!editingKardexId && <Button variant="ghost" size="sm" onClick={addPesadaItem} className="h-7 text-[9px] font-black uppercase text-primary hover:bg-primary/5 rounded-lg"><Plus className="h-3 w-3 mr-1" /> Añadir Químico</Button>}
                   </div>
                   <div className="space-y-4">
                     {pesadaItems.map((item) => {
-                      const selectedChem = chemicals.find(c => c.id === item.chemicalId);
-                      const availableProcesses = selectedChem ? Array.from(new Set(chemMaestro.filter(m => m.sustancia === selectedChem.chemicalName.toUpperCase()).map(m => m.proceso))) : [];
+                      const availableProcesses = item.chemicalId ? (processesByChemicalId[item.chemicalId] || []) : [];
                       return (
                         <div key={item.id} className="p-5 md:p-6 bg-muted/10 rounded-[1.5rem] border border-border/80 space-y-4 animate-in slide-in-from-right-2">
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 lg:gap-6 items-end">
@@ -884,6 +898,13 @@ export default function ChemicalInventoryPage() {
                       );
                     })}
                   </div>
+                  {!editingKardexId && (
+                    <div className="flex justify-center mt-2">
+                      <Button variant="ghost" size="sm" onClick={addPesadaItem} className="h-9 px-6 text-[10px] font-black uppercase text-primary border border-dashed border-primary/30 hover:bg-primary/5 rounded-xl">
+                        <Plus className="h-4 w-4 mr-2" /> Añadir Otro Químico a la Mezcla
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4">
