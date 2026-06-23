@@ -862,17 +862,36 @@ export default function ChemicalInventoryPage() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 lg:gap-6 items-end">
                             <div className="lg:col-span-5 xl:col-span-4 space-y-1.5">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Sustancia</Label>
-                              <Select value={item.chemicalId} onValueChange={v => updatePesadaItem(item.id, { chemicalId: v, procesoTecnico: "" })}>
-                                <SelectTrigger className="h-11 bg-background border-border font-black text-xs rounded-xl shadow-sm"><SelectValue placeholder="Elegir Químico..." /></SelectTrigger>
-                                <SelectContent className="rounded-2xl shadow-2xl max-h-[250px]">{uniqueChemicals.map(c => <SelectItem key={c.id} value={c.id} className="text-xs uppercase font-bold">{c.chemicalName}</SelectItem>)}</SelectContent>
-                              </Select>
+                              <div className="relative">
+                                <select 
+                                  value={item.chemicalId} 
+                                  onChange={e => updatePesadaItem(item.id, { chemicalId: e.target.value, procesoTecnico: "" })}
+                                  className="h-11 w-full bg-background border border-border font-black text-xs rounded-xl shadow-sm px-3 uppercase appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                >
+                                  <option value="" disabled>ELEGIR QUÍMICO...</option>
+                                  {uniqueChemicals.map(c => <option key={c.id} value={c.id}>{c.chemicalName}</option>)}
+                                </select>
+                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                                  <ChevronDown className="h-4 w-4 opacity-50" />
+                                </div>
+                              </div>
                             </div>
                             <div className="lg:col-span-4 xl:col-span-4 space-y-1.5">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Proceso Técnico</Label>
-                              <Select disabled={!item.chemicalId} value={item.procesoTecnico} onValueChange={v => updatePesadaItem(item.id, { procesoTecnico: v })}>
-                                <SelectTrigger className="h-11 bg-background border-border font-black text-xs rounded-xl shadow-sm"><SelectValue placeholder="Proceso..." /></SelectTrigger>
-                                <SelectContent className="rounded-2xl shadow-2xl">{availableProcesses.map(p => <SelectItem key={p} value={p} className="text-xs uppercase font-bold">{p}</SelectItem>)}</SelectContent>
-                              </Select>
+                              <div className="relative">
+                                <select 
+                                  disabled={!item.chemicalId} 
+                                  value={item.procesoTecnico} 
+                                  onChange={e => updatePesadaItem(item.id, { procesoTecnico: e.target.value })}
+                                  className="h-11 w-full bg-background border border-border font-black text-xs rounded-xl shadow-sm px-3 uppercase appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
+                                >
+                                  <option value="" disabled>PROCESO...</option>
+                                  {availableProcesses.map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                                  <ChevronDown className="h-4 w-4 opacity-50" />
+                                </div>
+                              </div>
                             </div>
                             <div className="lg:col-span-3 xl:col-span-4 flex gap-3">
                               <div className="flex-1 space-y-1.5">
