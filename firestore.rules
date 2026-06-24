@@ -146,7 +146,7 @@ service cloud.firestore {
     // CONFIGURACIÓN GLOBAL
     match /configuracion/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow write: if isAdmin() || hasRole('facturacion');
     }
 
     // REGLA GENERAL DE SEGURIDAD
