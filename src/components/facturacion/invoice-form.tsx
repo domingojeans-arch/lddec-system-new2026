@@ -81,7 +81,7 @@ export function InvoiceForm({
   isSubmitting?: boolean
 }) {
   const { toast } = useToast();
-  const [searchEntry, setSearchEntry] = useState(initialData?.ingresoMaestroId || "");
+  const [searchEntry, setSearchEntry] = useState(initialData?.ingresoMaestroId || initialData?.numeroIngreso || initialData?.entryNumber || initialData?.ingresoId || "");
   const [loading, setLoading] = useState(false);
   const [foundEntry, setFoundEntry] = useState<any | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -90,10 +90,10 @@ export function InvoiceForm({
     resolver: zodResolver(invoiceSchema),
     defaultValues: initialData ? { 
       numeroFactura: initialData.numeroFactura || "", 
-      fechaFactura: initialData.fechaFactura?.toDate ? initialData.fechaFactura.toDate().toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      clientId: initialData.clientId || "", 
+      fechaFactura: initialData.fechaFactura?.toDate ? initialData.fechaFactura.toDate().toISOString().split('T')[0] : (typeof initialData.fechaFactura === 'string' ? initialData.fechaFactura.split('T')[0] : new Date().toISOString().split('T')[0]),
+      clientId: initialData.clientId || initialData.clienteId || "", 
       numeroSalida: initialData.numeroSalida || "",
-      ingresoMaestroId: initialData.ingresoMaestroId || "", 
+      ingresoMaestroId: initialData.ingresoMaestroId || initialData.numeroIngreso || initialData.entryNumber || initialData.ingresoId || "", 
       subtotal: initialData.subtotal || 0, 
       iva: initialData.iva || 0,
       notes: initialData.notes || "" 

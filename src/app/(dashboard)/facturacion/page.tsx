@@ -24,7 +24,8 @@ import {
   deleteDoc,
   limit,
   where,
-  getDocs
+  getDocs,
+  Timestamp
 } from "firebase/firestore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
@@ -210,6 +211,8 @@ export default function FacturacionPage() {
 
     try {
       const totalF = Number(data.subtotal || 0) + Number(data.iva || 0);
+      const parsedDate = data.fechaFactura ? new Date(data.fechaFactura + "T12:00:00") : new Date();
+      const fbTimestamp = Timestamp.fromDate(parsedDate);
       
       if (editingInvoice) {
         const invoiceRef = doc(db, "facturas", editingInvoice.id);
@@ -217,6 +220,7 @@ export default function FacturacionPage() {
         const oldSaldo = Number(editingInvoice.saldoPendiente) || oldTotal;
         await updateDoc(invoiceRef, {
           ...data,
+          fechaFactura: fbTimestamp,
           totalFactura: totalF,
           updatedAt: serverTimestamp(),
           saldoPendiente: totalF - (oldTotal - oldSaldo)
@@ -260,7 +264,7 @@ export default function FacturacionPage() {
         const payload = {
           ...data,
           totalFactura: totalF,
-          fechaFactura: serverTimestamp(),
+          fechaFactura: fbTimestamp,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           estadoCobranza: data.estadoCobranza || "Por Cobrar",
