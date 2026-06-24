@@ -30,7 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 });
 
-const ALLOWED_ROLES = ["admin", "socio", "contador", "bodega", "facturacion", "chofer", "financiero", "banco", "produccion", "cobranzas", "operario_manualidades", "bodega_quimicos"];
+const ALLOWED_ROLES = ["admin", "socio", "contador", "bodega", "facturacion", "chofer", "financiero", "banco", "produccion", "cobranzas", "operario_manualidades", "bodega_quimicos", "colaboradora"];
 
 function getNormalizedRole(rawRole: any): SystemRole {
   if (rawRole === undefined || rawRole === null || rawRole === "") {

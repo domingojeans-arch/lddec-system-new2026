@@ -31,10 +31,10 @@ service cloud.firestore {
 
     // REGLAS PARA PERFILES Y PRESENCIA
     match /roles_usuarios/{userId} {
-      allow read: if isAuthenticated();
-      // El usuario puede actualizar su propio estado (online/offline) si está autenticado
-      allow update: if isAuthenticated() && request.auth.uid == userId;
-      // Solo el administrador puede crear o modificar perfiles de otros
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if isAdmin();
       allow write: if isAdmin();
     }
 
