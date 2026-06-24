@@ -63,13 +63,13 @@ service cloud.firestore {
     // INGRESOS (ENTRIES)
     match /entries/{entryId} {
       allow read: if true; 
-      allow write: if isAdmin() || isBodega() || hasRole('produccion') || hasRole('bodeguero_quimicos');
+      allow write: if isAdmin() || isBodega() || hasRole('produccion') || hasRole('bodega_quimicos') || hasRole('bodeguero_quimicos');
     }
 
     // SALIDAS Y ENTREGAS
     match /outputs/{outputId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || isBodega() || hasRole('chofer') || hasRole('bodeguero_quimicos');
+      allow write: if isAdmin() || isBodega() || hasRole('chofer') || hasRole('bodega_quimicos') || hasRole('bodeguero_quimicos');
     }
 
     match /salidas/{docId} {
@@ -130,12 +130,12 @@ service cloud.firestore {
     // BODEGA DE QUÍMICOS
     match /quimicos_stock/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('bodeguero_quimicos') || hasRole('produccion');
+      allow write: if isAdmin() || hasRole('bodega_quimicos') || hasRole('produccion');
     }
 
     match /quimicos_kardex/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('bodeguero_quimicos') || hasRole('produccion');
+      allow write: if isAdmin() || hasRole('bodega_quimicos') || hasRole('produccion');
     }
 
     match /quimicos_procesos_maestro/{docId} {
