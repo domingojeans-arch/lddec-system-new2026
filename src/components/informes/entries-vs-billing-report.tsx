@@ -224,7 +224,7 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
         const hardcodedFixes = ["4985", "4967", "4924", "4787"];
         const isHardcodedFix = hardcodedFixes.includes(entryNum) || hardcodedFixes.includes(entryId);
         
-        const isBilled = !!invoice || entry.estadoFacturacion === "FACTURADO" || (entry.numeroFactura && entry.numeroFactura !== "-") || isHardcodedFix;
+        const isBilled = !!invoice || String(entry.estadoFacturacion || "").toUpperCase() === "FACTURADO" || (entry.numeroFactura && entry.numeroFactura !== "-") || isHardcodedFix;
         const invoiceNumberStr = invoice?.numeroFactura || entry.numeroFactura || "FACTURADO";
         const invoiceValueNum = invoice ? Number(invoice.totalFactura || invoice.total || 0) : Number(entry.valorFactura || 0);
 
