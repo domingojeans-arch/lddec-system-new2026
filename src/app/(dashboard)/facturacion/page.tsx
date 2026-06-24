@@ -213,12 +213,45 @@ export default function FacturacionPage() {
       
       if (editingInvoice) {
         const invoiceRef = doc(db, "facturas", editingInvoice.id);
+        const oldTotal = Number(editingInvoice.totalFactura) || (Number(editingInvoice.subtotal || 0) + Number(editingInvoice.iva || 0));
+        const oldSaldo = Number(editingInvoice.saldoPendiente) || oldTotal;
         await updateDoc(invoiceRef, {
           ...data,
           totalFactura: totalF,
           updatedAt: serverTimestamp(),
-          saldoPendiente: totalF - (Number(editingInvoice.totalFactura || 0) - Number(editingInvoice.saldoPendiente || 0))
+          saldoPendiente: totalF - (oldTotal - oldSaldo)
         });
+        // ACTUALIZAR NUMERO DE FACTURA EN ENTRIES SI SE EDITÓ
+        try {
+          const entryIdsToUpdate = data.ingresoMaestroIds || (data.ingresoMaestroId ? [data.ingresoMaestroId] : []);
+          for (const eid of entryIdsToUpdate) {
+            const rawEid = String(eid).trim();
+            if (rawEid) {
+              const entriesRef = collection(db, "entries");
+              let entryDocs = await getDocs(query(entriesRef, where("entryNumber", "==", rawEid)));
+              
+              if (!entryDocs.empty) {
+                entryDocs.forEach(async (dSnap) => {
+                  await updateDoc(doc(db, "entries", dSnap.id), {
+                    numeroFactura: data.numeroFactura || "FACTURADO",
+                    updatedAt: serverTimestamp()
+                  });
+                });
+              } else {
+                try {
+                  const docRef = doc(db, "entries", rawEid);
+                  await updateDoc(docRef, {
+                    numeroFactura: data.numeroFactura || "FACTURADO",
+                    updatedAt: serverTimestamp()
+                  });
+                } catch(e) {}
+              }
+            }
+          }
+        } catch (updateErr) {
+          console.error("Error updating entries state on edit:", updateErr);
+        }
+
         toast({ title: "Documento Actualizado" });
         setIsSheetOpen(false);
         setEditingInvoice(null);
