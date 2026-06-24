@@ -258,7 +258,6 @@ export default function FacturacionPage() {
 
         toast({ title: "Documento Actualizado" });
         setIsSheetOpen(false);
-        setTimeout(() => setEditingInvoice(null), 300);
         return true;
       } else {
         const payload = {
@@ -498,10 +497,7 @@ export default function FacturacionPage() {
         </DialogContent>
       </Dialog>
 
-      <Sheet open={isSheetOpen} onOpenChange={(open) => {
-        setIsSheetOpen(open);
-        if (!open) setTimeout(() => setEditingInvoice(null), 300);
-      }}>
+      <Sheet open={isSheetOpen} onOpenChange={(open) => setIsSheetOpen(open)}>
         <SheetContent side="right" className="w-full sm:max-w-[800px] overflow-y-auto bg-card border-l border-border p-10">
           <SheetHeader className="mb-10">
             <SheetTitle className="text-3xl font-black uppercase tracking-tight">Editar Factura</SheetTitle>
@@ -515,7 +511,6 @@ export default function FacturacionPage() {
               onSubmit={handleFormSubmit}
               onCancel={() => {
                 setIsSheetOpen(false);
-                setTimeout(() => setEditingInvoice(null), 300);
               }}
               initialData={editingInvoice}
               isSubmitting={isSubmitting}
