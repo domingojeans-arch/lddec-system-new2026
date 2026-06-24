@@ -91,7 +91,8 @@ const SYSTEM_ROLES: SystemRole[] = [
   "cobranzas", 
   "financiero",
   "operario_manualidades", 
-  "socio"
+  "socio",
+  "colaboradora"
 ];
 
 const MASTER_USER_SYNC_LIST = [
