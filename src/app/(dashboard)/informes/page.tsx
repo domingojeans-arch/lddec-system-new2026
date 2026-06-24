@@ -16,6 +16,7 @@ import { ReportGeneratorPanel } from "@/components/informes/report-generator-pan
 import { AuditLotPanel } from "@/components/informes/audit-lot-panel";
 import { AuditMaestroPanel } from "@/components/informes/audit-maestro-panel";
 import { AuditOutputPanel } from "@/components/informes/audit-output-panel";
+import { AuditInvoicePanel } from "@/components/informes/audit-invoice-panel";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +92,7 @@ export default function InformesPage() {
                 <AuditLotPanel />
                 <AuditMaestroPanel />
                 <AuditOutputPanel />
+                {user?.role === "admin" && <AuditInvoicePanel />}
               </div>
             </TabsContent>
           </Tabs>
