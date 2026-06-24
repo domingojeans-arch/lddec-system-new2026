@@ -223,7 +223,17 @@ export function AuditMaestroPanel() {
                 <div className="space-y-1"><p className="text-[9px] font-black text-muted-foreground uppercase">Ingreso Total</p><p className="text-2xl font-black text-primary">{result.metrics.totalIngresado} unds</p></div>
                 <div className="space-y-1"><p className="text-[9px] font-black text-muted-foreground uppercase">Despacho Real</p><p className="text-2xl font-black text-emerald-600">{result.metrics.totalDespachado} unds</p></div>
                 <div className="space-y-1"><p className="text-[9px] font-black text-muted-foreground uppercase">Lotes Procesados</p><p className="text-2xl font-black">{result.metrics.lotesListos} / {result.metrics.lotesTotales}</p></div>
-                <div className="space-y-1"><p className="text-[9px] font-black text-muted-foreground uppercase">Facturas</p><p className="text-2xl font-black text-blue-600">{result.invoices.length}</p></div>
+                <div className="space-y-1">
+                  <p className="text-[9px] font-black text-muted-foreground uppercase">Facturas</p>
+                  <p className="text-2xl font-black text-blue-600 flex items-baseline gap-2 flex-wrap">
+                    {result.invoices.length}
+                    {result.invoices.length > 0 && (
+                      <span className="text-[11px] font-bold text-muted-foreground">
+                        ({result.invoices.map((inv: any) => inv.numeroFactura || inv.invoiceNumber || inv.numero || inv.id).join(", ")})
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
             </div>
 
