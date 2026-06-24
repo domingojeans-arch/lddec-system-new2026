@@ -209,12 +209,15 @@ export default function FacturacionPage() {
     }
 
     try {
+      const totalF = Number(data.subtotal || 0) + Number(data.iva || 0);
+      
       if (editingInvoice) {
         const invoiceRef = doc(db, "facturas", editingInvoice.id);
         await updateDoc(invoiceRef, {
           ...data,
+          totalFactura: totalF,
           updatedAt: serverTimestamp(),
-          saldoPendiente: data.totalFactura - (editingInvoice.totalFactura - editingInvoice.saldoPendiente)
+          saldoPendiente: totalF - (Number(editingInvoice.totalFactura || 0) - Number(editingInvoice.saldoPendiente || 0))
         });
         toast({ title: "Documento Actualizado" });
         setIsSheetOpen(false);
@@ -223,11 +226,12 @@ export default function FacturacionPage() {
       } else {
         const payload = {
           ...data,
+          totalFactura: totalF,
           fechaFactura: serverTimestamp(),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           estadoCobranza: data.estadoCobranza || "Por Cobrar",
-          saldoPendiente: data.saldoPendiente !== undefined ? data.saldoPendiente : data.totalFactura,
+          saldoPendiente: data.saldoPendiente !== undefined ? data.saldoPendiente : totalF,
           pagosYajustes: []
         };
         const newInvoice = await addDoc(collection(db, "facturas"), payload);

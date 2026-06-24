@@ -256,7 +256,7 @@ export default function DashboardPage() {
             const invoiceFromNum = billedByEntryMap.get(entryNum);
             const invoice = invoiceFromId || invoiceFromNum;
             
-            let isBilled = !!invoice;
+            let isBilled = !!invoice || String(entry.estadoFacturacion || "").toUpperCase() === "FACTURADO";
 
             const rawLots = entry.lotes || entry.lots || [];
             // Si no hay match por ID maestro, verificar si al menos uno de los lotes está facturado
@@ -441,7 +441,8 @@ export default function DashboardPage() {
             }, 0);
 
             const saldo = totalFactura - totalCobrado;
-            if (saldo <= 0.01) {
+            const isCobradaStatus = String(invoice.estadoCobranza || "").toUpperCase() === "COBRADA" || String(invoice.estadoCobranza || "").toUpperCase() === "PAGADA";
+            if (saldo <= 0.01 || isCobradaStatus) {
               paidCount++;
             }
           });
