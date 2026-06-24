@@ -11,7 +11,8 @@ export type SystemRole =
   | "produccion" 
   | "cobranzas" 
   | "operario_manualidades"
-  | "bodega_quimicos";
+  | "bodega_quimicos"
+  | "colaboradora";
 
 // Legacy alias export
 export type Entry = EntryMaestro;

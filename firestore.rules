@@ -41,7 +41,7 @@ service cloud.firestore {
     // CLIENTES
     match /clients/{clientId} {
       allow read: if true; 
-      allow write: if isAdmin() || hasRole('facturacion') || hasRole('cobranzas') || hasRole('contador') || isBodega();
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('cobranzas') || hasRole('contador') || isBodega() || hasRole('colaboradora');
     }
 
     // CATÁLOGOS MAESTROS (LDDEC 1.6)
@@ -90,12 +90,12 @@ service cloud.firestore {
     // FACTURACIÓN Y COBROS
     match /facturas/{invoiceId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('facturacion') || hasRole('cobranzas') || hasRole('contador');
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('cobranzas') || hasRole('contador') || hasRole('colaboradora');
     }
 
     match /payments/{paymentId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('cobranzas') || hasRole('contador');
+      allow write: if isAdmin() || hasRole('cobranzas') || hasRole('contador') || hasRole('colaboradora');
     }
 
     // PRODUCCIÓN Y MANUALIDADES
@@ -146,7 +146,7 @@ service cloud.firestore {
     // CONFIGURACIÓN GLOBAL
     match /configuracion/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('facturacion');
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('colaboradora');
     }
 
     // REGLA GENERAL DE SEGURIDAD

@@ -19,7 +19,7 @@ export const navItems: NavItem[] = [
     title: "Dashboard", 
     path: "/dashboard", 
     icon: LayoutDashboard, 
-    allowedRoles: ["admin", "socio", "contador", "financiero", "facturacion"] 
+    allowedRoles: ["admin", "socio", "contador", "financiero", "facturacion", "colaboradora"] 
   },
   { 
     title: "Clientes", 
@@ -73,13 +73,13 @@ export const navItems: NavItem[] = [
     title: "Facturación", 
     path: "/facturacion", 
     icon: Receipt, 
-    allowedRoles: ["admin", "facturacion", "socio"] 
+    allowedRoles: ["admin", "facturacion", "socio", "colaboradora"] 
   },
   { 
     title: "Cobranzas", 
     path: "/cobranzas", 
     icon: Wallet, 
-    allowedRoles: ["admin", "cobranzas", "financiero", "contador", "socio"] 
+    allowedRoles: ["admin", "cobranzas", "financiero", "contador", "socio", "colaboradora"] 
   },
   { 
     title: "Bancos", 
@@ -91,13 +91,13 @@ export const navItems: NavItem[] = [
     title: "Historial", 
     path: "/historial", 
     icon: History, 
-    allowedRoles: ["admin", "socio", "contador", "financiero"] 
+    allowedRoles: ["admin", "socio", "contador", "financiero", "colaboradora"] 
   },
   { 
     title: "INFORMES", 
     path: "/informes", 
     icon: FileText, 
-    allowedRoles: ["admin", "socio", "contador", "financiero", "facturacion", "bodega", "banco", "produccion", "bodega_quimicos"] 
+    allowedRoles: ["admin", "socio", "contador", "financiero", "facturacion", "bodega", "banco", "produccion", "bodega_quimicos", "colaboradora"] 
   },
   { 
     title: "Faltantes", 
