@@ -490,9 +490,32 @@ export default function FacturacionPage() {
           <div className="max-h-[85vh] overflow-y-auto p-12">
             <DialogHeader className="mb-10 border-b border-border pb-6"><DialogTitle className="text-4xl font-black uppercase tracking-tight">Detalle de Factura</DialogTitle></DialogHeader>
             {viewingInvoice && <InvoiceDetail invoice={viewingInvoice} />}
-          </div>
+    </div>
         </DialogContent>
       </Dialog>
+
+      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-[800px] overflow-y-auto bg-card border-l border-border p-10">
+          <SheetHeader className="mb-10">
+            <SheetTitle className="text-3xl font-black uppercase tracking-tight">Editar Factura</SheetTitle>
+            <SheetDescription className="text-xs font-bold uppercase tracking-widest">
+              Modifique los datos fiscales del documento.
+            </SheetDescription>
+          </SheetHeader>
+          {editingInvoice && (
+            <InvoiceForm
+              clients={clients}
+              onSubmit={handleFormSubmit}
+              onCancel={() => {
+                setIsSheetOpen(false);
+                setEditingInvoice(null);
+              }}
+              initialData={editingInvoice}
+              isSubmitting={isSubmitting}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
