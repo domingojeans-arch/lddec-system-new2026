@@ -34,6 +34,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { 
@@ -103,6 +110,9 @@ export default function FaltantesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [processing, setProcessing] = useState(false);
 
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [resForm, setResForm] = useState({
@@ -112,22 +122,32 @@ export default function FaltantesPage() {
 
   const isReadOnly = user?.role === "socio";
 
+  const MONTHS = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+
+  const YEARS = [2025, 2026, 2027];
+
   useEffect(() => {
     if (!db) return;
+    setLoading(true);
 
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const tsLimit = Timestamp.fromDate(sixMonthsAgo);
+    const fromDate = new Date(selectedYear, selectedMonth, 1);
+    const toDateObj = new Date(selectedYear, selectedMonth + 1, 0, 23, 59, 59);
+
+    const tsFrom = Timestamp.fromDate(fromDate);
+    const tsTo = Timestamp.fromDate(toDateObj);
 
     const unsubEntries = onSnapshot(
-      query(collection(db, "entries"), where("date", ">=", tsLimit)),
+      query(collection(db, "entries"), where("date", ">=", tsFrom), where("date", "<=", tsTo)),
       (snap) => {
         setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }
     );
 
     const unsubOutputs = onSnapshot(
-      query(collection(db, "outputs"), where("date", ">=", tsLimit)),
+      query(collection(db, "outputs"), where("date", ">=", tsFrom)),
       (snap) => {
         setOutputs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         setLoading(false);
@@ -138,7 +158,7 @@ export default function FaltantesPage() {
       unsubEntries();
       unsubOutputs();
     };
-  }, []);
+  }, [selectedMonth, selectedYear]);
 
   const faltantesData = useMemo(() => {
     const results: any[] = [];
@@ -314,6 +334,9 @@ export default function FaltantesPage() {
         />
         <h1 className="text-2xl font-black uppercase text-black">LAVANDERÍA DE DECORACIONES (LDDEC)</h1>
         <h2 className="text-lg font-bold uppercase text-black">AUDITORÍA DE PRENDAS FALTANTES</h2>
+        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest print:text-black">
+          Periodo: {MONTHS[selectedMonth]} {selectedYear}
+        </p>
       </div>
 
       <div className="bg-card p-4 rounded-2xl border border-border flex flex-col lg:flex-row items-center gap-4 shadow-sm print:hidden">
@@ -326,9 +349,45 @@ export default function FaltantesPage() {
             onChange={e => setSearchTerm(e.target.value)} 
           />
         </div>
+
+        {/* FILTRO DE FECHAS (MES Y AÑO) */}
+        <div className="flex gap-2 w-full lg:w-auto">
+          <Select 
+            value={selectedMonth.toString()} 
+            onValueChange={(val) => setSelectedMonth(parseInt(val))}
+          >
+            <SelectTrigger className="w-[150px] erp-input h-12 rounded-xl font-bold text-xs uppercase bg-muted/10 border-border">
+              <SelectValue placeholder="Mes" />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTHS.map((m, idx) => (
+                <SelectItem key={idx} value={idx.toString()} className="font-bold text-xs uppercase">
+                  {m}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select 
+            value={selectedYear.toString()} 
+            onValueChange={(val) => setSelectedYear(parseInt(val))}
+          >
+            <SelectTrigger className="w-[110px] erp-input h-12 rounded-xl font-bold text-xs bg-muted/10 border-border">
+              <SelectValue placeholder="Año" />
+            </SelectTrigger>
+            <SelectContent>
+              {YEARS.map((y) => (
+                <SelectItem key={y} value={y.toString()} className="font-bold text-xs">
+                  {y}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="flex-1" />
         <div className="bg-muted/30 px-6 py-2 rounded-full border border-border text-[10px] font-black uppercase text-muted-foreground tracking-widest">
-          Auditoría en Tiempo Real (Últimos 6 meses)
+          Auditoría de Faltantes ({MONTHS[selectedMonth]} {selectedYear})
         </div>
       </div>
 
