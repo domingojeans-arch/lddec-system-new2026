@@ -110,6 +110,8 @@ export function AuditLotPanel() {
           despachado: totalDespachado,
           pendiente: Math.max(0, originalQty - totalDespachado)
         },
+        fallaLavado: !!lotData?.fallaLavado,
+        observacionesFalla: lotData?.observacionesFalla || "",
         manualidades: manualSnap.docs.map(d => ({ id: d.id, ...d.data(), fecha: toDate(d.data().createdAt) })),
         facturas: facturasSnap.docs.map(d => ({ id: d.id, ...d.data(), fecha: toDate(d.data().fechaFactura) })),
         outputs: relatedOutputs
@@ -149,6 +151,20 @@ export function AuditLotPanel() {
 
         {result && !result.error && (
           <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
+            {/* ALERTA DE FALLA DE LAVADO */}
+            {result.fallaLavado && (
+              <div className="flex items-start gap-4 bg-red-500/10 border border-red-500/30 p-6 rounded-2xl animate-in zoom-in duration-300">
+                <AlertTriangle className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h5 className="font-black text-red-700 text-sm uppercase">Falla de Lavado Detectada</h5>
+                  <p className="text-xs text-red-600 font-bold uppercase tracking-tight">Este lote tiene una falla de lavado</p>
+                  {result.observacionesFalla && (
+                    <p className="text-xs text-red-500/90 font-medium italic mt-1">Detalle: "{result.observacionesFalla}"</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* CABECERA DE TRAZABILIDAD */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-muted/20 p-8 rounded-[2rem] border border-border">
               <div className="space-y-1">

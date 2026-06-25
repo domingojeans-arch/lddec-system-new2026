@@ -96,8 +96,8 @@ export function calculateClientAccountingMetrics(
   let siPaymentsBeforeFrom = 0;
   let siPaymentsDuringPeriod = 0;
 
-  // Filter initial balance payments using helper
-  const filteredSI = filterPaymentsByDate(pagosInicial, effectiveFrom, to);
+  // Filter initial balance payments using helper from base 2026 onwards
+  const filteredSI = filterPaymentsByDate(pagosInicial, FECHA_BASE_2026, to);
   filteredSI.forEach(p => {
     const monto = Number(p.monto || 0);
     const d = toDate(p.fechaTransaccion || p.fecha);

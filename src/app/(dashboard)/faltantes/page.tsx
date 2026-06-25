@@ -116,8 +116,10 @@ export default function FaltantesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [resForm, setResForm] = useState({
+    tipoResolucion: "despacho", // "despacho" | "falla"
     numeroGuia: "",
-    cantidad: 0
+    cantidad: 0,
+    observacionesFalla: ""
   });
 
   const isReadOnly = user?.role === "socio";
@@ -164,7 +166,11 @@ export default function FaltantesPage() {
     const results: any[] = [];
 
     entries.forEach(entry => {
-      (entry.lotes || []).forEach((lote: any) => {
+        // Excluir si ya está marcado como resuelto de novedad o si es falla de lavado
+        if (lote.isNoveltyResolved || lote.fallaLavado) {
+          return;
+        }
+
         const internalId = (lote.loteId || lote.id || lote.lotNumber || lote.numeroLote || "").toString().toUpperCase();
         const visibleLotName = getVisibleLotName(lote);
         
@@ -242,16 +248,22 @@ export default function FaltantesPage() {
     if (isReadOnly) return;
     setSelectedItem(item);
     setResForm({
+      tipoResolucion: "despacho",
       numeroGuia: "",
-      cantidad: item.faltante
+      cantidad: item.faltante,
+      observacionesFalla: ""
     });
     setIsModalOpen(true);
   };
 
   const handleProcessResolution = async () => {
     if (isReadOnly) return;
-    if (!resForm.numeroGuia || resForm.cantidad <= 0) {
-      toast({ variant: "destructive", title: "Datos incompletos" });
+    if (resForm.tipoResolucion === "despacho" && !resForm.numeroGuia) {
+      toast({ variant: "destructive", title: "Falta número de guía de salida" });
+      return;
+    }
+    if (resForm.cantidad <= 0) {
+      toast({ variant: "destructive", title: "La cantidad a regularizar debe ser mayor a 0" });
       return;
     }
 
@@ -259,24 +271,26 @@ export default function FaltantesPage() {
     try {
       const batch = writeBatch(db);
 
-      const outputRef = doc(collection(db, "outputs"));
-      const outputPayload = {
-        numeroSalida: resForm.numeroGuia.toUpperCase(),
-        date: serverTimestamp(),
-        itemsDispatched: [{
-          entryLotNumber: selectedItem.loteId,
-          parentIngresoMaestro: selectedItem.parentIngresoId,
-          parentIngresoNumber: selectedItem.visibleIngresoNumber,
-          clientName: selectedItem.clientName,
-          quantityToDispatch: resForm.cantidad,
-          isMissingResolution: true
-        }],
-        status: "completed",
-        notes: `Resolución de faltante para lote ${selectedItem.loteId}`,
-        createdAt: serverTimestamp(),
-        createdBy: user?.email || "system"
-      };
-      batch.set(outputRef, outputPayload);
+      if (resForm.tipoResolucion === "despacho") {
+        const outputRef = doc(collection(db, "outputs"));
+        const outputPayload = {
+          numeroSalida: resForm.numeroGuia.toUpperCase(),
+          date: serverTimestamp(),
+          itemsDispatched: [{
+            entryLotNumber: selectedItem.loteId,
+            parentIngresoMaestro: selectedItem.parentIngresoId,
+            parentIngresoNumber: selectedItem.visibleIngresoNumber,
+            clientName: selectedItem.clientName,
+            quantityToDispatch: resForm.cantidad,
+            isMissingResolution: true
+          }],
+          status: "completed",
+          notes: `Resolución de faltante para lote ${selectedItem.loteId}`,
+          createdAt: serverTimestamp(),
+          createdBy: user?.email || "system"
+        };
+        batch.set(outputRef, outputPayload);
+      }
 
       const entryRef = doc(db, "entries", selectedItem.parentIngresoId);
       const updatedLotes = selectedItem.parentEntry.lotes.map((l: any) => {
@@ -286,6 +300,8 @@ export default function FaltantesPage() {
             ...l,
             isNoveltyResolved: true,
             productionStatus: "Completed",
+            fallaLavado: resForm.tipoResolucion === "falla",
+            observacionesFalla: resForm.tipoResolucion === "falla" ? resForm.observacionesFalla : "",
             resueltoPor: user?.email || "system",
             fechaResolucion: new Date().toISOString()
           };
@@ -295,7 +311,12 @@ export default function FaltantesPage() {
       batch.update(entryRef, { lotes: updatedLotes, updatedAt: serverTimestamp() });
 
       await batch.commit();
-      toast({ title: "Faltante Resuelto", description: "Guía de salida generada y lote regularizado." });
+      toast({ 
+        title: "Faltante Resuelto", 
+        description: resForm.tipoResolucion === "falla" 
+          ? "Lote marcado como falla de lavado y regularizado." 
+          : "Guía de salida generada y lote regularizado." 
+      });
       setIsModalOpen(false);
     } catch (e) {
       toast({ variant: "destructive", title: "Error al procesar" });
@@ -496,14 +517,43 @@ export default function FaltantesPage() {
 
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">N° Guía de Salida</Label>
-                <Input 
-                  value={resForm.numeroGuia} 
-                  onChange={e => setResForm({...resForm, numeroGuia: e.target.value.toUpperCase()})}
-                  placeholder="Ej: SAL-RESOL-001" 
-                  className="erp-input h-12 font-bold" 
-                />
+                <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Tipo de Resolución</Label>
+                <Select 
+                  value={resForm.tipoResolucion} 
+                  onValueChange={(val) => setResForm({...resForm, tipoResolucion: val})}
+                >
+                  <SelectTrigger className="erp-input h-12 rounded-xl font-bold text-xs uppercase bg-muted/10 border-border">
+                    <SelectValue placeholder="Seleccione tipo..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="despacho" className="font-bold text-xs uppercase">Registrar Despacho (Guía)</SelectItem>
+                    <SelectItem value="falla" className="font-bold text-xs uppercase">Falla de Lavado (Lote Dañado)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {resForm.tipoResolucion === "despacho" ? (
+                <div className="space-y-1.5 animate-in fade-in duration-300">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">N° Guía de Salida</Label>
+                  <Input 
+                    value={resForm.numeroGuia} 
+                    onChange={e => setResForm({...resForm, numeroGuia: e.target.value.toUpperCase()})}
+                    placeholder="Ej: SAL-RESOL-001" 
+                    className="erp-input h-12 font-bold" 
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1.5 animate-in fade-in duration-300">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Detalle / Observaciones de Falla</Label>
+                  <Input 
+                    value={resForm.observacionesFalla} 
+                    onChange={e => setResForm({...resForm, observacionesFalla: e.target.value})}
+                    placeholder="Ej: Prenda rota en proceso de centrifugado / encogimiento excesivo" 
+                    className="erp-input h-12 font-semibold text-xs" 
+                  />
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Cantidad a Regularizar</Label>
                 <Input 
