@@ -46,6 +46,7 @@ interface EntriesVsBillingReportProps {
   invoices: any[];
   dateFrom: string;
   dateTo: string;
+  clientId?: string;
 }
 
 /**
@@ -60,7 +61,7 @@ function getVisibleLotName(lote: any): string {
   return "S/L";
 }
 
-export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: EntriesVsBillingReportProps) {
+export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo, clientId }: EntriesVsBillingReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
   const [isPrintingOnlyPending, setIsPrintingOnlyPending] = useState(false);
   const [isRepairing, setIsRepairing] = useState(false);
@@ -466,7 +467,9 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
           )}
         </Button>
         <Button 
-          onClick={() => setIsOpenPendingModal(true)} 
+          onClick={() => {
+            window.open(`/informes/pendientes?from=${dateFrom}&to=${dateTo}&clientId=${clientId || 'all'}`, '_blank');
+          }} 
           className="bg-sky-600 hover:bg-sky-700 text-white font-black uppercase text-[10px] tracking-widest h-11 px-8 rounded-xl gap-2 shadow-lg shadow-sky-600/20"
         >
           <Receipt className="h-4 w-4" /> Control de Facturación Pendiente
@@ -609,258 +612,6 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo }: 
               </TableFooter>
             )}
           </Table>
-        </div>
-      </div>
-
-      {/* MODAL DIALOG DEL REPORTE DE PENDIENTES DE FACTURAR */}
-      <Dialog open={isOpenPendingModal} onOpenChange={(open) => { setIsOpenPendingModal(open); if(!open) setSearchTerm(''); }}>
-        <DialogContent className="sm:max-w-[1000px] max-h-[85vh] overflow-y-auto rounded-[2rem] border border-border bg-card p-8 shadow-premium print:hidden">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black uppercase tracking-tight text-foreground flex items-center gap-2">
-              <Receipt className="h-6 w-6 text-sky-600 animate-pulse" /> Control de Facturación Pendiente
-            </DialogTitle>
-            <div className="text-xs font-semibold text-muted-foreground uppercase">
-              Periodo: {dateFrom} al {dateTo}
-            </div>
-          </DialogHeader>
-
-          {/* CONTENEDOR DE MÉTRICAS KPI DEL MODAL */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 my-4">
-            <Card className="bg-muted/10 border-border rounded-xl p-4 flex flex-col justify-between">
-              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Muestras Pendientes</span>
-              <span className="text-2xl font-black text-amber-600 mt-2">{pendingMetrics.samplesCount}</span>
-            </Card>
-            <Card className="bg-muted/10 border-border rounded-xl p-4 flex flex-col justify-between">
-              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Prendas Muestras</span>
-              <span className="text-2xl font-black text-amber-600 mt-2">{formatNum(pendingMetrics.samplesGarments)}</span>
-            </Card>
-            <Card className="bg-muted/10 border-border rounded-xl p-4 flex flex-col justify-between">
-              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Ingresos Normales</span>
-              <span className="text-2xl font-black text-primary mt-2">{pendingMetrics.normalCount}</span>
-            </Card>
-            <Card className="bg-muted/10 border-border rounded-xl p-4 flex flex-col justify-between">
-              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Prendas Normales</span>
-              <span className="text-2xl font-black text-primary mt-2">{formatNum(pendingMetrics.normalGarments)}</span>
-            </Card>
-            <Card className="bg-sky-500/5 border-sky-500/10 rounded-xl p-4 flex flex-col justify-between">
-              <span className="text-[9px] font-black text-sky-600 uppercase tracking-widest">Total Prendas</span>
-              <span className="text-2xl font-black text-sky-600 mt-2">{formatNum(pendingMetrics.totalGeneralGarments)}</span>
-            </Card>
-          </div>
-
-          {/* ACCIONES Y FILTROS */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por cliente o nro ingreso..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="pl-10 h-10 rounded-xl bg-muted/20 border-none text-xs font-semibold"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={handleExportPendingExcel}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl gap-2 shadow-lg shadow-emerald-600/20"
-              >
-                <Download className="h-4 w-4" /> Excel
-              </Button>
-              <Button
-                onClick={handlePrintPendingReport}
-                className="bg-primary hover:bg-primary/95 text-white font-black uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl gap-2 shadow-lg shadow-primary/20"
-              >
-                <Printer className="h-4 w-4" /> Imprimir
-              </Button>
-            </div>
-          </div>
-
-          {/* TABS DE MUESTRAS E INGRESOS NORMALES */}
-          <Tabs defaultValue="normales" className="w-full mt-4">
-            <TabsList className="bg-muted/30 p-1 rounded-xl mb-4">
-              <TabsTrigger value="normales" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest">
-                Normales Pendientes ({searchedNormal.length})
-              </TabsTrigger>
-              <TabsTrigger value="muestras" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest">
-                Muestras Pendientes ({searchedSamples.length})
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="normales">
-              <div className="border border-border rounded-2xl overflow-hidden bg-card max-h-[350px] overflow-y-auto">
-                <Table>
-                  <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-black uppercase py-4 pl-6">Fecha</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase">Ingreso</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase">Cliente</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-center">Prendas</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-center">Estado</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase pr-6">Observaciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {searchedNormal.length > 0 ? (
-                      searchedNormal.map((row, idx) => (
-                        <TableRow key={idx} className="hover:bg-muted/5 border-border">
-                          <TableCell className="py-3 pl-6 text-xs text-muted-foreground">{row.fecha}</TableCell>
-                          <TableCell className="font-bold text-xs">{row.ingreso}</TableCell>
-                          <TableCell className="text-xs font-bold uppercase truncate max-w-[220px]">{row.cliente}</TableCell>
-                          <TableCell className="text-center font-black text-sm">{row.cantidad}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className="text-[8px] font-black bg-red-500/10 text-red-600 border-none px-2 rounded-full">
-                              {row.estado}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground pr-6 italic max-w-[200px] truncate" title={row.notes}>
-                            {row.notes || "---"}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground text-xs uppercase font-bold">
-                          Sin ingresos normales pendientes
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="muestras">
-              <div className="border border-border rounded-2xl overflow-hidden bg-card max-h-[350px] overflow-y-auto">
-                <Table>
-                  <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-black uppercase py-4 pl-6">Fecha</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase">Ingreso</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase">Cliente</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-center">Prendas</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-center">Estado</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase pr-6">Observaciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {searchedSamples.length > 0 ? (
-                      searchedSamples.map((row, idx) => (
-                        <TableRow key={idx} className="hover:bg-muted/5 border-border">
-                          <TableCell className="py-3 pl-6 text-xs text-muted-foreground">{row.fecha}</TableCell>
-                          <TableCell className="font-bold text-xs">{row.ingreso}</TableCell>
-                          <TableCell className="text-xs font-bold uppercase truncate max-w-[220px]">{row.cliente}</TableCell>
-                          <TableCell className="text-center font-black text-sm">{row.cantidad}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className="text-[8px] font-black bg-red-500/10 text-red-600 border-none px-2 rounded-full">
-                              {row.estado}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground pr-6 italic max-w-[200px] truncate" title={row.notes}>
-                            {row.notes || "---"}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground text-xs uppercase font-bold">
-                          Sin muestras pendientes
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
-
-      {/* ÁREA DE IMPRESIÓN EXCLUSIVA DE CONTROL DE PENDIENTES */}
-      <div id="pending-billing-report" className="hidden print:block">
-        <img src="/logo-lddec.png" alt="Logo" className="hidden print:block header-logo" />
-        
-        <div className="hidden print:block">
-          <div className="header-title">LABORATORIO DEL DENIM ECUADOR</div>
-          <div className="header-subtitle">
-            CONTROL DE FACTURACIÓN PENDIENTE
-          </div>
-          <div className="meta-info">
-            <p>Periodo: {dateFrom} al {dateTo}</p>
-            <p>Generado el: {fechaGenerada}</p>
-          </div>
-        </div>
-
-        {/* Resumen en Impresión */}
-        <div className="mb-6 grid grid-cols-3 gap-4 border border-black p-4 text-[10px] font-bold uppercase print:grid">
-          <div>Ingresos Normales Pendientes: {pendingMetrics.normalCount} ({pendingMetrics.normalGarments} prendas)</div>
-          <div>Muestras Pendientes: {pendingMetrics.samplesCount} ({pendingMetrics.samplesGarments} prendas)</div>
-          <div>Total Prendas Pendientes: {pendingMetrics.totalGeneralGarments}</div>
-        </div>
-
-        {/* Tabla de Normales */}
-        <div className="mb-8">
-          <h2 className="text-xs font-black uppercase mb-2 border-b border-black pb-1">Ingresos Normales Pendientes</h2>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="text-left font-black text-[9px] py-2">Fecha</th>
-                <th className="text-left font-black text-[9px]">Ingreso</th>
-                <th className="text-left font-black text-[9px]">Cliente</th>
-                <th className="text-center font-black text-[9px]">Prendas</th>
-                <th className="text-left font-black text-[9px]">Observaciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingNormal.length > 0 ? (
-                pendingNormal.map((row, idx) => (
-                  <tr key={idx} className="border-t border-black">
-                    <td className="py-2 text-[9px]">{row.fecha}</td>
-                    <td className="font-bold text-[9px]">{row.ingreso}</td>
-                    <td className="uppercase text-[9px]">{row.cliente}</td>
-                    <td className="text-center font-bold text-[9px]">{row.cantidad}</td>
-                    <td className="text-[9px] italic">{row.notes || "---"}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-[9px]">No hay ingresos normales pendientes</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Tabla de Muestras */}
-        <div>
-          <h2 className="text-xs font-black uppercase mb-2 border-b border-black pb-1">Muestras Pendientes</h2>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr>
-                <th className="text-left font-black text-[9px] py-2">Fecha</th>
-                <th className="text-left font-black text-[9px]">Ingreso</th>
-                <th className="text-left font-black text-[9px]">Cliente</th>
-                <th className="text-center font-black text-[9px]">Prendas</th>
-                <th className="text-left font-black text-[9px]">Observaciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pendingSamples.length > 0 ? (
-                pendingSamples.map((row, idx) => (
-                  <tr key={idx} className="border-t border-black">
-                    <td className="py-2 text-[9px]">{row.fecha}</td>
-                    <td className="font-bold text-[9px]">{row.ingreso}</td>
-                    <td className="uppercase text-[9px]">{row.cliente}</td>
-                    <td className="text-center font-bold text-[9px]">{row.cantidad}</td>
-                    <td className="text-[9px] italic">{row.notes || "---"}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-[9px]">No hay muestras pendientes</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
