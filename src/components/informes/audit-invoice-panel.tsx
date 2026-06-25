@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, getDoc, doc } from "firebase/firestore";
 import { Receipt, Search, Loader2, Calendar, Building2, Layers, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,20 @@ export function AuditInvoicePanel() {
         setResult({ error: "No se encontró ninguna factura con ese número." });
       } else {
         const invoiceData = snap.docs[0].data();
-        setResult({ ...invoiceData, id: snap.docs[0].id });
+        let fetchedClientName = invoiceData.clientName;
+        
+        if (!fetchedClientName && invoiceData.clientId) {
+          try {
+            const clientSnap = await getDoc(doc(db, "clients", invoiceData.clientId));
+            if (clientSnap.exists()) {
+              fetchedClientName = clientSnap.data().name || clientSnap.data().nombre || invoiceData.clientId;
+            }
+          } catch (err) {
+            console.error("Error fetching client", err);
+          }
+        }
+        
+        setResult({ ...invoiceData, id: snap.docs[0].id, clientName: fetchedClientName });
       }
     } catch (e) {
       console.error(e);
