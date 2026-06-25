@@ -20,17 +20,66 @@ interface StatementOfAccountsDetailedProps {
  */
 export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo }: StatementOfAccountsDetailedProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
-  const saldoAnterior = Number(client?.baseDebt || client?.saldoInicial || 0);
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
   }, []);
 
+  const from = useMemo(() => new Date(dateFrom + "T00:00:00"), [dateFrom]);
+  const to = useMemo(() => new Date(dateTo + "T23:59:59"), [dateTo]);
+
+  // CALCULO DINÁMICO DEL SALDO ANTERIOR (Arrastrado históricamente)
+  const saldoAnterior = useMemo(() => {
+    const base = Number(client?.baseDebt || client?.saldoInicial || 0);
+    const clientInvoices = Array.isArray(invoices) ? invoices : [];
+    
+    // Facturación previa al período seleccionado
+    const prevBilling = clientInvoices
+      .filter(inv => {
+        if (!inv) return false;
+        const d = toDate(inv.fechaFactura || inv.date);
+        const belongsToClient = !client?.id || inv.clientId === client.id || inv.clienteId === client.id;
+        return d && d < from && belongsToClient;
+      })
+      .reduce((sum, inv) => sum + Number(inv.totalFactura || inv.total || 0), 0);
+
+    // Pagos y abonos previos al período seleccionado
+    const prevPayments = clientInvoices
+      .filter(inv => {
+        if (!inv) return false;
+        const belongsToClient = !client?.id || inv.clientId === client.id || inv.clienteId === client.id;
+        return belongsToClient;
+      })
+      .reduce((sum, inv) => {
+        const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : [];
+        const totalMovs = movimientos.reduce((acc: number, p: any) => {
+          if (!p) return acc;
+          if (p.anulado) return acc;
+          const payDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
+          if (!payDate || payDate >= from) return acc;
+          return p.tipoTransaccion === 'Reverso' || p.tipo === 'Reverso'
+            ? acc - Number(p.monto || 0)
+            : acc + Number(p.monto || 0);
+        }, 0);
+        return sum + totalMovs;
+      }, 0);
+
+    // Pagos de saldo inicial registrados en el cliente previos a 'from'
+    const pagosInicial = Array.isArray(client?.pagosSaldoInicial) ? client.pagosSaldoInicial : [];
+    const prevPagosSI = pagosInicial.reduce((sum: number, p: any) => {
+      if (!p || p.anulado) return sum;
+      const d = toDate(p.fechaTransaccion || p.fecha);
+      if (d && d < from) {
+        return sum + Number(p.monto || 0);
+      }
+      return sum;
+    }, 0);
+
+    return (base - prevPagosSI) + prevBilling - prevPayments;
+  }, [client, invoices, from]);
+
   const reportRows = useMemo(() => {
     const today = new Date();
-    const from = new Date(dateFrom + "T00:00:00");
-    const to = new Date(dateTo + "T23:59:59");
-
     const clientInvoices = Array.isArray(invoices) ? invoices : [];
 
     return clientInvoices
@@ -78,15 +127,27 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
       })
       .filter((row): row is NonNullable<typeof row> => row !== null)
       .sort((a, b) => String(a.documento || "").localeCompare(String(b.documento || "")));
-  }, [invoices, dateFrom, dateTo, client]);
+  }, [invoices, from, to, client]);
 
   const totals = useMemo(() => {
     const debe = reportRows.reduce((acc, curr) => acc + (curr?.debe || 0), 0);
     const haber = reportRows.reduce((acc, curr) => acc + (curr?.haber || 0), 0);
-    const saldoAnteriorVal = Number(client?.baseDebt || client?.saldoInicial || 0);
-    const saldoFinal = (saldoAnteriorVal + debe) - haber;
-    return { debe, haber, saldo: saldoFinal };
-  }, [reportRows, client]);
+    
+    // Sumar también los abonos al saldo inicial hechos en el periodo actual
+    const pagosInicial = Array.isArray(client?.pagosSaldoInicial) ? client.pagosSaldoInicial : [];
+    const periodPagosSI = pagosInicial.reduce((sum: number, p: any) => {
+      if (!p || p.anulado) return sum;
+      const d = toDate(p.fechaTransaccion || p.fecha);
+      if (d && d >= from && d <= to) {
+        return sum + Number(p.monto || 0);
+      }
+      return sum;
+    }, 0);
+
+    const totalHaberConSI = haber + periodPagosSI;
+    const saldoFinal = (saldoAnterior + debe) - totalHaberConSI;
+    return { debe, haber: totalHaberConSI, saldo: saldoFinal };
+  }, [reportRows, saldoAnterior, client, from, to]);
 
   const portfolioSummary = useMemo(() => {
     const vencido = reportRows.reduce((acc, curr) => (curr?.diasV || 0) > 30 ? acc + (curr?.saldo || 0) : acc, 0);
