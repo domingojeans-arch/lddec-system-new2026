@@ -76,6 +76,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { SystemRole } from "@/types/lddec";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { toDate } from "@/lib/toDate";
 
 import { useRouter } from "next/navigation";
 
@@ -487,39 +488,167 @@ export default function MantenimientoPage() {
       const { utils, writeFile } = await import("xlsx");
       const workbook = utils.book_new();
 
-      const collectionsToExport = [
-        "clients", "entries", "outputs", "entregas", "facturas", 
-        "cobranzas", "bancos", "quimicos_stock", "quimicos_kardex", 
-        "procesos_tecnicos", "catalogo_prendas", "catalogo_manualidades", 
-        "manualidades", "produccion", "faltantes", "muestras"
-      ];
+      // 1. Obtener Datos de Firestore
+      const [snapInvoices, snapManualidades, snapSalidas, snapClients, snapQuimicos] = await Promise.all([
+        getDocs(collection(db, "facturas")),
+        getDocs(collection(db, "manualidades")),
+        getDocs(collection(db, "agenda_pagos")),
+        getDocs(collection(db, "clients")),
+        getDocs(collection(db, "quimicos_stock"))
+      ]);
 
-      for (const col of collectionsToExport) {
-        const snap = await getDocs(collection(db, col));
-        const data = snap.docs.map(docSnap => {
-          const raw = docSnap.data();
-          const clean: any = { id: docSnap.id };
-          Object.keys(raw).forEach(k => {
-            if (raw[k] && typeof raw[k] === "object") {
-              if (typeof raw[k].toDate === "function") {
-                clean[k] = raw[k].toDate().toLocaleString();
-              } else {
-                clean[k] = JSON.stringify(raw[k]);
-              }
-            } else {
-              clean[k] = raw[k];
+      // 2. Mapear Datos para cada Hoja
+      // Hoja Ingresos: Fecha, Cliente, Concepto/Documento, Subtotal, IVA, Total, Estado
+      const dataIngresos = snapInvoices.docs.map(docSnap => {
+        const inv = docSnap.data();
+        const total = Number(inv.totalFactura || inv.total || 0);
+        const subtotal = Number(inv.subtotal || (total / 1.15));
+        const iva = Number(inv.iva || inv.valorIva || (total - subtotal));
+        let fechaStr = "S/F";
+        const f = toDate(inv.fechaFactura || inv.date || inv.createdAt);
+        if (f) fechaStr = f.toLocaleDateString('es-EC');
+
+        return {
+          "Fecha": fechaStr,
+          "Cliente": (inv.clienteNombre || inv.clientName || "Socio").toUpperCase(),
+          "Concepto/Documento": inv.numeroFactura || inv.numero || docSnap.id,
+          "Subtotal": Number(subtotal.toFixed(2)),
+          "IVA": Number(iva.toFixed(2)),
+          "Total": Number(total.toFixed(2)),
+          "Estado": inv.estado || inv.estadoCobranza || "Pendiente"
+        };
+      });
+
+      // Hoja Manualidades: Fecha, Lote, Operario, Proceso/Manualidad, Cantidad, Tarifa Unit., Total a Pagar, Estado
+      const dataManualidades = snapManualidades.docs.map(docSnap => {
+        const m = docSnap.data();
+        const cant = Number(m.cantidad || 0);
+        const tarifa = Number(m.tarifa || m.valorUnitario || 0);
+        const total = Number(m.total || m.totalPagar || (cant * tarifa));
+        let fechaStr = "S/F";
+        const f = toDate(m.fecha || m.createdAt);
+        if (f) fechaStr = f.toLocaleDateString('es-EC');
+
+        return {
+          "Fecha": fechaStr,
+          "Lote": m.loteNumero || m.loteId || "S/L",
+          "Operario": (m.operarioNombre || "Varios").toUpperCase(),
+          "Proceso/Manualidad": m.proceso || "S/P",
+          "Cantidad": cant,
+          "Tarifa Unit.": Number(tarifa.toFixed(4)),
+          "Total a Pagar": Number(total.toFixed(2)),
+          "Estado": m.estado || "Pendiente"
+        };
+      });
+
+      // Hoja Salidas (Egresos): Fecha, Categoría de Gasto, Descripción, Proveedor, Total Monto
+      const dataSalidas = snapSalidas.docs.map(docSnap => {
+        const s = docSnap.data();
+        const monto = Number(s.monto || s.total || 0);
+        let fechaStr = "S/F";
+        const f = toDate(s.fechaPago || s.createdAt);
+        if (f) fechaStr = f.toLocaleDateString('es-EC');
+
+        return {
+          "Fecha": fechaStr,
+          "Categoría de Gasto": s.tipo || "Otros",
+          "Descripción": s.detalle || s.description || "Gasto general",
+          "Proveedor": s.proveedor || s.supplier || s.bancoCheque || "-",
+          "Total Monto": Number(monto.toFixed(2))
+        };
+      });
+
+      // Hoja Clientes: Código, Nombre del Cliente, Tipo, Teléfono, Saldo Inicial, Saldo Actual
+      const dataClientes = snapClients.docs.map(docSnap => {
+        const c = docSnap.data();
+        return {
+          "Código": c.code || c.codigo || docSnap.id,
+          "Nombre del Cliente": (c.name || c.clienteNombre || "").toUpperCase(),
+          "Tipo": c.classification || c.tipo || "nacional",
+          "Teléfono": c.phone || c.telefono || "-",
+          "Saldo Inicial": Number((c.baseDebt || c.saldoInicial || 0).toFixed(2)),
+          "Saldo Actual": Number((c.saldoActual || c.saldo || 0).toFixed(2))
+        };
+      });
+
+      // Hoja Químicos: Código P., Nombre del Producto, Categoría, Stock, Unidad, Costo Unit., Valor Total
+      const dataQuimicos = snapQuimicos.docs.map(docSnap => {
+        const q = docSnap.data();
+        const stock = Number(q.stock || q.cantidad || 0);
+        const cost = Number(q.cost || q.costoUnitario || 0);
+        const total = Number(q.valorTotal || (stock * cost));
+
+        return {
+          "Código P.": q.code || docSnap.id,
+          "Nombre del Producto": (q.name || q.nombre || "").toUpperCase(),
+          "Categoría": q.category || q.categoria || "Químicos",
+          "Stock": stock,
+          "Unidad": q.unit || q.unidad || "kg",
+          "Costo Unit.": Number(cost.toFixed(4)),
+          "Valor Total": Number(total.toFixed(2))
+        };
+      });
+
+      // 3. Crear Hoja Resumen General con Fórmulas
+      const wsResumen = utils.aoa_to_sheet([
+        ["RESUMEN GENERAL CONSOLIDADO - LDDEC"],
+        [],
+        ["Indicador", "Valor Consolidado", "Fórmula"],
+        ["Total Ingresos (Facturación)", 0, "=SUM(Ingresos!F2:F100000)"],
+        ["Total Liquidación Manualidades", 0, "=SUM(Manualidades!G2:G100000)"],
+        ["Total Salidas (Egresos)", 0, "=SUM(Salidas!E2:E100000)"],
+        [],
+        ["Balance Operativo (Neto)", 0, "=B4-B5-B6"]
+      ]);
+
+      // Insertar fórmulas reales en SheetJS
+      wsResumen["B4"] = { t: "n", f: "SUM(Ingresos!F2:F100000)" };
+      wsResumen["B5"] = { t: "n", f: "SUM(Manualidades!G2:G100000)" };
+      wsResumen["B6"] = { t: "n", f: "SUM(Salidas!E2:E100000)" };
+      wsResumen["B8"] = { t: "n", f: "B4-B5-B6" };
+
+      // 4. Crear Hojas Normales
+      const wsIngresos = utils.json_to_sheet(dataIngresos.length > 0 ? dataIngresos : [{}]);
+      const wsManualidades = utils.json_to_sheet(dataManualidades.length > 0 ? dataManualidades : [{}]);
+      const wsSalidas = utils.json_to_sheet(dataSalidas.length > 0 ? dataSalidas : [{}]);
+      const wsClientes = utils.json_to_sheet(dataClientes.length > 0 ? dataClientes : [{}]);
+      const wsQuimicos = utils.json_to_sheet(dataQuimicos.length > 0 ? dataQuimicos : [{}]);
+
+      // 5. Autoajuste de Ancho de Columnas para Mejor Diseño
+      const applyColumnWidths = (ws: any, dataRows: any[]) => {
+        if (!ws || dataRows.length === 0) return;
+        const keys = Object.keys(dataRows[0]);
+        ws["!cols"] = keys.map(key => {
+          let maxLen = key.toString().length;
+          dataRows.forEach(row => {
+            const val = row[key];
+            if (val !== undefined && val !== null) {
+              maxLen = Math.max(maxLen, val.toString().length);
             }
           });
-          return clean;
+          return { wch: maxLen + 4 };
         });
-        
-        const worksheet = utils.json_to_sheet(data.length > 0 ? data : [{ _empty: "No data" }]);
-        let sheetName = col.substring(0, 31);
-        utils.book_append_sheet(workbook, worksheet, sheetName);
-      }
+      };
 
-      writeFile(workbook, `LDDEC_EXCEL_${new Date().getTime()}.xlsx`);
-      toast({ title: "Excel exportado exitosamente" });
+      applyColumnWidths(wsIngresos, dataIngresos);
+      applyColumnWidths(wsManualidades, dataManualidades);
+      applyColumnWidths(wsSalidas, dataSalidas);
+      applyColumnWidths(wsClientes, dataClientes);
+      applyColumnWidths(wsQuimicos, dataQuimicos);
+
+      // Ancho para Resumen General
+      wsResumen["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 30 }];
+
+      // 6. Ensamblar en el Workbook
+      utils.book_append_sheet(workbook, wsResumen, "Resumen General");
+      utils.book_append_sheet(workbook, wsIngresos, "Ingresos");
+      utils.book_append_sheet(workbook, wsManualidades, "Manualidades");
+      utils.book_append_sheet(workbook, wsSalidas, "Salidas");
+      utils.book_append_sheet(workbook, wsClientes, "Clientes");
+      utils.book_append_sheet(workbook, wsQuimicos, "Químicos");
+
+      writeFile(workbook, `LDDEC_EXPORT_CONSOLIDADO_${new Date().getFullYear()}.xlsx`);
+      toast({ title: "Excel consolidado exportado exitosamente" });
     } catch (e) {
       console.error(e);
       toast({ variant: "destructive", title: "Error al exportar Excel" });
