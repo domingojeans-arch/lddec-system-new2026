@@ -161,11 +161,11 @@ export default function FaltantesPage() {
       unsubOutputs();
     };
   }, [selectedMonth, selectedYear]);
-
   const faltantesData = useMemo(() => {
     const results: any[] = [];
 
     entries.forEach(entry => {
+      (entry.lotes || []).forEach((lote: any) => {
         // Excluir si ya está marcado como resuelto de novedad o si es falla de lavado
         if (lote.isNoveltyResolved || lote.fallaLavado) {
           return;
