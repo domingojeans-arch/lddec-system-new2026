@@ -87,7 +87,7 @@ export default function DashboardPage() {
   // 1. PROTECCIÓN DE RUTA
   useEffect(() => {
     if (!authLoading && user) {
-      const allowedDashboardRoles = ["admin", "socio", "contador", "financiero", "facturacion"];
+      const allowedDashboardRoles = ["admin", "socio", "contador", "financiero", "facturacion", "colaboradora"];
       if (!allowedDashboardRoles.includes(user.role)) {
         if (user.role === 'operario_manualidades') router.replace('/manualidades');
         else if (user.role === 'produccion') router.replace('/produccion');
