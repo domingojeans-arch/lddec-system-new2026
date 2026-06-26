@@ -100,7 +100,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
   // Determinar reportes permitidos por rol
   const reportTypes = useMemo(() => {
     const role = user?.role || "socio";
-    if (role === "admin" || role === "contador" || role === "financiero" || role === "socio") return ALL_REPORT_TYPES;
+    if (role === "admin" || role === "contador" || role === "financiero" || role === "socio" || role === "colaboradora") return ALL_REPORT_TYPES;
     if (role === "bodega") return ["Resumen Operativo Mes a Mes", "Informe de Ingresos Detallado", "Informe de Salidas Detallado"];
     if (role === "bodega_quimicos") return ["Informe Detallado de Movimientos Químicos"];
     if (role === "facturacion") return ["Informe de Ingresos vs. Facturación", "Informe de Salidas Detallado", "Informe Detallado de Ventas (Libro de Ventas)"];

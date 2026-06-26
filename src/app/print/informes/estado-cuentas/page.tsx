@@ -117,7 +117,7 @@ function PrintContent() {
             }
 
             return {
-              name: formatClientName(client.name || `${client.firstName || ""} ${client.lastName || ""}`),
+              name: formatClientName(client.name, client.firstName, client.lastName),
               saldoAnterior: metrics.saldoAnterior,
               facturacion: metrics.facturacion,
               nd: metrics.nd,
