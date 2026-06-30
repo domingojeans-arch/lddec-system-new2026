@@ -13,13 +13,15 @@ import {
   Truck, 
   AlertCircle, 
   CreditCard,
-  Briefcase
+  Briefcase,
+  Edit
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
@@ -90,6 +92,16 @@ export default function AgendaPagosPage() {
   const [esRecurrente, setEsRecurrente] = useState(false);
   const [mesesRepetir, setMesesRepetir] = useState("12");
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit states
+  const [editingPayment, setEditingPayment] = useState<PendingPayment | null>(null);
+  const [editDetalle, setEditDetalle] = useState("");
+  const [editMonto, setEditMonto] = useState("");
+  const [editFechaPago, setEditFechaPago] = useState("");
+  const [editTipo, setEditTipo] = useState("Banco");
+  const [editNumeroCheque, setEditNumeroCheque] = useState("");
+  const [editBancoCheque, setEditBancoCheque] = useState("");
+  const [editEsRecurrente, setEditEsRecurrente] = useState(false);
 
   // 1. PROTECTION - Admin only
   useEffect(() => {
@@ -293,6 +305,55 @@ export default function AgendaPagosPage() {
       toast({
         title: "Error",
         description: "No se pudo eliminar el registro de la agenda.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // 5.2 EDIT PAYMENT HANDLERS
+  const handleStartEdit = (p: PendingPayment) => {
+    setEditingPayment(p);
+    setEditDetalle(p.detalle);
+    setEditMonto(String(p.monto));
+    setEditFechaPago(p.fechaPago);
+    setEditTipo(p.tipo || "Banco");
+    setEditNumeroCheque(p.numeroCheque || "");
+    setEditBancoCheque(p.bancoCheque || "");
+    setEditEsRecurrente(p.esRecurrente || false);
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db || !editingPayment) return;
+
+    try {
+      const updateData: any = {
+        detalle: editDetalle,
+        monto: Number(editMonto),
+        fechaPago: editFechaPago,
+        tipo: editTipo,
+        esRecurrente: editEsRecurrente,
+      };
+
+      if (editTipo === "Cheque") {
+        updateData.numeroCheque = editNumeroCheque;
+        updateData.bancoCheque = editBancoCheque;
+      } else {
+        updateData.numeroCheque = "";
+        updateData.bancoCheque = "";
+      }
+
+      await updateDoc(doc(db, "agenda_pagos", editingPayment.id), updateData);
+      toast({
+        title: "Pago Actualizado",
+        description: "El registro ha sido actualizado con éxito."
+      });
+      setEditingPayment(null);
+    } catch (error) {
+      console.error("Error al actualizar pago:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el registro.",
         variant: "destructive"
       });
     }
@@ -816,6 +877,15 @@ export default function AgendaPagosPage() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    onClick={() => handleStartEdit(p)}
+                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10 rounded-lg transition-colors"
+                                    title="Editar"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
                                     onClick={() => handleDelete(p.id)}
                                     className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 rounded-lg transition-colors"
                                     title="Eliminar"
@@ -930,6 +1000,125 @@ export default function AgendaPagosPage() {
         </Tabs>
         
       </div>
+
+      {/* DIALOGO DE EDICIÓN DE PAGO */}
+      <Dialog open={editingPayment !== null} onOpenChange={(open) => !open && setEditingPayment(null)}>
+        <DialogContent className="bg-card border border-border shadow-premium rounded-[2rem] max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-2">
+              <Edit className="h-4 w-4 text-primary" /> Editar Obligación Financiera
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleEditSave} className="space-y-5 mt-2">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Detalle del Pago</label>
+              <Input 
+                type="text" 
+                value={editDetalle} 
+                onChange={(e) => setEditDetalle(e.target.value)} 
+                required
+                className="bg-muted/30 border-border rounded-xl h-11 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Monto ($ USD)</label>
+                <Input 
+                  type="number" 
+                  step="0.01"
+                  value={editMonto} 
+                  onChange={(e) => setEditMonto(e.target.value)} 
+                  required
+                  placeholder="0.00"
+                  className="bg-muted/30 border-border rounded-xl h-11 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Fecha de Pago</label>
+                <Input 
+                  type="date" 
+                  value={editFechaPago} 
+                  onChange={(e) => setEditFechaPago(e.target.value)} 
+                  required
+                  className="bg-muted/30 border-border rounded-xl h-11 text-xs w-full"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Tipo de Pago</label>
+              <select
+                value={editTipo}
+                onChange={(e) => setEditTipo(e.target.value)}
+                className="w-full bg-muted/30 border border-border rounded-xl h-11 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
+              >
+                <option value="Banco">Banco / Transferencia</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Otros">Otros</option>
+              </select>
+            </div>
+
+            {editTipo === "Cheque" && (
+              <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Nº Cheque</label>
+                  <Input 
+                    type="text" 
+                    value={editNumeroCheque} 
+                    onChange={(e) => setEditNumeroCheque(e.target.value)} 
+                    placeholder="12345"
+                    className="bg-muted/30 border-border rounded-xl h-11 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Banco</label>
+                  <Input 
+                    type="text" 
+                    value={editBancoCheque} 
+                    onChange={(e) => setEditBancoCheque(e.target.value)} 
+                    placeholder="Ej. Pichincha"
+                    className="bg-muted/30 border-border rounded-xl h-11 text-xs"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="editEsRecurrente"
+                checked={editEsRecurrente}
+                onChange={(e) => setEditEsRecurrente(e.target.checked)}
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary bg-muted/30 animate-in duration-200"
+              />
+              <label htmlFor="editEsRecurrente" className="text-[10px] font-black uppercase text-foreground/80 tracking-widest cursor-pointer select-none">
+                ¿Es Obligación Recurrente?
+              </label>
+            </div>
+
+            <DialogFooter className="gap-2 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingPayment(null)}
+                className="text-[10px] font-black uppercase tracking-wider h-11 rounded-xl px-6 flex-1 sm:flex-none"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                className="text-[10px] font-black uppercase tracking-wider h-11 rounded-xl px-6 flex-1 sm:flex-none"
+              >
+                Guardar Cambios
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
