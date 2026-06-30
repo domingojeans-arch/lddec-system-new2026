@@ -443,8 +443,8 @@ export default function BancosPage() {
                     <Input 
                       placeholder="EJ: BCO. PICHINCHA - CORRIENTE" 
                       value={accForm.nombre} 
-                      onChange={e => setAccForm({...accForm, nombre: e.target.value.toUpperCase()})} 
-                      className="erp-input h-11 font-bold" 
+                      onChange={e => setAccForm({...accForm, nombre: e.target.value})} 
+                      className="erp-input h-11 font-bold uppercase" 
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -636,8 +636,8 @@ export default function BancosPage() {
                   <Input 
                     placeholder="CHQ-1234 / REF-..."
                     value={txForm.numeroDocumento}
-                    onChange={e => setTxForm({...txForm, numeroDocumento: e.target.value.toUpperCase()})}
-                    className="erp-input h-14 font-black text-center" 
+                    onChange={e => setTxForm({...txForm, numeroDocumento: e.target.value})}
+                    className="erp-input h-14 font-black text-center uppercase" 
                   />
                 </div>
               </div>
@@ -647,8 +647,8 @@ export default function BancosPage() {
                 <Input 
                   placeholder="MOTIVO DEL MOVIMIENTO BANCARIO..."
                   value={txForm.concepto}
-                  onChange={e => setTxForm({...txForm, concepto: e.target.value.toUpperCase()})}
-                  className="erp-input h-12 font-bold" 
+                  onChange={e => setTxForm({...txForm, concepto: e.target.value})}
+                  className="erp-input h-12 font-bold uppercase" 
                 />
               </div>
 
