@@ -139,18 +139,25 @@ export default function DashboardPage() {
     try {
       console.log("🚀 Iniciando recálculo global de métricas...");
       
-      const startOfPrevYear = new Date(currentYear - 1, 0, 1);
-      const startOfPrevYearTs = Timestamp.fromDate(startOfPrevYear);
+      // Obtener datos fijos del año anterior (2025) de la caché para no consultar colecciones transaccionales pasadas
+      const cacheRef = doc(db, "configuracion", "dashboard_cache");
+      const cacheSnap = await getDoc(cacheRef);
+      const currentCache = cacheSnap.exists() ? cacheSnap.data() : null;
+
+      const production2025Calculated = currentCache?.metrics?.production2025 || Array(12).fill(0);
+      const dispatches2025Calculated = currentCache?.metrics?.dispatches2025 || Array(12).fill(0);
+      const billing2025Calculated = currentCache?.metrics?.billing2025 || Array(12).fill(0);
+
       const startOfYear = new Date(currentYear, 0, 1);
       const startOfYearTs = Timestamp.fromDate(startOfYear);
 
-      // 1. Descarga Multicanal Filtrada (One-time fetch con where)
+      // 1. Descarga Multicanal Filtrada (Solo este año para optimizar costos de Firestore)
       const [entriesSnap, outputsSnap, legacySalidasSnap, legacyMuestrasSnap, invoicesSnap, paymentsSnap] = await Promise.all([
-        getDocs(query(collection(db, "entries"), where("date", ">=", startOfPrevYearTs))),
-        getDocs(query(collection(db, "outputs"), where("date", ">=", startOfPrevYearTs))),
-        getDocs(query(collection(db, "salidas"), where("fechaSalida", ">=", startOfPrevYearTs))),
-        getDocs(query(collection(db, "muestras"), where("fecha", ">=", startOfPrevYearTs))),
-        getDocs(query(collection(db, "facturas"), where("fechaFactura", ">=", startOfPrevYearTs))),
+        getDocs(query(collection(db, "entries"), where("date", ">=", startOfYearTs))),
+        getDocs(query(collection(db, "outputs"), where("date", ">=", startOfYearTs))),
+        getDocs(query(collection(db, "salidas"), where("fechaSalida", ">=", startOfYearTs))),
+        getDocs(query(collection(db, "muestras"), where("fecha", ">=", startOfYearTs))),
+        getDocs(query(collection(db, "facturas"), where("fechaFactura", ">=", startOfYearTs))),
         getDocs(collection(db, "payments"))
       ]);
 
@@ -462,7 +469,6 @@ export default function DashboardPage() {
 
       // 5. Cálculo de Ingresos Mensuales de Prendas (Producción)
       const production2026Calculated = Array(12).fill(0);
-      const production2025Calculated = Array(12).fill(0);
 
       entriesRaw.forEach(e => {
         const d = toDate(e.date || e.entryDate);
@@ -473,15 +479,12 @@ export default function DashboardPage() {
           
           if (year === currentYear) {
             production2026Calculated[monthIdx] += qty;
-          } else if (year === currentYear - 1) {
-            production2025Calculated[monthIdx] += qty;
           }
         }
       });
 
       // 5.2 Cálculo de Salidas Mensuales (Prendas Despachadas)
       const dispatches2026Calculated = Array(12).fill(0);
-      const dispatches2025Calculated = Array(12).fill(0);
 
       outputsRaw.forEach(o => {
         const d = toDate(o.date || o.fechaSalida || o.createdAt || o.fecha);
@@ -494,15 +497,12 @@ export default function DashboardPage() {
 
           if (year === currentYear) {
             dispatches2026Calculated[monthIdx] += qty;
-          } else if (year === currentYear - 1) {
-            dispatches2025Calculated[monthIdx] += qty;
           }
         }
       });
 
       // 5.3 Cálculo de Facturación Mensual en USD (Venta Emitida)
       const billing2026Calculated = Array(12).fill(0);
-      const billing2025Calculated = Array(12).fill(0);
 
       invoicesRaw.forEach(inv => {
         const d = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate);
@@ -513,8 +513,6 @@ export default function DashboardPage() {
 
           if (year === currentYear) {
             billing2026Calculated[monthIdx] += amount;
-          } else if (year === currentYear - 1) {
-            billing2025Calculated[monthIdx] += amount;
           }
         }
       });

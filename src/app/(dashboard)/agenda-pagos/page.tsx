@@ -32,7 +32,8 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  Timestamp 
+  Timestamp,
+  where
 } from "firebase/firestore";
 import { toDate } from "@/lib/toDate";
 import { Badge } from "@/components/ui/badge";
@@ -119,11 +120,18 @@ export default function AgendaPagosPage() {
     return () => unsubscribe();
   }, [user]);
 
-  // 2.2 FIRESTORE REALTIME SYNC FOR FACTURAS
+  // 2.2 FIRESTORE REALTIME SYNC FOR FACTURAS (SOLO ESTE AÑO)
   useEffect(() => {
     if (!db || !user || user.role !== "admin") return;
 
-    const q = query(collection(db, "facturas"));
+    const currentYear = new Date().getFullYear();
+    const startOfYear = new Date(currentYear, 0, 1);
+    const startOfYearTs = Timestamp.fromDate(startOfYear);
+
+    const q = query(
+      collection(db, "facturas"), 
+      where("fechaFactura", ">=", startOfYearTs)
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list: any[] = [];
       snapshot.forEach((doc) => {
