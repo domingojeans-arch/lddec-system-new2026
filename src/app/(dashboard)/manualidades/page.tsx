@@ -180,8 +180,9 @@ export default function ManualidadesPage() {
       );
       
       const dupSnap = await getDocs(qDup);
+      const activeDuplicates = dupSnap.docs.filter(docSnap => docSnap.data()?.estado !== "rechazado");
 
-      if (!dupSnap.empty) {
+      if (activeDuplicates.length > 0) {
         toast({ 
           variant: "destructive", 
           title: "Error: Este registro ya existe exactamente igual para este operario." 

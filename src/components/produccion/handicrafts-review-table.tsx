@@ -245,10 +245,10 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
                               </Button>
                             </div>
                           )}
-                          {(user?.displayName === 'EDGAR ADMIN' || user?.email === 'ugeofly@hotmail.com' || process.env.NODE_ENV === 'development') && (
+                          {canFullEdit && (
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => handleOpenEditDialog(work)}><Edit3 className="h-3.5 w-3.5" /></Button>
                           )}
-                          {onDelete && (user?.displayName === 'EDGAR ADMIN' || user?.email === 'ugeofly@hotmail.com' || process.env.NODE_ENV === 'development') && (
+                          {onDelete && canFullEdit && (
                             <Button 
                               variant="ghost" 
                               size="icon" 
