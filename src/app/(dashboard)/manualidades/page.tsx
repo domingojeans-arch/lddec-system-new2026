@@ -159,6 +159,10 @@ export default function ManualidadesPage() {
 
   const handleFinalSave = async () => {
     try {
+      if (!formData.operarioNombre) {
+        toast({ variant: "destructive", title: "Error", description: "Debe seleccionar un operario." });
+        return;
+      }
       const loteFormatted = formData.loteNumero.toUpperCase().trim();
       const operarioFormatted = formData.operarioNombre.toUpperCase().trim();
       const procesoFormatted = formData.proceso.toUpperCase().trim();
@@ -263,7 +267,7 @@ export default function ManualidadesPage() {
           {!isReadOnly && (
             <>
               <Button onClick={() => setFormData({...formData, loteNumero: "", cantidad: "", clienteId: "", clienteNombre: ""})} variant="outline" className="h-14 px-12 rounded-2xl font-black uppercase text-xs">LIMPIAR</Button>
-              <Button onClick={() => setReverseShowConfirm(true)} disabled={!formData.clienteId || !formData.proceso || !formData.cantidad} className="h-14 bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase px-14 rounded-2xl shadow-xl shadow-primary/20">GUARDAR TRABAJO</Button>
+              <Button onClick={() => setReverseShowConfirm(true)} disabled={!formData.operarioNombre || !formData.clienteId || !formData.proceso || !formData.cantidad} className="h-14 bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase px-14 rounded-2xl shadow-xl shadow-primary/20">GUARDAR TRABAJO</Button>
             </>
           )}
         </div>
