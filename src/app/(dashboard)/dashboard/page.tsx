@@ -55,6 +55,10 @@ interface CachedDashboardStats {
     collectionStats: any[];
     production2026?: number[];
     production2025?: number[];
+    dispatches2026?: number[];
+    dispatches2025?: number[];
+    billing2026?: number[];
+    billing2025?: number[];
   };
   charts: {
     topClients: any[];
@@ -143,10 +147,10 @@ export default function DashboardPage() {
       // 1. Descarga Multicanal Filtrada (One-time fetch con where)
       const [entriesSnap, outputsSnap, legacySalidasSnap, legacyMuestrasSnap, invoicesSnap, paymentsSnap] = await Promise.all([
         getDocs(query(collection(db, "entries"), where("date", ">=", startOfPrevYearTs))),
-        getDocs(query(collection(db, "outputs"), where("date", ">=", startOfYearTs))),
-        getDocs(query(collection(db, "salidas"), where("fechaSalida", ">=", startOfYearTs))),
-        getDocs(query(collection(db, "muestras"), where("fecha", ">=", startOfYearTs))),
-        getDocs(query(collection(db, "facturas"), where("fechaFactura", ">=", startOfYearTs))),
+        getDocs(query(collection(db, "outputs"), where("date", ">=", startOfPrevYearTs))),
+        getDocs(query(collection(db, "salidas"), where("fechaSalida", ">=", startOfPrevYearTs))),
+        getDocs(query(collection(db, "muestras"), where("fecha", ">=", startOfPrevYearTs))),
+        getDocs(query(collection(db, "facturas"), where("fechaFactura", ">=", startOfPrevYearTs))),
         getDocs(collection(db, "payments"))
       ]);
 
@@ -475,6 +479,46 @@ export default function DashboardPage() {
         }
       });
 
+      // 5.2 Cálculo de Salidas Mensuales (Prendas Despachadas)
+      const dispatches2026Calculated = Array(12).fill(0);
+      const dispatches2025Calculated = Array(12).fill(0);
+
+      outputsRaw.forEach(o => {
+        const d = toDate(o.date || o.fechaSalida || o.createdAt || o.fecha);
+        if (d) {
+          const year = d.getFullYear();
+          const monthIdx = d.getMonth();
+          const qty = Array.isArray(o.itemsDispatched) 
+            ? o.itemsDispatched.reduce((itAcc: number, it: any) => itAcc + (Number(it.quantityToDispatch || it.quantity || 0)), 0)
+            : Number(o.totalPrendas || o.total || 0);
+
+          if (year === currentYear) {
+            dispatches2026Calculated[monthIdx] += qty;
+          } else if (year === currentYear - 1) {
+            dispatches2025Calculated[monthIdx] += qty;
+          }
+        }
+      });
+
+      // 5.3 Cálculo de Facturación Mensual en USD (Venta Emitida)
+      const billing2026Calculated = Array(12).fill(0);
+      const billing2025Calculated = Array(12).fill(0);
+
+      invoicesRaw.forEach(inv => {
+        const d = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate);
+        if (d) {
+          const year = d.getFullYear();
+          const monthIdx = d.getMonth();
+          const amount = Number(inv.totalFactura || inv.total || 0);
+
+          if (year === currentYear) {
+            billing2026Calculated[monthIdx] += amount;
+          } else if (year === currentYear - 1) {
+            billing2025Calculated[monthIdx] += amount;
+          }
+        }
+      });
+
       // 6. Consolidación de Cache
       const newStats: CachedDashboardStats = {
         metrics: {
@@ -485,7 +529,11 @@ export default function DashboardPage() {
           sampleStats: getMonthlyStats(true),
           collectionStats: getCollectionMonthlyStats(),
           production2026: production2026Calculated,
-          production2025: production2025Calculated
+          production2025: production2025Calculated,
+          dispatches2026: dispatches2026Calculated,
+          dispatches2025: dispatches2025Calculated,
+          billing2026: billing2026Calculated,
+          billing2025: billing2025Calculated
         },
         charts: { topClients, topGarments },
         lastUpdate: new Date(),
@@ -533,6 +581,36 @@ export default function DashboardPage() {
     name: name.substring(0, 3).toUpperCase(),
     [String(currentYear - 1)]: production2025[idx],
     [String(currentYear)]: production2026[idx],
+  }));
+
+  // Métricas comparativas de Salidas
+  const dispatches2026 = stats?.metrics?.dispatches2026 || Array(12).fill(0);
+  const dispatches2025 = stats?.metrics?.dispatches2025 || Array(12).fill(0);
+  const currentDispatches2026 = dispatches2026[selectedMonthIdx] || 0;
+  const currentDispatches2025 = dispatches2025[selectedMonthIdx] || 0;
+  const dispatchesGrowthPct = currentDispatches2025 > 0 
+    ? ((currentDispatches2026 - currentDispatches2025) / currentDispatches2025) * 100 
+    : 0;
+
+  const comparisonDispatchesChartData = MONTH_NAMES.map((name, idx) => ({
+    name: name.substring(0, 3).toUpperCase(),
+    [String(currentYear - 1)]: dispatches2025[idx],
+    [String(currentYear)]: dispatches2026[idx],
+  }));
+
+  // Métricas comparativas de Facturación USD
+  const billing2026 = stats?.metrics?.billing2026 || Array(12).fill(0);
+  const billing2025 = stats?.metrics?.billing2025 || Array(12).fill(0);
+  const currentBilling2026 = billing2026[selectedMonthIdx] || 0;
+  const currentBilling2025 = billing2025[selectedMonthIdx] || 0;
+  const billingGrowthPct = currentBilling2025 > 0 
+    ? ((currentBilling2026 - currentBilling2025) / currentBilling2025) * 100 
+    : 0;
+
+  const comparisonBillingChartData = MONTH_NAMES.map((name, idx) => ({
+    name: name.substring(0, 3).toUpperCase(),
+    [String(currentYear - 1)]: billing2025[idx],
+    [String(currentYear)]: billing2026[idx],
   }));
 
   return (
@@ -805,6 +883,220 @@ export default function DashboardPage() {
                     />
                     <Bar dataKey={String(currentYear - 1)} fill="hsl(var(--muted-foreground)/0.4)" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear - 1} (Fijo)`} />
                     <Bar dataKey={String(currentYear)} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear} (Real)`} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* NUEVO COMPARATIVO DE SALIDAS ANUALES (2025 vs 2026) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-1 flex flex-col justify-between group hover:border-primary/30 transition-all">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600">
+                      {dispatchesGrowthPct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    </div>
+                    <span>Crecimiento de Despachos</span>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-10 pb-10 flex-1 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Mes Equivalente
+                  </div>
+                  <h4 className="text-xl font-bold uppercase text-foreground">
+                    {currentMonthName} {currentYear} vs {currentYear - 1}
+                  </h4>
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Salidas {currentYear}</span>
+                      <p className="text-2xl font-black text-emerald-600 tracking-tight">
+                        {currentDispatches2026.toLocaleString('es-EC')} <span className="text-sm font-normal text-muted-foreground">unds</span>
+                      </p>
+                    </div>
+                    <div className="space-y-1 border-l border-border pl-4">
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Salidas {currentYear - 1}</span>
+                      <p className="text-2xl font-black text-muted-foreground/80 tracking-tight">
+                        {currentDispatches2025.toLocaleString('es-EC')} <span className="text-sm font-normal text-muted-foreground">unds</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tasa de Crecimiento</span>
+                    <span className={`text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1 ${dispatchesGrowthPct >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                      {dispatchesGrowthPct >= 0 ? "+" : ""}{dispatchesGrowthPct.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="relative pt-1">
+                    <div className="overflow-hidden h-3 text-xs flex rounded-full bg-muted">
+                      {dispatchesGrowthPct >= 0 ? (
+                        <>
+                          <div style={{ width: '50%' }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted-foreground/10"></div>
+                          <div style={{ width: `${Math.min(50, dispatchesGrowthPct)}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-emerald-500 transition-all"></div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ width: `${Math.max(0, 50 - Math.abs(dispatchesGrowthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted"></div>
+                          <div style={{ width: `${Math.min(50, Math.abs(dispatchesGrowthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-rose-500 transition-all"></div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground mt-1 tracking-widest">
+                      <span>-50%</span>
+                      <span>0% (Paridad)</span>
+                      <span>+50%</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Gráfico de Comparación Anual Salidas */}
+            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-2 group hover:border-primary/30 transition-all">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
+                  <div className="h-8 w-8 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-600">
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                  Comparativo de Despacho de Prendas Mensual
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="h-[300px] px-10 pb-10">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparisonDispatchesChartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }}
+                      tickFormatter={(val) => val >= 1000 ? `${(val / 1000)}k` : val}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '16px', color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '12px' }}
+                      formatter={(value: any) => [`${Number(value).toLocaleString('es-EC')} prendas`, '']}
+                    />
+                    <Bar dataKey={String(currentYear - 1)} fill="hsl(var(--muted-foreground)/0.4)" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear - 1} (Fijo)`} />
+                    <Bar dataKey={String(currentYear)} fill="hsl(var(--emerald-500))" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear} (Real)`} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* NUEVO COMPARATIVO DE FACTURACIÓN USD ANUAL (2025 vs 2026) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-1 flex flex-col justify-between group hover:border-primary/30 transition-all">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-600">
+                      {billingGrowthPct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    </div>
+                    <span>Crecimiento de Facturación USD</span>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-10 pb-10 flex-1 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Mes Equivalente
+                  </div>
+                  <h4 className="text-xl font-bold uppercase text-foreground">
+                    {currentMonthName} {currentYear} vs {currentYear - 1}
+                  </h4>
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Facturado {currentYear}</span>
+                      <p className="text-2xl font-black text-blue-600 tracking-tight">
+                        ${currentBilling2026.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div className="space-y-1 border-l border-border pl-4">
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Facturado {currentYear - 1}</span>
+                      <p className="text-2xl font-black text-muted-foreground/80 tracking-tight">
+                        ${currentBilling2025.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tasa de Crecimiento</span>
+                    <span className={`text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1 ${billingGrowthPct >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                      {billingGrowthPct >= 0 ? "+" : ""}{billingGrowthPct.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="relative pt-1">
+                    <div className="overflow-hidden h-3 text-xs flex rounded-full bg-muted">
+                      {billingGrowthPct >= 0 ? (
+                        <>
+                          <div style={{ width: '50%' }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted-foreground/10"></div>
+                          <div style={{ width: `${Math.min(50, billingGrowthPct)}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-emerald-500 transition-all"></div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ width: `${Math.max(0, 50 - Math.abs(billingGrowthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted"></div>
+                          <div style={{ width: `${Math.min(50, Math.abs(billingGrowthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-rose-500 transition-all"></div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground mt-1 tracking-widest">
+                      <span>-50%</span>
+                      <span>0% (Paridad)</span>
+                      <span>+50%</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Gráfico de Comparación Anual Facturación USD */}
+            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-2 group hover:border-primary/30 transition-all">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
+                  <div className="h-8 w-8 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-600">
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                  Comparativo de Facturación Mensual (USD)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="h-[300px] px-10 pb-10">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparisonBillingChartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }}
+                      tickFormatter={(val) => val >= 1000 ? `${(val / 1000)}k` : val}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '16px', color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '12px' }}
+                      formatter={(value: any) => [`$${Number(value).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, '']}
+                    />
+                    <Bar dataKey={String(currentYear - 1)} fill="hsl(var(--muted-foreground)/0.4)" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear - 1} (Fijo)`} />
+                    <Bar dataKey={String(currentYear)} fill="hsl(var(--blue-500))" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear} (Real)`} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
