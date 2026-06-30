@@ -19,6 +19,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
@@ -58,6 +59,7 @@ export default function AgendaPagosPage() {
   const router = useRouter();
 
   const [payments, setPayments] = useState<PendingPayment[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   const todayStr = useMemo(() => {
@@ -116,6 +118,56 @@ export default function AgendaPagosPage() {
 
     return () => unsubscribe();
   }, [user]);
+
+  // 2.2 FIRESTORE REALTIME SYNC FOR FACTURAS
+  useEffect(() => {
+    if (!db || !user || user.role !== "admin") return;
+
+    const q = query(collection(db, "facturas"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.estadoCobranza !== "Pagada" && data.estadoCobranza !== "ANULADA") {
+          list.push({ id: doc.id, ...data });
+        }
+      });
+      setInvoices(list);
+    }, (error) => {
+      console.error("Error cargando facturas:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const overdueInvoices = useMemo(() => {
+    const today = new Date();
+    return invoices.map(inv => {
+      const d = toDate(inv.fechaFactura || inv.createdAt || Date.now());
+      const fechaVencimiento = new Date(d ? d.getTime() : Date.now());
+      const diasCredito = Number(inv.diasCredito || 0);
+      fechaVencimiento.setDate(fechaVencimiento.getDate() + diasCredito);
+      
+      const total = Number(inv.totalFactura || inv.total || 0);
+      const pagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : [];
+      const abonado = pagos.reduce((acc: number, p: any) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0)), 0);
+      const saldo = Math.max(0, total - abonado);
+
+      // Calcular días vencidos (hoy - vencimiento)
+      const diffTime = today.getTime() - fechaVencimiento.getTime();
+      const diasVencidos = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      return {
+        ...inv,
+        fechaVencimientoStr: format(fechaVencimiento, "yyyy-MM-dd"),
+        diasCredito,
+        saldo,
+        diasVencidos: Math.max(0, diasVencidos),
+        isOverdue: fechaVencimiento < today && saldo > 0.01
+      };
+    }).filter(inv => inv.isOverdue)
+      .sort((a, b) => b.diasVencidos - a.diasVencidos); // Mostrar las más vencidas primero
+  }, [invoices]);
 
   // 3. ADD PAYMENT
   const handleSubmit = async (e: React.FormEvent) => {
@@ -609,155 +661,265 @@ export default function AgendaPagosPage() {
         </Card>
         </div>
 
-        {/* LIST / TABLE PANEL */}
-        <Card className="bg-card border-border shadow-premium rounded-[2rem] overflow-hidden lg:col-span-2">
-          <CardHeader className="px-8 pt-8 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground">
-                Listado de Obligaciones Financieras
-              </CardTitle>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">
-                {showAllPayments ? "Mostrando todas las obligaciones" : `Filtrado por fecha: ${selectedDate}`}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={showAllPayments ? "default" : "outline"}
-                size="sm"
-                onClick={() => setShowAllPayments(!showAllPayments)}
-                className="text-[9px] font-black uppercase tracking-wider h-8 rounded-xl px-3"
-              >
-                {showAllPayments ? "Ver Filtrado" : "Ver Todos"}
-              </Button>
-              <Badge className="bg-muted text-muted-foreground border-none font-bold uppercase text-[9px] px-3 h-8 rounded-xl flex items-center justify-center">
-                {displayedPayments.length} / {payments.length} Registros
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="px-8 pb-8">
-            {displayedPayments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 border border-dashed border-border rounded-3xl">
-                <AlertCircle className="h-12 w-12 text-muted-foreground/30" />
+        <Tabs defaultValue="obligaciones" className="lg:col-span-2 space-y-6">
+          <TabsList className="bg-card border border-border p-1 h-12 w-fit rounded-xl gap-2">
+            <TabsTrigger value="obligaciones" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
+              <CreditCard className="h-3.5 w-3.5" /> Obligaciones de Pago
+            </TabsTrigger>
+            <TabsTrigger value="vencidas" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
+              <Receipt className="h-3.5 w-3.5 text-rose-500" /> Facturas Vencidas de Cobro
+              {overdueInvoices.length > 0 && (
+                <Badge className="ml-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full px-2 py-0.5 text-[8px] font-black border-none">
+                  {overdueInvoices.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="obligaciones" className="m-0 outline-none">
+            <Card className="bg-card border-border shadow-premium rounded-[2rem] overflow-hidden">
+              <CardHeader className="px-8 pt-8 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h4 className="text-xs font-black uppercase text-foreground">
-                    {payments.length === 0 ? "Agenda Vacía" : "Sin Obligaciones este Día"}
-                  </h4>
-                  <p className="text-[10px] text-muted-foreground mt-1 max-w-[240px]">
-                    {payments.length === 0 
-                      ? "No se registran obligaciones pendientes en este momento." 
-                      : `No hay obligaciones agendadas para el ${selectedDate}.`}
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground">
+                    Listado de Obligaciones Financieras
+                  </CardTitle>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">
+                    {showAllPayments ? "Mostrando todas las obligaciones" : `Filtrado por fecha: ${selectedDate}`}
                   </p>
                 </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b border-border/80 text-[9px] font-black uppercase text-muted-foreground tracking-widest text-left">
-                      <th className="pb-4 pr-4">Categoría</th>
-                      <th className="pb-4 pr-4">Detalle</th>
-                      <th className="pb-4 pr-4">Fecha Pago</th>
-                      <th className="pb-4 pr-4 text-right">Monto</th>
-                      <th className="pb-4 pr-4 text-center">Estado</th>
-                      <th className="pb-4 text-center">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedPayments.map((p) => {
-                      const cat = getCategoryDetails(p.tipo);
-                      const IconComponent = cat.icon;
-                      const isExpired = p.estado === "Pendiente" && new Date(p.fechaPago + "T23:59:59") < new Date();
-
-                      return (
-                        <tr key={p.id} className="border-b border-border/40 hover:bg-muted/10 transition-colors">
-                          <td className="py-4 pr-4">
-                            <div className="flex items-center gap-2.5">
-                              <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${cat.color}`}>
-                                <IconComponent className="h-4 w-4" />
-                              </div>
-                              <span className="text-[10px] font-black uppercase tracking-wider text-foreground">{p.tipo}</span>
-                            </div>
-                          </td>
-                          <td className="py-4 pr-4">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-foreground">{p.detalle}</span>
-                                {p.esRecurrente && (
-                                  <Badge className="bg-primary/20 text-primary border border-primary/30 font-bold uppercase text-[7px] px-1.5 py-0.5 rounded-md">
-                                    Recurrente
-                                  </Badge>
-                                )}
-                              </div>
-                              {p.tipo === "Cheque" && p.numeroCheque && (
-                                <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
-                                  <span>Chq: {p.numeroCheque}</span>
-                                  <span className="opacity-50">|</span>
-                                  <span>Bco: {p.bancoCheque || "S/D"}</span>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 pr-4">
-                            <div className="space-y-0.5">
-                              <span className={`text-xs font-bold ${isExpired ? 'text-rose-500' : 'text-foreground/80'}`}>
-                                {p.fechaPago}
-                              </span>
-                              {isExpired && (
-                                <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest">
-                                  Vencido
-                                </p>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 pr-4 text-right">
-                            <span className="text-xs font-black text-foreground">
-                              ${p.monto.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </td>
-                          <td className="py-4 pr-4 text-center">
-                            <Badge 
-                              className={`border-none font-bold uppercase text-[9px] px-3.5 py-1 rounded-full ${
-                                p.estado === "Pagado" 
-                                  ? "bg-emerald-500/10 text-emerald-600" 
-                                  : "bg-amber-500/10 text-amber-600"
-                              }`}
-                            >
-                              {p.estado}
-                            </Badge>
-                          </td>
-                          <td className="py-4 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              {p.estado === "Pendiente" && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleMarkAsPaid(p.id)}
-                                  className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg transition-colors"
-                                  title="Marcar como Pagado"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleDelete(p.id)}
-                                className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 rounded-lg transition-colors"
-                                title="Eliminar"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </td>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant={showAllPayments ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowAllPayments(!showAllPayments)}
+                    className="text-[9px] font-black uppercase tracking-wider h-8 rounded-xl px-3"
+                  >
+                    {showAllPayments ? "Ver Filtrado" : "Ver Todos"}
+                  </Button>
+                  <Badge className="bg-muted text-muted-foreground border-none font-bold uppercase text-[9px] px-3 h-8 rounded-xl flex items-center justify-center">
+                    {displayedPayments.length} / {payments.length} Registros
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="px-8 pb-8">
+                {displayedPayments.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 border border-dashed border-border rounded-3xl">
+                    <AlertCircle className="h-12 w-12 text-muted-foreground/30" />
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-foreground">
+                        {payments.length === 0 ? "Agenda Vacía" : "Sin Obligaciones este Día"}
+                      </h4>
+                      <p className="text-[10px] text-muted-foreground mt-1 max-w-[240px]">
+                        {payments.length === 0 
+                          ? "No se registran obligaciones pendientes in este momento." 
+                          : `No hay obligaciones agendadas para el ${selectedDate}.`}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-border/80 text-[9px] font-black uppercase text-muted-foreground tracking-widest text-left">
+                          <th className="pb-4 pr-4">Categoría</th>
+                          <th className="pb-4 pr-4">Detalle</th>
+                          <th className="pb-4 pr-4">Fecha Pago</th>
+                          <th className="pb-4 pr-4 text-right">Monto</th>
+                          <th className="pb-4 pr-4 text-center">Estado</th>
+                          <th className="pb-4 text-center">Acciones</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                      </thead>
+                      <tbody>
+                        {displayedPayments.map((p) => {
+                          const cat = getCategoryDetails(p.tipo);
+                          const IconComponent = cat.icon;
+                          const isExpired = p.estado === "Pendiente" && new Date(p.fechaPago + "T23:59:59") < new Date();
+
+                          return (
+                            <tr key={p.id} className="border-b border-border/40 hover:bg-muted/10 transition-colors">
+                              <td className="py-4 pr-4">
+                                <div className="flex items-center gap-2.5">
+                                  <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${cat.color}`}>
+                                    <IconComponent className="h-4 w-4" />
+                                  </div>
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-foreground">{p.tipo}</span>
+                                </div>
+                              </td>
+                              <td className="py-4 pr-4">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold text-foreground">{p.detalle}</span>
+                                    {p.esRecurrente && (
+                                      <Badge className="bg-primary/20 text-primary border border-primary/30 font-bold uppercase text-[7px] px-1.5 py-0.5 rounded-md">
+                                        Recurrente
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  {p.tipo === "Cheque" && p.numeroCheque && (
+                                    <div className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
+                                      <span>Chq: {p.numeroCheque}</span>
+                                      <span className="opacity-50">|</span>
+                                      <span>Bco: {p.bancoCheque || "S/D"}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-4 pr-4">
+                                <div className="space-y-0.5">
+                                  <span className={`text-xs font-bold ${isExpired ? 'text-rose-500' : 'text-foreground/80'}`}>
+                                    {p.fechaPago}
+                                  </span>
+                                  {isExpired && (
+                                    <p className="text-[8px] font-black text-rose-500 uppercase tracking-widest">
+                                      Vencido
+                                    </p>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-4 pr-4 text-right">
+                                  <span className="text-xs font-black text-foreground">
+                                    ${p.monto.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                              </td>
+                              <td className="py-4 pr-4 text-center">
+                                <Badge 
+                                  className={`border-none font-bold uppercase text-[9px] px-3.5 py-1 rounded-full ${
+                                    p.estado === "Pagado" 
+                                      ? "bg-emerald-500/10 text-emerald-600" 
+                                      : "bg-amber-500/10 text-amber-600"
+                                  }`}
+                                >
+                                  {p.estado}
+                                </Badge>
+                              </td>
+                              <td className="py-4 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  {p.estado === "Pendiente" && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleMarkAsPaid(p.id)}
+                                      className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                                      title="Marcar como Pagado"
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDelete(p.id)}
+                                    className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                    title="Eliminar"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="vencidas" className="m-0 outline-none animate-in fade-in duration-500">
+            <Card className="bg-card border-border shadow-premium rounded-[2rem] overflow-hidden">
+              <CardHeader className="px-8 pt-8 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-2">
+                    <Receipt className="h-5 w-5 text-rose-500 animate-pulse" /> Facturas Vencidas de Cobro
+                  </CardTitle>
+                  <p className="text-[9px] font-bold text-muted-foreground uppercase mt-1">
+                    Cuentas por cobrar cuyo plazo de crédito de días ya ha expirado
+                  </p>
+                </div>
+                <Badge className="bg-rose-500/10 text-rose-600 border-none font-bold uppercase text-[9px] px-3 h-8 rounded-xl flex items-center justify-center">
+                  {overdueInvoices.length} Facturas Vencidas
+                </Badge>
+              </CardHeader>
+              <CardContent className="px-8 pb-8">
+                {overdueInvoices.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 border border-dashed border-border rounded-3xl">
+                    <CheckCircle className="h-12 w-12 text-emerald-500/30" />
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-foreground">Al Día</h4>
+                      <p className="text-[10px] text-muted-foreground mt-1 max-w-[240px]">
+                        No existen facturas vencidas por cobrar en este momento.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-border/80 text-[9px] font-black uppercase text-muted-foreground tracking-widest text-left">
+                          <th className="pb-4 pr-4">Nº Factura</th>
+                          <th className="pb-4 pr-4">Cliente</th>
+                          <th className="pb-4 pr-4">Emisión</th>
+                          <th className="pb-4 pr-4 text-center">Plazo Crédito</th>
+                          <th className="pb-4 pr-4">Vencimiento</th>
+                          <th className="pb-4 pr-4 text-center">Días Vencidos</th>
+                          <th className="pb-4 pr-4 text-right">Total Factura</th>
+                          <th className="pb-4 text-right">Saldo Pendiente</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overdueInvoices.map((inv) => {
+                          const dateObj = toDate(inv.fechaFactura || inv.createdAt);
+                          const formattedEmision = dateObj ? format(dateObj, "yyyy-MM-dd") : "S/F";
+
+                          return (
+                            <tr key={inv.id} className="border-b border-border/40 hover:bg-muted/10 transition-colors">
+                              <td className="py-4 pr-4 font-black text-xs text-primary uppercase">
+                                {inv.numeroFactura || inv.id}
+                              </td>
+                              <td className="py-4 pr-4">
+                                <span className="text-xs font-semibold text-foreground uppercase">
+                                  {inv.clientName || inv.clienteNombre || "Cliente"}
+                                </span>
+                              </td>
+                              <td className="py-4 pr-4">
+                                <span className="text-xs text-muted-foreground">{formattedEmision}</span>
+                              </td>
+                              <td className="py-4 pr-4 text-center">
+                                <Badge variant="outline" className="text-[9px] font-bold border-muted text-muted-foreground px-2 py-0.5 rounded-md">
+                                  {inv.diasCredito || 0} días
+                                </Badge>
+                              </td>
+                              <td className="py-4 pr-4">
+                                <span className="text-xs font-bold text-rose-500">{inv.fechaVencimientoStr}</span>
+                              </td>
+                              <td className="py-4 pr-4 text-center">
+                                <span className="text-xs font-black text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-md">
+                                  {inv.diasVencidos} días
+                                </span>
+                              </td>
+                              <td className="py-4 pr-4 text-right">
+                                <span className="text-xs text-muted-foreground">
+                                  ${inv.totalFactura.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </td>
+                              <td className="py-4 text-right">
+                                <span className="text-xs font-black text-rose-600">
+                                  ${inv.saldo.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
         
       </div>
     </div>
