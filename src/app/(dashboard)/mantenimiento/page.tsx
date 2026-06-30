@@ -168,6 +168,7 @@ export default function MantenimientoPage() {
   // UI Control
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [isNewManualidadDialogOpen, setIsNewManualidadDialogOpen] = useState(false);
 
   // --- MOTOR DE CARGA (getDocs) ---
   const loadUsers = async () => {
@@ -314,6 +315,22 @@ export default function MantenimientoPage() {
       loadCatalogoManualidades();
       toast({ title: "Manualidad agregada al catálogo" });
     } catch (e) { toast({ variant: "destructive", title: "Error al guardar" }); }
+  };
+
+  const handleAddManualidadFromDialog = async () => {
+    if (!newManualidad.trim()) return;
+    const name = newManualidad.toUpperCase().trim();
+    const id = name.replace(/\//g, '-');
+    try {
+      await setDoc(doc(db, "catalogo_manualidades", id), { name, active: true, createdAt: serverTimestamp() });
+      setNewManualidad("");
+      setIsNewManualidadDialogOpen(false);
+      await loadCatalogoManualidades();
+      setTariffForm(prev => ({ ...prev, manualidad: name }));
+      toast({ title: "Manualidad agregada y seleccionada" });
+    } catch (e) { 
+      toast({ variant: "destructive", title: "Error al guardar" }); 
+    }
   };
 
   const handleAddWorker = async () => {
@@ -850,7 +867,18 @@ export default function MantenimientoPage() {
               <div className="bg-muted/20 p-6 rounded-[2rem] border border-border space-y-4">
                 <div className="grid grid-cols-1 gap-4">
                   <div className="space-y-1.5">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Manualidad</Label>
+                    <div className="flex justify-between items-center mr-1">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Manualidad</Label>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setIsNewManualidadDialogOpen(true)}
+                        className="h-6 px-2 rounded-lg text-[9px] font-black uppercase tracking-wider text-primary hover:bg-primary/5 flex items-center gap-1"
+                      >
+                        <Plus className="h-3 w-3" /> Agregar Nueva
+                      </Button>
+                    </div>
                     <Select value={tariffForm.manualidad} onValueChange={v => setTariffForm({...tariffForm, manualidad: v})}>
                       <SelectTrigger className="erp-input h-10 font-bold text-xs"><SelectValue placeholder="Seleccione..." /></SelectTrigger>
                       <SelectContent className="rounded-xl">
@@ -972,6 +1000,39 @@ export default function MantenimientoPage() {
               </Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para Agregar Nueva Manualidad desde el Tarifario */}
+      <Dialog open={isNewManualidadDialogOpen} onOpenChange={setIsNewManualidadDialogOpen}>
+        <DialogContent className="sm:max-w-[400px] bg-card border-border rounded-[2rem] p-6 shadow-2xl z-[9999]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-black uppercase tracking-tight text-foreground flex items-center gap-2">
+              <Plus className="h-5 w-5 text-primary" /> Nueva Manualidad
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground">
+              Registra el nombre de una nueva manualidad en el catálogo maestro para poder asignarle tarifas.
+            </p>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground">Nombre de la Manualidad</Label>
+              <Input 
+                placeholder="Ej: COSTURA DE BOTÓN" 
+                value={newManualidad} 
+                onChange={e => setNewManualidad(e.target.value)} 
+                className="erp-input h-10 font-bold uppercase text-xs" 
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" className="h-10 text-xs font-bold rounded-xl" onClick={() => setIsNewManualidadDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button className="bg-primary hover:bg-primary/90 text-white h-10 text-xs font-black uppercase rounded-xl shadow-lg" onClick={handleAddManualidadFromDialog} disabled={!newManualidad.trim()}>
+              Agregar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
