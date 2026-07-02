@@ -94,7 +94,8 @@ import {
   setDoc,
   updateDoc,
   addDoc,
-  deleteDoc
+  deleteDoc,
+  getCountFromServer
 } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid, startOfMonth, endOfMonth } from "date-fns";
@@ -291,28 +292,43 @@ export default function ChemicalInventoryPage() {
         }
         const prevKey = `${prevYear}-${prevMonth}`;
 
+        // 1. Verificar si necesitamos consultar el mes anterior
+        const needPrevMonthQuery = chemicals.some(chem => {
+          const saldos = chem.saldosIniciales || {};
+          return saldos[curKey] === undefined && saldos[prevKey] !== undefined;
+        });
+
+        let prevMonthKardexByChem: Record<string, any[]> = {};
+        if (needPrevMonthQuery) {
+          const prevDate = new Date(prevYear, prevMonth, 1);
+          const pStart = Timestamp.fromDate(startOfMonth(prevDate));
+          const pEnd = Timestamp.fromDate(endOfMonth(prevDate));
+
+          const qPrev = query(
+            collection(db, "quimicos_kardex"),
+            where("fecha", ">=", pStart),
+            where("fecha", "<=", pEnd)
+          );
+          const pSnap = await getDocs(qPrev);
+          pSnap.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            const chemId = data.chemicalId;
+            if (chemId) {
+              if (!prevMonthKardexByChem[chemId]) prevMonthKardexByChem[chemId] = [];
+              prevMonthKardexByChem[chemId].push(data);
+            }
+          });
+        }
+
+        // 2. Procesar cada químico en memoria sin llamadas repetidas de consulta
         for (const chem of chemicals) {
           const saldos = chem.saldosIniciales || {};
           if (saldos[curKey] === undefined) {
-            // No existe saldo inicial para el mes actual.
-            // Si tampoco hay saldo para el mes anterior, lo dejamos en 0.
             if (saldos[prevKey] !== undefined) {
-              // Necesitamos buscar el Kardex del mes anterior para este químico
-              const prevDate = new Date(prevYear, prevMonth, 1);
-              const pStart = Timestamp.fromDate(startOfMonth(prevDate));
-              const pEnd = Timestamp.fromDate(endOfMonth(prevDate));
-              
-              const qPrev = query(
-                collection(db, "quimicos_kardex"),
-                where("chemicalId", "==", chem.id),
-                where("fecha", ">=", pStart),
-                where("fecha", "<=", pEnd)
-              );
-              const pSnap = await getDocs(qPrev);
-              
               let runningGrams = Number(saldos[prevKey]);
-              pSnap.docs.forEach(docSnap => {
-                const m = docSnap.data();
+              const prevMovements = prevMonthKardexByChem[chem.id] || [];
+              
+              prevMovements.forEach(m => {
                 const qty = Number(m.cant || 0);
                 const qtyG = (m.unit === "kg" || m.unit === "kilogramos") ? qty * 1000 : qty;
                 if (m.tipo.includes("INGRESO")) runningGrams += qtyG;
@@ -419,8 +435,8 @@ export default function ChemicalInventoryPage() {
     const prefix = type === "LAVADO_MAQUINA" ? "LAV-MAQ-" : "MUE-";
     try {
       const q = query(collection(db, "quimicos_kardex"), where("orderType", "==", type));
-      const snap = await getDocs(q);
-      const nextNum = snap.size + 1;
+      const snap = await getCountFromServer(q);
+      const nextNum = snap.data().count + 1;
       return `${prefix}${nextNum.toString().padStart(4, '0')}`;
     } catch (e) {
       return `${prefix}0001`;
