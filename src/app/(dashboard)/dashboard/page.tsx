@@ -42,6 +42,12 @@ const MONTH_NAMES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
 ];
 
+// Resúmenes históricos anuales de 2025 (Datos congelados del año cerrado)
+const PRODUCTION_2025 = [0, 0, 0, 0, 8816, 26435, 32510, 35551, 30322, 39278, 38521, 36543];
+const DISPATCHES_2025 = [0, 0, 0, 0, 1338, 6340, 3807, 19292, 33299, 35130, 37983, 46371];
+const BILLING_2025 = [0, 0, 0, 0, 610.56, 44861.27, 44945.98, 43005.19, 62531.70, 55965.07, 63056.00, 87224.98];
+
+
 /**
  * INTERFAZ DE MÉTRICAS CACHEADAS
  */
@@ -139,19 +145,10 @@ export default function DashboardPage() {
     try {
       console.log("🚀 Iniciando recálculo global de métricas...");
       
-      // Obtener datos fijos del año anterior (2025) de la caché para no consultar colecciones transaccionales pasadas
-      const cacheRef = doc(db, "configuracion", "dashboard_cache");
-      const cacheSnap = await getDoc(cacheRef);
-      const currentCache = cacheSnap.exists() ? cacheSnap.data() : null;
-
-      const production2025Calculated = currentCache?.metrics?.production2025 || Array(12).fill(0);
-      const dispatches2025Calculated = currentCache?.metrics?.dispatches2025 || Array(12).fill(0);
-      const billing2025Calculated = currentCache?.metrics?.billing2025 || Array(12).fill(0);
-
       const startOfYear = new Date(currentYear, 0, 1);
       const startOfYearTs = Timestamp.fromDate(startOfYear);
 
-      // 1. Descarga Multicanal Filtrada (Solo este año para optimizar costos de Firestore)
+      // 1. Descarga Multicanal Filtrada (Solo el año actual en tiempo real para optimizar costos)
       const [entriesSnap, outputsSnap, legacySalidasSnap, legacyMuestrasSnap, invoicesSnap, paymentsSnap] = await Promise.all([
         getDocs(query(collection(db, "entries"), where("date", ">=", startOfYearTs))),
         getDocs(query(collection(db, "outputs"), where("date", ">=", startOfYearTs))),
@@ -527,11 +524,11 @@ export default function DashboardPage() {
           sampleStats: getMonthlyStats(true),
           collectionStats: getCollectionMonthlyStats(),
           production2026: production2026Calculated,
-          production2025: production2025Calculated,
+          production2025: PRODUCTION_2025,
           dispatches2026: dispatches2026Calculated,
-          dispatches2025: dispatches2025Calculated,
+          dispatches2025: DISPATCHES_2025,
           billing2026: billing2026Calculated,
-          billing2025: billing2025Calculated
+          billing2025: BILLING_2025
         },
         charts: { topClients, topGarments },
         lastUpdate: new Date(),
@@ -566,7 +563,7 @@ export default function DashboardPage() {
   const currentMonthName = MONTH_NAMES[selectedMonthIdx];
   
   const production2026 = stats?.metrics?.production2026 || Array(12).fill(0);
-  const production2025 = stats?.metrics?.production2025 || Array(12).fill(0);
+  const production2025 = stats?.metrics?.production2025 || PRODUCTION_2025;
   
   const currentProduction2026 = production2026[selectedMonthIdx] || 0;
   const currentProduction2025 = production2025[selectedMonthIdx] || 0;
@@ -583,7 +580,7 @@ export default function DashboardPage() {
 
   // Métricas comparativas de Salidas
   const dispatches2026 = stats?.metrics?.dispatches2026 || Array(12).fill(0);
-  const dispatches2025 = stats?.metrics?.dispatches2025 || Array(12).fill(0);
+  const dispatches2025 = stats?.metrics?.dispatches2025 || DISPATCHES_2025;
   const currentDispatches2026 = dispatches2026[selectedMonthIdx] || 0;
   const currentDispatches2025 = dispatches2025[selectedMonthIdx] || 0;
   const dispatchesGrowthPct = currentDispatches2025 > 0 
@@ -598,7 +595,7 @@ export default function DashboardPage() {
 
   // Métricas comparativas de Facturación USD
   const billing2026 = stats?.metrics?.billing2026 || Array(12).fill(0);
-  const billing2025 = stats?.metrics?.billing2025 || Array(12).fill(0);
+  const billing2025 = stats?.metrics?.billing2025 || BILLING_2025;
   const currentBilling2026 = billing2026[selectedMonthIdx] || 0;
   const currentBilling2025 = billing2025[selectedMonthIdx] || 0;
   const billingGrowthPct = currentBilling2025 > 0 
