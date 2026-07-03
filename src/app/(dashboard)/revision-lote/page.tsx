@@ -201,13 +201,15 @@ export default function RevisionLotePage() {
             sourceGarments.push({
               id: "legacy-garment",
               garmentType: lot.garmentType || "Varios",
-              quantity: Number(lot.quantity || lot.cantidad || 0)
+              quantity: Number(lot.quantity || lot.cantidad || 0),
+              cantidadConfirmada: lot.cantidadConfirmada !== undefined ? lot.cantidadConfirmada : undefined
             });
           }
 
           // RECONSTRUCCIÓN CON COMPATIBILIDAD TEXTO/OBJETO
           const initialReviews = sourceGarments.map((g: any) => {
             const gid = g.id || Math.random().toString(36).substr(2, 9);
+            const savedSubLotProcesses = lot.processesByGarment || {};
             const savedProcessesString = savedSubLotProcesses[gid] || lot.process || "";
             const processParts = savedProcessesString.split(" + ").map((p: string) => p.trim().toLowerCase()).filter(Boolean);
             
@@ -219,7 +221,7 @@ export default function RevisionLotePage() {
               id: gid,
               garmentType: g.garmentType || g.tipo || "Varios",
               originalQuantity: Number(g.quantity || g.cantidad || 0),
-              confirmedQuantity: Number(g.cantidadConfirmada || g.quantity || g.cantidad || 0),
+              confirmedQuantity: Number(g.cantidadConfirmada !== undefined ? g.cantidadConfirmada : (lot.cantidadConfirmada !== undefined ? lot.cantidadConfirmada : (g.quantity || g.cantidad || 0))),
               hasIssue: !!lot.hasNovelty,
               selectedProcesses: reconstructedSelected
             };
