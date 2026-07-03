@@ -374,11 +374,34 @@ export default function RevisionLotePage() {
       const lotVisibleName = getVisibleLotName(selectedLot);
       const updatedLotes = (parentEntry.lotes || parentEntry.lots || []).map((l: any) => {
         if (getVisibleLotName(l) === lotVisibleName) {
+          const subLotKey = l.garments ? "garments" : (l.prendas ? "prendas" : "garments");
+          const currentGarments = l[subLotKey] || [];
+          let updatedGarments = currentGarments.map((g: any) => {
+            const review = garmentReviews.find(r => r.id === g.id || r.garmentType.toUpperCase() === (g.garmentType || g.tipo || "").toUpperCase());
+            if (review) {
+              return {
+                ...g,
+                cantidadConfirmada: review.confirmedQuantity
+              };
+            }
+            return g;
+          });
+
+          if (updatedGarments.length === 0) {
+            updatedGarments = garmentReviews.map(r => ({
+              id: r.id,
+              garmentType: r.garmentType,
+              quantity: r.originalQuantity,
+              cantidadConfirmada: r.confirmedQuantity
+            }));
+          }
+
           return {
             ...l,
             productionStatus: "reviewed",
             status: "reviewed",
             cantidadConfirmada: totals.confirmed,
+            [subLotKey]: updatedGarments,
             fechaRevision: now,
             revisadoPor: user?.displayName || "Sistema",
             process: globalSummary,

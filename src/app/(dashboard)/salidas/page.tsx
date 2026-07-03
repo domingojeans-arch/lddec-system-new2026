@@ -442,14 +442,17 @@ export default function SalidasPage() {
           .reduce((sum: number, p: any) => sum + (Number(p.quantityToDispatch || p.cantidad || p.quantity || 0)), 0);
 
         const alreadyDispatchedHist = getHistoricalDispatched(typeUpper);
-        const originalVal = Number(g.cantidadConfirmada || g.quantity || 0);
         
-        const remaining = Math.max(0, originalVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
+        const originalVal = Number(g.quantity || g.cantidad || 0);
+        const confirmedVal = Number(g.cantidadConfirmada !== undefined ? g.cantidadConfirmada : originalVal);
+        
+        const remaining = Math.max(0, confirmedVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
 
         return { 
           id: g.id || Math.random().toString(36).substr(2, 9), 
           type: typeUpper, 
           original: originalVal, 
+          confirmed: confirmedVal,
           toDispatch: remaining 
         };
       });
@@ -461,13 +464,17 @@ export default function SalidasPage() {
           .reduce((sum: number, it: any) => sum + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
 
         const alreadyDispatchedHist = getHistoricalDispatched(typeUpper);
-        const originalVal = Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || 0);
-        const remaining = Math.max(0, originalVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
+        
+        const originalVal = Number(lot.quantity || lot.cantidad || 0);
+        const confirmedVal = Number(lot.cantidadConfirmada !== undefined ? lot.cantidadConfirmada : originalVal);
+        
+        const remaining = Math.max(0, confirmedVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
 
         breakdown.push({
           id: "legacy",
           type: typeUpper,
           original: originalVal,
+          confirmed: confirmedVal,
           toDispatch: remaining
         });
       }
@@ -1234,14 +1241,23 @@ export default function SalidasPage() {
       {/* MODAL: CANTIDADES DE LOTE */}
       <Dialog open={isQtyModalOpen} onOpenChange={setIsQtyModalOpen}>
         <DialogContent className="max-w-lg p-0 rounded-2xl overflow-hidden border-none shadow-xl bg-card">
-          <div className="p-5 bg-primary text-white flex items-center justify-between">
+          <div className={cn("p-5 text-white flex items-center justify-between transition-colors duration-300", foundLotResult?.isReviewed ? "bg-emerald-600" : "bg-primary")}>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center"><Shirt className="h-5 w-5" /></div>
+              <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center">
+                {foundLotResult?.isReviewed ? <ShieldCheck className="h-5 w-5 text-white animate-pulse" /> : <Shirt className="h-5 w-5" />}
+              </div>
               <div>
-                <DialogTitle className="text-lg font-black uppercase tracking-tight">Confirmar Cantidad</DialogTitle>
+                <DialogTitle className="text-lg font-black uppercase tracking-tight">
+                  {foundLotResult?.isReviewed ? "Lote Auditado y Confirmado" : "Confirmar Cantidad"}
+                </DialogTitle>
                 <p className="text-[9px] font-bold uppercase opacity-80 mt-0.5">LOTE: {foundLotResult?.lotNumber}</p>
               </div>
             </div>
+            {foundLotResult?.isReviewed && (
+              <Badge className="bg-white text-emerald-700 hover:bg-white border-none font-bold uppercase text-[9px] px-2.5 py-1">
+                Auditoría OK
+              </Badge>
+            )}
           </div>
           <div className="p-6 space-y-6">
             <div className="rounded-xl border border-border overflow-hidden bg-background">
@@ -1251,7 +1267,14 @@ export default function SalidasPage() {
                   {foundLotResult?.breakdown.map((g: any, i: number) => (
                     <TableRow key={i} className="border-border">
                       <TableCell className="pl-4 py-3 font-bold text-xs uppercase">{g.type}</TableCell>
-                      <TableCell className="text-center font-black text-sm">{g.original}</TableCell>
+                      <TableCell className="text-center font-black">
+                        <span className="text-sm">{g.confirmed}</span>
+                        {g.confirmed !== g.original && (
+                          <span className="text-[9px] text-muted-foreground block font-bold mt-0.5">
+                            REG: {g.original}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right pr-4">
                         <Input type="number" className="h-9 w-20 ml-auto text-center font-black text-primary border-primary/20 bg-primary/5 rounded-lg" value={g.toDispatch} onChange={(e) => {
                           const val = parseInt(e.target.value) || 0;
