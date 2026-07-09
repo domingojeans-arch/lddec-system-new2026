@@ -30,8 +30,8 @@ export function PrintSheetsTab() {
   const [nPrendas2, setNPrendas2] = useState("");
   const [peso, setPeso] = useState("");
 
-  // Opciones de Impresión
-  const [printColor, setPrintColor] = useState("#002060");
+  // Opciones de Impresión (Azul Oscuro profundo es #001133)
+  const [printColor, setPrintColor] = useState("#001133");
   const [lastPrintedLot, setLastPrintedLot] = useState("");
 
   useEffect(() => {
@@ -39,7 +39,10 @@ export function PrintSheetsTab() {
     const lastLot = localStorage.getItem("lastPrintedLot");
     if (lastLot) setLastPrintedLot(lastLot);
     const color = localStorage.getItem("printColor");
-    if (color) setPrintColor(color);
+    if (color) {
+      // Si el color guardado era el azul claro anterior, lo actualizamos al nuevo azul profundo
+      setPrintColor(color === "#002060" ? "#001133" : color);
+    }
   }, []);
 
   const handleSearchLot = async () => {
@@ -95,7 +98,6 @@ export function PrintSheetsTab() {
       return;
     }
 
-    // El último lote impreso de la serie es (Lote Inicial - Cantidad + 1)
     const finalLot = startNum - qty + 1;
     localStorage.setItem("lastPrintedLot", String(finalLot));
     setLastPrintedLot(String(finalLot));
@@ -176,7 +178,7 @@ export function PrintSheetsTab() {
               onChange={(e) => setPrintColor(e.target.value)}
               className="flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-bold"
             >
-              <option value="#002060">Azul Oscuro</option>
+              <option value="#001133">Azul Oscuro</option>
               <option value="#000000">Negro</option>
             </select>
           </div>
@@ -434,14 +436,14 @@ function SingleSheetView({
   const valStyle = {
     fontSize: "9px",
     fontWeight: "bold",
-    color: "black",
+    color: printColor, // Imprime todo el texto en el color seleccionado (Azul Oscuro o Negro)
     fontFamily: "Arial, Helvetica, sans-serif",
   };
 
   return (
     <div style={{ width: "100%", height: "100%", boxSizing: "border-box", padding: "1px" }}>
       {/* Contenedor wrapper con bordes redondeados y borde general garantizado en horizontal */}
-      <div style={{ width: "100%", height: "100%", border: `1.2px solid ${printColor}`, borderRadius: "5px", overflow: "hidden", boxSizing: "border-box" }}>
+      <div style={{ width: "100%", height: "100%", borderTop: `1.2px solid ${printColor}`, borderBottom: `1.2px solid ${printColor}`, borderLeft: `1.2px solid ${printColor}`, borderRight: `1.2px solid ${printColor}`, borderRadius: "5px", overflow: "hidden", boxSizing: "border-box" }}>
         <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "none" }}>
           <tbody>
             {/* Fila 1: Cabecera */}
@@ -451,7 +453,18 @@ function SingleSheetView({
                 <div style={{ fontSize: "11px", fontWeight: "900", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
               </td>
               <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none", padding: "1px" }}>
-                <img src="/logo-lddec.png" alt="Logo" style={{ height: "28px", width: "100%", objectFit: "contain", margin: "0 auto" }} />
+                <img 
+                  src="/logo-lddec.png" 
+                  alt="Logo" 
+                  style={{ 
+                    height: "28px", 
+                    width: "100%", 
+                    objectFit: "contain", 
+                    margin: "0 auto",
+                    // Si se imprime en negro, convierte el logo a negro puro. Si es azul, mantiene su color original
+                    filter: printColor === "#000000" ? "brightness(0)" : "none"
+                  }} 
+                />
               </td>
               <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "30%", borderTop: "none", borderRight: "none" }}>
                 <div style={{ borderBottom: `1.2px solid ${printColor}`, background: printColor, color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "1.5px 0" }}>
@@ -468,7 +481,7 @@ function SingleSheetView({
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° INGRESO:</span>
-                  <span style={{ color: "black", fontSize: "10px" }}>{nIngreso}</span>
+                  <span style={{ color: printColor, fontSize: "10px", fontWeight: "bold" }}>{nIngreso}</span>
                 </div>
               </td>
             </tr>
@@ -476,7 +489,7 @@ function SingleSheetView({
             {/* Fila 3: LOTE y N° PRENDAS 1 */}
             <tr style={{ height: "30px" }}>
               <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
-              <td colSpan={5} style={{ ...cellStyle, fontSize: "26px", fontWeight: "900", textAlign: "center", color: "black" }}>
+              <td colSpan={5} style={{ ...cellStyle, fontSize: "26px", fontWeight: "900", textAlign: "center", color: printColor }}>
                 {lote || ""}
               </td>
               <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
@@ -485,7 +498,7 @@ function SingleSheetView({
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° PRENDAS 1:</span>
-                  <span style={{ color: "black", fontSize: "10px" }}>{nPrendas1}</span>
+                  <span style={{ color: printColor, fontSize: "10px", fontWeight: "bold" }}>{nPrendas1}</span>
                 </div>
               </td>
             </tr>
@@ -493,11 +506,11 @@ function SingleSheetView({
             {/* Fila 4: TIPO DE PRENDA y N° PRENDAS 2 */}
             <tr style={{ height: "30px" }}>
               <td colSpan={2} style={{ ...cellStyle, width: "15%", borderLeft: "none" }}>TIPO DE PRENDA:</td>
-              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{tipoPrenda}</td>
+              <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{tipoPrenda}</td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° PRENDAS 2:</span>
-                  <span style={{ color: "black", fontSize: "10px" }}>{nPrendas2}</span>
+                  <span style={{ color: printColor, fontSize: "10px", fontWeight: "bold" }}>{nPrendas2}</span>
                 </div>
               </td>
             </tr>
@@ -505,17 +518,17 @@ function SingleSheetView({
             {/* Fila 5: NOMBRE DE TELA, CÓDIGO y PESO (kg) (rowspan 2) */}
             <tr style={{ height: "26px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>NOMBRE DE TELA:</td>
-              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{nombreTela}</td>
+              <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{nombreTela}</td>
               <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
                 <div style={{ fontSize: "8px", color: printColor, fontWeight: "bold" }}>CODIGO</div>
-                <div style={{ color: "black", fontSize: "10px", fontWeight: "bold", textAlign: "center", marginTop: "4px" }}>
+                <div style={{ color: printColor, fontSize: "10px", fontWeight: "bold", textAlign: "center", marginTop: "4px" }}>
                   {codigo || ""}
                 </div>
               </td>
               <td colSpan={3} rowSpan={2} style={{ ...cellStyle, width: "30%", padding: "6px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%", minHeight: "44px" }}>
                   <span style={{ fontSize: "9px" }}>PESO (kg):</span>
-                  <span style={{ color: "black", fontSize: "14px", fontWeight: "bold", textAlign: "right", paddingRight: "4px" }}>{peso}</span>
+                  <span style={{ color: printColor, fontSize: "14px", fontWeight: "bold", textAlign: "right", paddingRight: "4px" }}>{peso}</span>
                 </div>
               </td>
             </tr>
@@ -523,13 +536,13 @@ function SingleSheetView({
             {/* Fila 6: FECHA DE INGRESO */}
             <tr style={{ height: "26px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>FECHA DE INGRESO:</td>
-              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black" }}>{fechaIngreso}</td>
+              <td colSpan={4} style={{ ...cellStyle, ...valStyle }}>{fechaIngreso}</td>
             </tr>
 
             {/* Fila 7: PROCESO */}
             <tr style={{ height: "46px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>PROCESO:</td>
-              <td colSpan={10} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase", borderRight: "none" }}>{proceso}</td>
+              <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{proceso}</td>
             </tr>
 
             {/* Fila 8: Encabezados de Tabla de Manualidades */}
