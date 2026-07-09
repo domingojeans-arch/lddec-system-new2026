@@ -395,19 +395,12 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 2: LOTE */}
+            {/* Fila 2: LOTE y N° INGRESO (Subido un casillero hacia arriba) */}
             <tr style={{ height: "30px" }}>
               <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
               <td colSpan={8} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
                 {lote || ""}
               </td>
-              <td colSpan={3} style={{ ...cellStyle, width: "30%", borderRight: "none", background: "#002060/5" }}></td>
-            </tr>
-
-            {/* Fila 3: CLIENTE y N° INGRESO (Alineados) */}
-            <tr style={{ height: "30px" }}>
-              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none", width: "15%" }}>CLIENTE:</td>
-              <td colSpan={7} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° INGRESO:</span>
@@ -416,13 +409,10 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 4: TIPO DE PRENDA y MUESTRA EXTERNA y N° PRENDAS 1 */}
-            <tr style={{ height: "26px" }}>
-              <td colSpan={2} style={{ ...cellStyle, width: "15%", borderLeft: "none" }}>TIPO DE PRENDA:</td>
-              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{tipoPrenda}</td>
-              <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
-                <div style={{ fontSize: "8px", color: "#002060" }}>MUESTRA EXTERNA</div>
-              </td>
+            {/* Fila 3: CLIENTE y N° PRENDAS 1 (Subido un casillero hacia arriba) */}
+            <tr style={{ height: "30px" }}>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none", width: "15%" }}>CLIENTE:</td>
+              <td colSpan={7} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° PRENDAS 1:</span>
@@ -431,10 +421,13 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 5: NOMBRE DE TELA y N° PRENDAS 2 */}
+            {/* Fila 4: TIPO DE PRENDA y MUESTRA EXTERNA y N° PRENDAS 2 (Subido un casillero hacia arriba) */}
             <tr style={{ height: "26px" }}>
-              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>NOMBRE DE TELA:</td>
-              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{nombreTela}</td>
+              <td colSpan={2} style={{ ...cellStyle, width: "15%", borderLeft: "none" }}>TIPO DE PRENDA:</td>
+              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{tipoPrenda}</td>
+              <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
+                <div style={{ fontSize: "8px", color: "#002060" }}>MUESTRA EXTERNA</div>
+              </td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° PRENDAS 2:</span>
@@ -443,18 +436,24 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 6: FECHA e INGRESO y PESO */}
+            {/* Fila 5: NOMBRE DE TELA y PESO (kg) (Subido hacia arriba) */}
             <tr style={{ height: "34px" }}>
-              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>FECHA DE INGRESO:</td>
-              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black" }}>{fechaIngreso}</td>
-              <td colSpan={1} style={{ ...cellStyle, width: "8%" }}>CODIGO:</td>
-              <td colSpan={2} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{codigo}</td>
-              <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "6px 6px", borderRight: "none" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>NOMBRE DE TELA:</td>
+              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{nombreTela}</td>
+              <td colSpan={3} rowSpan={2} style={{ ...cellStyle, width: "30%", padding: "6px 6px", borderRight: "none" }}>
+                <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%", minHeight: "44px" }}>
                   <span style={{ fontSize: "9px" }}>PESO (kg):</span>
-                  <span style={{ color: "black", fontSize: "12px", fontWeight: "bold" }}>{peso}</span>
+                  <span style={{ color: "black", fontSize: "14px", fontWeight: "bold", textAlign: "right", paddingRight: "4px" }}>{peso}</span>
                 </div>
               </td>
+            </tr>
+
+            {/* Fila 6: FECHA e INGRESO y CODIGO */}
+            <tr style={{ height: "26px" }}>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>FECHA DE INGRESO:</td>
+              <td colSpan={2} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black" }}>{fechaIngreso}</td>
+              <td colSpan={1} style={{ ...cellStyle, width: "8%" }}>CODIGO:</td>
+              <td colSpan={1} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{codigo}</td>
             </tr>
 
             {/* Fila 7: PROCESO */}
