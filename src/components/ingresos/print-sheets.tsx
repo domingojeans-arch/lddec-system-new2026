@@ -419,7 +419,10 @@ function SingleSheetView({
   printColor,
 }: SingleSheetViewProps) {
   const cellStyle = {
-    border: `1.2px solid ${printColor}`,
+    borderTop: `1.2px solid ${printColor}`,
+    borderBottom: `1.2px solid ${printColor}`,
+    borderLeft: `1.2px solid ${printColor}`,
+    borderRight: `1.2px solid ${printColor}`,
     padding: "3px 5px",
     fontSize: "9px",
     fontWeight: "bold",
