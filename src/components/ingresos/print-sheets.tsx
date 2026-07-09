@@ -177,7 +177,7 @@ export function PrintSheetsTab() {
               className="flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-bold"
             >
               <option value="#002060">Azul Oscuro</option>
-              <option value="black">Negro</option>
+              <option value="#000000">Negro</option>
             </select>
           </div>
 
@@ -447,8 +447,8 @@ function SingleSheetView({
                 <div style={{ fontSize: "12px", fontWeight: "900", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
                 <div style={{ fontSize: "11px", fontWeight: "900", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
               </td>
-              <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none" }}>
-                <img src="/logo-lddec.png" alt="Logo" style={{ height: "26px", margin: "0 auto", objectFit: "contain" }} />
+              <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none", padding: "1px" }}>
+                <img src="/logo-lddec.png" alt="Logo" style={{ height: "28px", width: "100%", objectFit: "contain", margin: "0 auto" }} />
               </td>
               <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "30%", borderTop: "none", borderRight: "none" }}>
                 <div style={{ borderBottom: `1.2px solid ${printColor}`, background: printColor, color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "1.5px 0" }}>
