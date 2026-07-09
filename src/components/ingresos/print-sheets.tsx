@@ -251,11 +251,11 @@ export function PrintSheetsTab() {
       {/* SECCIÓN VISTA PREVIA (no-print) */}
       <div className="no-print space-y-4">
         <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-          Vista Previa de la Ficha
+          Vista Previa de la Ficha (Vertical A5)
         </h4>
         {qty > 0 && startNum > 0 ? (
           <div className="flex justify-center bg-muted/20 p-8 rounded-[2rem] border border-border">
-            <div className="bg-white shadow-2xl p-4 border border-black/10 rounded-lg overflow-hidden" style={{ width: "210mm", height: "148mm", boxSizing: "border-box" }}>
+            <div className="bg-white shadow-2xl p-4 border border-black/10 rounded-lg overflow-hidden" style={{ width: "148mm", height: "210mm", boxSizing: "border-box" }}>
               <SingleSheetView
                 lote={startNum}
                 cliente={cliente}
@@ -282,43 +282,21 @@ export function PrintSheetsTab() {
       <div className="hidden print:block absolute left-0 top-0 w-full" id="print-area">
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
-            /* Ocultar absolutamente todo excepto el area de impresion */
-            body * {
-              visibility: hidden !important;
-            }
-            #print-area, #print-area * {
-              visibility: visible !important;
-            }
-            #print-area {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 210mm !important;
-              height: 148mm !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              display: block !important;
-            }
-
-            /* Forzar el comportamiento de la pagina */
-            @page {
-              size: A5 landscape;
-              margin: 0 !important;
-            }
             body, html {
               margin: 0 !important;
               padding: 0 !important;
-              width: 210mm !important;
-              height: 148mm !important;
               background: #fff !important;
-              overflow: visible !important;
+            }
+            @page {
+              size: A5 portrait;
+              margin: 0 !important;
             }
             .ficha-print-container {
               page-break-after: always !important;
               page-break-inside: avoid !important;
               box-sizing: border-box;
-              width: 210mm;
-              height: 148mm;
+              width: 148mm;
+              height: 210mm;
               padding: 4mm 6mm;
               background: white;
             }
@@ -396,7 +374,7 @@ function SingleSheetView({
 
   return (
     <div style={{ width: "100%", height: "100%", boxSizing: "border-box", padding: "1px" }}>
-      {/* Contenedor wrapper con bordes redondeados y borde general garantizado */}
+      {/* Contenedor wrapper con bordes redondeados y borde general garantizado en vertical */}
       <div style={{ width: "100%", height: "100%", border: "1.2px solid #002060", borderRadius: "5px", overflow: "hidden", boxSizing: "border-box" }}>
         <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "none" }}>
           <tbody>
@@ -417,15 +395,13 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 2: LOTE y CLIENTE y N° INGRESO */}
+            {/* Fila 2: LOTE y N° INGRESO */}
             <tr style={{ height: "30px" }}>
               <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
-              <td colSpan={2} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black", width: "18%" }}>
+              <td colSpan={5} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
                 {lote || ""}
               </td>
-              <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>CLIENTE:</td>
-              <td colSpan={5} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
-              <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
+              <td colSpan={6} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° INGRESO:</span>
                   <span style={{ color: "black", fontSize: "10px" }}>{nIngreso}</span>
@@ -474,13 +450,19 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 6: PROCESO */}
+            {/* Fila 6: CLIENTE (Nueva fila sobre procesos) */}
+            <tr style={{ height: "30px" }}>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>CLIENTE:</td>
+              <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{cliente}</td>
+            </tr>
+
+            {/* Fila 7: PROCESO */}
             <tr style={{ height: "32px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>PROCESO:</td>
               <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{proceso}</td>
             </tr>
 
-            {/* Fila 7: Encabezados de Tabla de Manualidades */}
+            {/* Fila 8: Encabezados de Tabla de Manualidades */}
             <tr style={{ height: "18px", background: "#002060" }}>
               <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "20%", borderLeft: "none" }}>MANUALIDADES</td>
               <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "22%" }}>NOMBRE</td>
@@ -489,11 +471,10 @@ function SingleSheetView({
               <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "38%", borderRight: "none" }}>OBSERVACIONES</td>
             </tr>
 
-            {/* Filas 8-18: Cuerpo de Tabla de Manualidades */}
+            {/* Filas 9-19: Cuerpo de Tabla de Manualidades */}
             {Array.from({ length: 11 }).map((_, idx) => {
-              const isLast = idx === 10;
               return (
-                <tr key={idx} style={{ height: "18px" }}>
+                <tr key={idx} style={{ height: "20px" }}>
                   {/* Columnas manualidades, nombre, cant, firma */}
                   {idx < 8 ? (
                     <>
@@ -527,12 +508,12 @@ function SingleSheetView({
 
                   {/* Columna Observaciones con division en Faltantes y Total Enviado */}
                   {idx === 0 && (
-                    <td colSpan={3} rowSpan={5} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "90px", borderRight: "none" }}>
+                    <td colSpan={3} rowSpan={5} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "100px", borderRight: "none" }}>
                       <div style={{ fontSize: "10px", color: "#002060", fontWeight: "bold" }}>FALTANTES</div>
                     </td>
                   )}
                   {idx === 5 && (
-                    <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "108px", borderRight: "none", borderBottom: "none" }}>
+                    <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "120px", borderRight: "none", borderBottom: "none" }}>
                       <div style={{ fontSize: "10px", color: "#002060", fontWeight: "bold" }}>TOTAL ENVIADO</div>
                     </td>
                   )}
