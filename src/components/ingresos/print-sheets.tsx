@@ -255,7 +255,7 @@ export function PrintSheetsTab() {
         </h4>
         {qty > 0 && startNum > 0 ? (
           <div className="flex justify-center bg-muted/20 p-8 rounded-[2rem] border border-border">
-            <div className="bg-white shadow-2xl p-4 border border-black/10" style={{ width: "210mm", height: "148mm", boxSizing: "border-box" }}>
+            <div className="bg-white shadow-2xl p-4 border border-black/10 rounded-lg overflow-hidden" style={{ width: "210mm", height: "148mm", boxSizing: "border-box" }}>
               <SingleSheetView
                 lote={startNum}
                 cliente={cliente}
@@ -373,22 +373,22 @@ function SingleSheetView({
 
   return (
     <div style={{ width: "100%", height: "100%", boxSizing: "border-box", padding: "1px" }}>
-      <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "1.2px solid #002060" }}>
+      <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "1.2px solid #002060", borderRadius: "5px", overflow: "hidden" }}>
         <tbody>
           {/* Fila 1: Cabecera */}
-          <tr style={{ height: "45px" }}>
-            <td colSpan={7} style={{ ...cellStyle, textAlign: "center" }}>
+          <tr style={{ height: "40px" }}>
+            <td colSpan={7} style={{ ...cellStyle, textAlign: "center", borderRadius: "5px 0 0 0" }}>
               <div style={{ fontSize: "12px", fontWeight: "bold", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
               <div style={{ fontSize: "11px", fontWeight: "bold", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
             </td>
             <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%" }}>
-              <img src="/logo-lddec.png" alt="Logo" style={{ height: "35px", margin: "0 auto", objectFit: "contain" }} />
+              <img src="/logo-lddec.png" alt="Logo" style={{ height: "30px", margin: "0 auto", objectFit: "contain" }} />
             </td>
-            <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "30%" }}>
-              <div style={{ borderBottom: "1.2px solid #002060", background: "#002060", color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "3px 0" }}>
+            <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "30%", borderRadius: "0 5px 0 0" }}>
+              <div style={{ borderBottom: "1.2px solid #002060", background: "#002060", color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "2px 0" }}>
                 CONFIRMADO
               </div>
-              <div style={{ height: "30px" }}></div>
+              <div style={{ height: "20px" }}></div>
             </td>
           </tr>
 
@@ -412,7 +412,9 @@ function SingleSheetView({
           <tr style={{ height: "26px" }}>
             <td colSpan={2} style={{ ...cellStyle, width: "15%" }}>TIPO DE PRENDA:</td>
             <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{tipoPrenda}</td>
-            <td colSpan={3} style={{ ...cellStyle }}>MUESTRA EXTERNA</td>
+            <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
+              <div style={{ fontSize: "8px", color: "#002060" }}>MUESTRA EXTERNA</div>
+            </td>
             <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                 <span>N° PRENDAS 1:</span>
@@ -424,7 +426,7 @@ function SingleSheetView({
           {/* Fila 4: NOMBRE DE TELA y N° PRENDAS 2 */}
           <tr style={{ height: "26px" }}>
             <td colSpan={2} style={{ ...cellStyle }}>NOMBRE DE TELA:</td>
-            <td colSpan={7} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{nombreTela}</td>
+            <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{nombreTela}</td>
             <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                 <span>N° PRENDAS 2:</span>
@@ -436,9 +438,9 @@ function SingleSheetView({
           {/* Fila 5: FECHA e INGRESO y PESO */}
           <tr style={{ height: "26px" }}>
             <td colSpan={2} style={{ ...cellStyle }}>FECHA DE INGRESO:</td>
-            <td colSpan={4} style={{ ...cellStyle, ...valStyle }}>{fechaIngreso}</td>
-            <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>CODIGO:</td>
-            <td colSpan={2} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{codigo}</td>
+            <td colSpan={3} style={{ ...cellStyle, ...valStyle }}>{fechaIngreso}</td>
+            <td colSpan={1} style={{ ...cellStyle, width: "8%" }}>CODIGO:</td>
+            <td colSpan={3} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{codigo}</td>
             <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                 <span>PESO (kg):</span>
@@ -490,27 +492,22 @@ function SingleSheetView({
                   </>
                 ) : (
                   <>
-                    <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5" }}>DESPACHO</td>
+                    <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5", borderRadius: "0 0 0 5px" }}>DESPACHO</td>
                     <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
                     <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
                     <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
                   </>
                 )}
 
-                {/* Columna Observaciones con fusiones */}
+                {/* Columna Observaciones con division en Faltantes y Total Enviado */}
                 {idx === 0 && (
-                  <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "3px" }}>
-                    <div style={{ fontSize: "6px", color: "#002060", opacity: 0.6 }}>Faltantes:</div>
+                  <td colSpan={3} rowSpan={5} style={{ ...cellStyle, verticalAlign: "top", padding: "2px 4px", height: "90px" }}>
+                    <div style={{ fontSize: "7px", color: "#002060", fontWeight: "bold" }}>FALTANTES</div>
                   </td>
                 )}
-                {idx === 6 && (
-                  <td colSpan={3} rowSpan={4} style={{ ...cellStyle, textAlign: "center", fontSize: "9px", fontWeight: "black", background: "#002060/5", height: "72px" }}>
-                    FALTANTES
-                  </td>
-                )}
-                {idx === 10 && (
-                  <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "9px", fontWeight: "black", background: "#002060/5", height: "32px" }}>
-                    TOTAL ENVIADO
+                {idx === 5 && (
+                  <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "2px 4px", height: "108px", borderRadius: "0 0 5px 0" }}>
+                    <div style={{ fontSize: "7px", color: "#002060", fontWeight: "bold" }}>TOTAL ENVIADO</div>
                   </td>
                 )}
               </tr>
