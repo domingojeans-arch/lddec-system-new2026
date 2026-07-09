@@ -1,16 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { Printer, ShieldCheck, Search, Loader2 } from "lucide-react";
+import { Printer, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 
 export function PrintSheetsTab() {
   const { toast } = useToast();
@@ -84,11 +81,9 @@ export function PrintSheetsTab() {
       return;
     }
 
-    // Ejecutar impresión nativa
     window.print();
   };
 
-  // Generar las fichas para la vista previa e impresión
   const startNum = parseInt(loteInicial) || 0;
   const qty = parseInt(cantidad) || 0;
   const listFichas = Array.from({ length: qty }).map((_, idx) => {
@@ -97,13 +92,13 @@ export function PrintSheetsTab() {
 
   return (
     <div className="space-y-8">
-      {/* SECCIÓN FORMULARIO (No se imprime) */}
+      {/* SECCIÓN CONFIGURACIÓN (No se imprime) */}
       <div className="bg-card border border-border rounded-[2rem] p-8 shadow-premium no-print space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
-            <h3 className="text-xl font-black uppercase tracking-tight">Configuración de Fichas de Procesos</h3>
+            <h3 className="text-xl font-black uppercase tracking-tight">Fichas de Procesos (Excel Copy)</h3>
             <p className="text-muted-foreground text-[11px] font-bold uppercase tracking-wider mt-1">
-              Impresión automática en lote en formato media hoja A4
+              Réplica idéntica de la plantilla original de Excel en media hoja A4
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -253,14 +248,14 @@ export function PrintSheetsTab() {
         </div>
       </div>
 
-      {/* SECCIÓN VISTA PREVIA (no-print en la app, visible solo en la app como previsualización) */}
-      <div className="no-print">
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1 mb-4">
-          Vista Previa de la Primera Ficha
+      {/* SECCIÓN VISTA PREVIA (no-print) */}
+      <div className="no-print space-y-4">
+        <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+          Vista Previa de la Ficha
         </h4>
         {qty > 0 && startNum > 0 ? (
-          <Card className="rounded-[2rem] border border-border shadow-lg max-w-[210mm] overflow-hidden bg-white mx-auto">
-            <CardContent className="p-8">
+          <div className="flex justify-center bg-muted/20 p-8 rounded-[2rem] border border-border">
+            <div className="bg-white shadow-2xl p-4 border border-black/10" style={{ width: "210mm", height: "148mm", boxSizing: "border-box" }}>
               <SingleSheetView
                 lote={startNum}
                 cliente={cliente}
@@ -274,8 +269,8 @@ export function PrintSheetsTab() {
                 nPrendas2={nPrendas2}
                 peso={peso}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         ) : (
           <div className="h-32 rounded-2xl border-2 border-dashed border-border flex items-center justify-center text-muted-foreground text-xs font-bold uppercase tracking-wider">
             Ingrese un Lote Inicial y Cantidad para previsualizar
@@ -283,7 +278,7 @@ export function PrintSheetsTab() {
         )}
       </div>
 
-      {/* ÁREA DE IMPRESIÓN REAL (Oculto en pantalla, visible solo en @media print) */}
+      {/* ÁREA DE IMPRESIÓN REAL */}
       <div className="hidden print:block absolute left-0 top-0 w-full" id="print-area">
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
@@ -294,17 +289,15 @@ export function PrintSheetsTab() {
             }
             @page {
               size: A5 landscape;
-              margin: 4mm 6mm;
+              margin: 0mm !important;
             }
             .ficha-print-container {
               page-break-after: always !important;
               box-sizing: border-box;
-              width: 198mm;
-              height: 140mm;
-              display: flex;
-              flex-direction: column;
-              justify-content: space-between;
-              padding: 2px;
+              width: 210mm;
+              height: 148mm;
+              padding: 4mm 6mm;
+              background: white;
             }
             .ficha-print-container:last-child {
               page-break-after: avoid !important;
@@ -361,173 +354,168 @@ function SingleSheetView({
   nPrendas2,
   peso,
 }: SingleSheetViewProps) {
+  const cellStyle = {
+    border: "1.2px solid #002060",
+    padding: "3px 5px",
+    fontSize: "9px",
+    fontWeight: "bold",
+    color: "#002060",
+    fontFamily: "Arial, Helvetica, sans-serif",
+    verticalAlign: "middle" as const,
+  };
+
+  const valStyle = {
+    fontSize: "9px",
+    fontWeight: "bold",
+    color: "black",
+    fontFamily: "Arial, Helvetica, sans-serif",
+  };
+
   return (
-    <div className="w-full text-[#0F1E36] font-sans text-xs select-none" style={{ boxSizing: "border-box" }}>
-      {/* Borde contenedor principal */}
-      <div className="border-[1.5px] border-[#0F1E36] p-3 rounded-lg bg-white relative w-full h-[135mm] flex flex-col justify-between">
-        
-        {/* Cabecera Principal */}
-        <div>
-          <div className="grid grid-cols-12 border-b border-[#0F1E36] pb-2">
-            {/* Título de la Ficha */}
-            <div className="col-span-8 flex flex-col justify-center">
-              <h1 className="text-[13px] font-black uppercase tracking-wide leading-tight text-[#0F1E36]">
-                LABORATORIO DEL DENIM ECUADOR
-              </h1>
-              <h2 className="text-xs font-black uppercase tracking-widest text-[#0F1E36] mt-0.5">
-                FICHA DE PROCESOS
-              </h2>
-            </div>
-            {/* Logo de la Empresa */}
-            <div className="col-span-1 flex items-center justify-center">
-              <img src="/logo-lddec.png" alt="Logo" className="h-9 w-9 object-contain" />
-            </div>
-            {/* Cuadro Lateral CONFIRMADO */}
-            <div className="col-span-3 border border-[#0F1E36] rounded text-[8px] font-black uppercase overflow-hidden">
-              <div className="bg-[#0F1E36] text-white py-0.5 px-2 text-center text-[7px] font-black">
-                CONFIRMADO
-              </div>
-              <div className="grid grid-cols-2 border-t border-[#0F1E36] py-0.5 px-1.5 gap-x-1">
-                <span className="text-[7px]">N° INGRESO:</span>
-                <span className="text-black font-black text-[8px] text-right">{nIngreso}</span>
-              </div>
-              <div className="grid grid-cols-2 border-t border-[#0F1E36] py-0.5 px-1.5 gap-x-1">
-                <span className="text-[7px]">N° PRENDAS 1:</span>
-                <span className="text-black font-black text-[8px] text-right">{nPrendas1}</span>
-              </div>
-              <div className="grid grid-cols-2 border-t border-[#0F1E36] py-0.5 px-1.5 gap-x-1">
-                <span className="text-[7px]">N° PRENDAS 2:</span>
-                <span className="text-black font-black text-[8px] text-right">{nPrendas2}</span>
-              </div>
-              <div className="grid grid-cols-2 border-t border-[#0F1E36] py-0.5 px-1.5 gap-x-1">
-                <span className="text-[7px]">PESO (kg):</span>
-                <span className="text-black font-black text-[8px] text-right">{peso}</span>
-              </div>
-            </div>
-          </div>
+    <div style={{ width: "100%", height: "100%", boxSizing: "border-box", padding: "1px" }}>
+      <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "1.2px solid #002060" }}>
+        <tbody>
+          {/* Fila 1: Cabecera */}
+          <tr style={{ height: "45px" }}>
+            <td colSpan={7} style={{ ...cellStyle, textAlign: "center" }}>
+              <div style={{ fontSize: "12px", fontWeight: "bold", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
+              <div style={{ fontSize: "11px", fontWeight: "bold", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
+            </td>
+            <td colSpan={1} style={{ ...cellStyle, textAlign: "center", width: "10%" }}>
+              <img src="/logo-lddec.png" alt="Logo" style={{ height: "35px", margin: "0 auto", objectFit: "contain" }} />
+            </td>
+            <td colSpan={4} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "25%" }}>
+              <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "none" }}>
+                <tbody>
+                  <tr>
+                    <td colSpan={2} style={{ borderBottom: "1.2px solid #002060", background: "#002060", color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "2px" }}>CONFIRMADO</td>
+                  </tr>
+                  <tr>
+                    <td style={{ borderBottom: "1.2px solid #002060", fontSize: "7px", fontWeight: "bold", padding: "2px", color: "#002060" }}>N° INGRESO:</td>
+                    <td style={{ borderBottom: "1.2px solid #002060", fontSize: "8px", fontWeight: "bold", padding: "2px", textAlign: "right", color: "black" }}>{nIngreso}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ borderBottom: "1.2px solid #002060", fontSize: "7px", fontWeight: "bold", padding: "2px", color: "#002060" }}>N° PRENDAS 1:</td>
+                    <td style={{ borderBottom: "1.2px solid #002060", fontSize: "8px", fontWeight: "bold", padding: "2px", textAlign: "right", color: "black" }}>{nPrendas1}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ borderBottom: "1.2px solid #002060", fontSize: "7px", fontWeight: "bold", padding: "2px", color: "#002060" }}>N° PRENDAS 2:</td>
+                    <td style={{ borderBottom: "1.2px solid #002060", fontSize: "8px", fontWeight: "bold", padding: "2px", textAlign: "right", color: "black" }}>{nPrendas2}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ fontSize: "7px", fontWeight: "bold", padding: "2px", color: "#002060" }}>PESO (kg):</td>
+                    <td style={{ fontSize: "8px", fontWeight: "bold", padding: "2px", textAlign: "right", color: "black" }}>{peso}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
 
-          {/* Bloque de Información del Lote */}
-          <div className="grid grid-cols-12 border-b border-[#0F1E36]">
-            {/* Caja del Lote */}
-            <div className="col-span-3 border-r border-[#0F1E36] py-2 flex items-center gap-1.5">
-              <span className="text-[9px] font-black uppercase text-[#0F1E36]">LOTE N°</span>
-              <span className="text-black font-black text-base tracking-tighter leading-none px-1.5">
-                {lote}
-              </span>
-            </div>
-            {/* Campo Cliente */}
-            <div className="col-span-9 py-2 pl-3 flex items-center gap-2">
-              <span className="text-[9px] font-black uppercase text-[#0F1E36]">CLIENTE:</span>
-              <span className="text-black font-black text-xs uppercase">{cliente}</span>
-            </div>
-          </div>
+          {/* Fila 2: LOTE y CLIENTE */}
+          <tr style={{ height: "30px" }}>
+            <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>LOTE N°</td>
+            <td colSpan={2} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black", width: "18%" }}>
+              {lote || ""}
+            </td>
+            <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>CLIENTE:</td>
+            <td colSpan={8} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
+          </tr>
 
-          {/* Bloque Físico Técnico */}
-          <div className="grid grid-cols-12 border-b border-[#0F1E36]">
-            <div className="col-span-7 border-r border-[#0F1E36] py-1 flex items-center gap-1.5">
-              <span className="text-[8px] font-bold uppercase text-[#0F1E36] pl-1">TIPO DE PRENDA:</span>
-              <span className="text-black font-black text-xs uppercase">{tipoPrenda}</span>
-            </div>
-            <div className="col-span-5 py-1 pl-3 flex items-center gap-2">
-              <span className="text-[8px] font-bold uppercase text-[#0F1E36]">MUESTRA EXTERNA</span>
-            </div>
-          </div>
+          {/* Fila 3: TIPO DE PRENDA y MUESTRA EXTERNA */}
+          <tr style={{ height: "24px" }}>
+            <td colSpan={2} style={{ ...cellStyle, width: "15%" }}>TIPO DE PRENDA:</td>
+            <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{tipoPrenda}</td>
+            <td colSpan={6} style={{ ...cellStyle }}>MUESTRA EXTERNA</td>
+          </tr>
 
-          {/* Bloque Tela */}
-          <div className="grid grid-cols-12 border-b border-[#0F1E36] py-1">
-            <div className="col-span-12 flex items-center gap-1.5">
-              <span className="text-[8px] font-bold uppercase text-[#0F1E36] pl-1">NOMBRE DE TELA:</span>
-              <span className="text-black font-black text-xs uppercase">{nombreTela}</span>
-            </div>
-          </div>
+          {/* Fila 4: NOMBRE DE TELA */}
+          <tr style={{ height: "24px" }}>
+            <td colSpan={2} style={{ ...cellStyle }}>NOMBRE DE TELA:</td>
+            <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{nombreTela}</td>
+          </tr>
 
-          {/* Bloque Fecha e Ingreso */}
-          <div className="grid grid-cols-12 border-b border-[#0F1E36]">
-            <div className="col-span-7 border-r border-[#0F1E36] py-1 flex items-center gap-1.5">
-              <span className="text-[8px] font-bold uppercase text-[#0F1E36] pl-1">FECHA DE INGRESO:</span>
-              <span className="text-black font-black text-xs uppercase">{fechaIngreso}</span>
-            </div>
-            <div className="col-span-5 py-1 pl-3 flex items-center gap-2">
-              <span className="text-[8px] font-bold uppercase text-[#0F1E36]">CODIGO:</span>
-              <span className="text-black font-black text-xs uppercase">{codigo}</span>
-            </div>
-          </div>
+          {/* Fila 5: FECHA e INGRESO */}
+          <tr style={{ height: "24px" }}>
+            <td colSpan={2} style={{ ...cellStyle }}>FECHA DE INGRESO:</td>
+            <td colSpan={4} style={{ ...cellStyle, ...valStyle }}>{fechaIngreso}</td>
+            <td colSpan={2} style={{ ...cellStyle, width: "10%" }}>CODIGO:</td>
+            <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{codigo}</td>
+          </tr>
 
-          {/* Bloque Proceso */}
-          <div className="grid grid-cols-12 border-b border-[#0F1E36] py-2">
-            <div className="col-span-12 flex items-center gap-2">
-              <span className="text-[9px] font-black uppercase text-[#0F1E36] pl-1">PROCESO:</span>
-              <span className="text-black font-black text-xs uppercase">{proceso}</span>
-            </div>
-          </div>
-        </div>
+          {/* Fila 6: PROCESO */}
+          <tr style={{ height: "30px" }}>
+            <td colSpan={2} style={{ ...cellStyle }}>PROCESO:</td>
+            <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{proceso}</td>
+          </tr>
 
-        {/* Tabla de Manualidades y Seguimiento */}
-        <div className="flex-1 mt-2">
-          <table className="w-full border-collapse border border-[#0F1E36]">
-            <thead>
-              <tr className="bg-[#0F1E36] text-white">
-                <th className="border border-[#0F1E36] text-[8px] font-black uppercase py-1 text-center w-[20%]">MANUALIDADES</th>
-                <th className="border border-[#0F1E36] text-[8px] font-black uppercase py-1 text-center w-[25%]">NOMBRE</th>
-                <th className="border border-[#0F1E36] text-[8px] font-black uppercase py-1 text-center w-[10%]">CANT</th>
-                <th className="border border-[#0F1E36] text-[8px] font-black uppercase py-1 text-center w-[15%]">FIRMA</th>
-                <th className="border border-[#0F1E36] text-[8px] font-black uppercase py-1 text-center w-[30%]">OBSERVACIONES</th>
+          {/* Fila 7: Encabezados de Tabla de Manualidades */}
+          <tr style={{ height: "18px", background: "#002060" }}>
+            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "25%" }}>MANUALIDADES</td>
+            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "25%" }}>NOMBRE</td>
+            <td colSpan={1} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "10%" }}>CANT</td>
+            <td colSpan={2} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "15%" }}>FIRMA</td>
+            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "25%" }}>OBSERVACIONES</td>
+          </tr>
+
+          {/* Filas 8-18: Cuerpo de Tabla de Manualidades */}
+          {Array.from({ length: 11 }).map((_, idx) => {
+            return (
+              <tr key={idx} style={{ height: "18px" }}>
+                {/* Columnas manualidades, nombre, cant, firma */}
+                {idx < 8 ? (
+                  <>
+                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
+                  </>
+                ) : idx === 8 ? (
+                  <>
+                    <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5" }}>PROCESO</td>
+                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
+                  </>
+                ) : idx === 9 ? (
+                  <>
+                    <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5" }}>SECADO</td>
+                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
+                  </>
+                ) : (
+                  <>
+                    <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5" }}>DESPACHO</td>
+                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
+                    <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
+                  </>
+                )}
+
+                {/* Columna Observaciones con fusiones */}
+                {idx === 0 && (
+                  <td colSpan={3} rowSpan={7} style={{ ...cellStyle, verticalAlign: "top", padding: "3px" }}>
+                    <div style={{ fontSize: "6px", color: "#002060", opacity: 0.6 }}>Faltantes:</div>
+                  </td>
+                )}
+                {idx === 7 && (
+                  <td colSpan={3} rowSpan={2} style={{ ...cellStyle, textAlign: "center", fontSize: "8px", fontWeight: "black", background: "#002060/5" }}>
+                    FALTANTES
+                  </td>
+                )}
+                {idx === 9 && (
+                  <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                )}
+                {idx === 10 && (
+                  <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "8px", fontWeight: "black", background: "#002060/5" }}>
+                    TOTAL ENVIADO
+                  </td>
+                )}
               </tr>
-            </thead>
-            <tbody>
-              {/* Filas del cuerpo */}
-              {Array.from({ length: 7 }).map((_, idx) => (
-                <tr key={idx} className="h-5">
-                  <td className="border border-[#0F1E36] px-1 text-center"></td>
-                  <td className="border border-[#0F1E36] px-1"></td>
-                  <td className="border border-[#0F1E36] px-1"></td>
-                  <td className="border border-[#0F1E36] px-1"></td>
-                  {/* Celda de Observaciones con rowspans para Faltantes y Total */}
-                  {idx === 0 && (
-                    <td className="border border-[#0F1E36] relative align-top p-1" rowSpan={4}>
-                      <div className="text-[6px] text-muted-foreground uppercase font-bold">Faltantes:</div>
-                    </td>
-                  )}
-                  {idx === 4 && (
-                    <td className="border border-[#0F1E36] text-center font-black text-[8px] uppercase align-middle bg-[#0f1e36]/5" rowSpan={2}>
-                      FALTANTES
-                    </td>
-                  )}
-                  {idx === 6 && (
-                    <td className="border border-[#0F1E36] text-center font-black text-[8px] uppercase align-middle bg-[#0f1e36]/5">
-                      TOTAL ENVIADO
-                    </td>
-                  )}
-                </tr>
-              ))}
-
-              {/* Fila de PROCESO */}
-              <tr className="h-5 bg-[#0f1e36]/5">
-                <td className="border border-[#0F1E36] text-center text-[7px] font-black uppercase">PROCESO</td>
-                <td className="border border-[#0F1E36]"></td>
-                <td className="border border-[#0F1E36]"></td>
-                <td className="border border-[#0F1E36]"></td>
-                <td className="border border-[#0F1E36]" rowSpan={3}></td>
-              </tr>
-              {/* Fila de SECADO */}
-              <tr className="h-5 bg-[#0f1e36]/5">
-                <td className="border border-[#0F1E36] text-center text-[7px] font-black uppercase">SECADO</td>
-                <td className="border border-[#0F1E36]"></td>
-                <td className="border border-[#0F1E36]"></td>
-                <td className="border border-[#0F1E36]"></td>
-              </tr>
-              {/* Fila de DESPACHO */}
-              <tr className="h-5 bg-[#0f1e36]/5">
-                <td className="border border-[#0F1E36] text-center text-[7px] font-black uppercase">DESPACHO</td>
-                <td className="border border-[#0F1E36]"></td>
-                <td className="border border-[#0F1E36]"></td>
-                <td className="border border-[#0F1E36]"></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-      </div>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
