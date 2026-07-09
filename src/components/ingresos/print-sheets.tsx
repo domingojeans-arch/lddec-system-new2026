@@ -488,7 +488,7 @@ function SingleSheetView({
             </tr>
 
             {/* Fila 4: TIPO DE PRENDA y N° PRENDAS 2 */}
-            <tr style={{ height: "26px" }}>
+            <tr style={{ height: "30px" }}>
               <td colSpan={2} style={{ ...cellStyle, width: "15%", borderLeft: "none" }}>TIPO DE PRENDA:</td>
               <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{tipoPrenda}</td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
