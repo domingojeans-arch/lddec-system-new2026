@@ -251,11 +251,11 @@ export function PrintSheetsTab() {
       {/* SECCIÓN VISTA PREVIA (no-print) */}
       <div className="no-print space-y-4">
         <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-          Vista Previa de la Ficha (Vertical A5)
+          Vista Previa de la Ficha (Horizontal A5)
         </h4>
         {qty > 0 && startNum > 0 ? (
           <div className="flex justify-center bg-muted/20 p-8 rounded-[2rem] border border-border">
-            <div className="bg-white shadow-2xl p-4 border border-black/10 rounded-lg overflow-hidden" style={{ width: "148mm", height: "210mm", boxSizing: "border-box" }}>
+            <div className="bg-white shadow-2xl p-4 border border-black/10 rounded-lg overflow-hidden" style={{ width: "210mm", height: "148mm", boxSizing: "border-box" }}>
               <SingleSheetView
                 lote={startNum}
                 cliente={cliente}
@@ -288,15 +288,15 @@ export function PrintSheetsTab() {
               background: #fff !important;
             }
             @page {
-              size: A5 portrait;
+              size: A5 landscape;
               margin: 0 !important;
             }
             .ficha-print-container {
               page-break-after: always !important;
               page-break-inside: avoid !important;
               box-sizing: border-box;
-              width: 148mm;
-              height: 210mm;
+              width: 210mm;
+              height: 148mm;
               padding: 4mm 6mm;
               background: white;
             }
@@ -374,7 +374,7 @@ function SingleSheetView({
 
   return (
     <div style={{ width: "100%", height: "100%", boxSizing: "border-box", padding: "1px" }}>
-      {/* Contenedor wrapper con bordes redondeados y borde general garantizado en vertical */}
+      {/* Contenedor wrapper con bordes redondeados y borde general garantizado en horizontal */}
       <div style={{ width: "100%", height: "100%", border: "1.2px solid #002060", borderRadius: "5px", overflow: "hidden", boxSizing: "border-box" }}>
         <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "none" }}>
           <tbody>
@@ -450,7 +450,7 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 6: CLIENTE (Nueva fila sobre procesos) */}
+            {/* Fila 6: CLIENTE (Fila sobre procesos) */}
             <tr style={{ height: "30px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>CLIENTE:</td>
               <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{cliente}</td>
@@ -474,7 +474,7 @@ function SingleSheetView({
             {/* Filas 9-19: Cuerpo de Tabla de Manualidades */}
             {Array.from({ length: 11 }).map((_, idx) => {
               return (
-                <tr key={idx} style={{ height: "20px" }}>
+                <tr key={idx} style={{ height: "16px" }}>
                   {/* Columnas manualidades, nombre, cant, firma */}
                   {idx < 8 ? (
                     <>
@@ -508,12 +508,12 @@ function SingleSheetView({
 
                   {/* Columna Observaciones con division en Faltantes y Total Enviado */}
                   {idx === 0 && (
-                    <td colSpan={3} rowSpan={5} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "100px", borderRight: "none" }}>
+                    <td colSpan={3} rowSpan={5} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "80px", borderRight: "none" }}>
                       <div style={{ fontSize: "10px", color: "#002060", fontWeight: "bold" }}>FALTANTES</div>
                     </td>
                   )}
                   {idx === 5 && (
-                    <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "120px", borderRight: "none", borderBottom: "none" }}>
+                    <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "96px", borderRight: "none", borderBottom: "none" }}>
                       <div style={{ fontSize: "10px", color: "#002060", fontWeight: "bold" }}>TOTAL ENVIADO</div>
                     </td>
                   )}
