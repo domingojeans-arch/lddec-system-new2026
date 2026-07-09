@@ -381,10 +381,10 @@ function SingleSheetView({
               <div style={{ fontSize: "12px", fontWeight: "bold", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
               <div style={{ fontSize: "11px", fontWeight: "bold", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
             </td>
-            <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "12%" }}>
+            <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%" }}>
               <img src="/logo-lddec.png" alt="Logo" style={{ height: "35px", margin: "0 auto", objectFit: "contain" }} />
             </td>
-            <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "25%" }}>
+            <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "30%" }}>
               <div style={{ borderBottom: "1.2px solid #002060", background: "#002060", color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "3px 0" }}>
                 CONFIRMADO
               </div>
@@ -400,7 +400,7 @@ function SingleSheetView({
             </td>
             <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>CLIENTE:</td>
             <td colSpan={5} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
-            <td colSpan={3} style={{ ...cellStyle, width: "25%", padding: "4px 6px" }}>
+            <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                 <span>N° INGRESO:</span>
                 <span style={{ color: "black", fontSize: "10px" }}>{nIngreso}</span>
@@ -413,7 +413,7 @@ function SingleSheetView({
             <td colSpan={2} style={{ ...cellStyle, width: "15%" }}>TIPO DE PRENDA:</td>
             <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{tipoPrenda}</td>
             <td colSpan={3} style={{ ...cellStyle }}>MUESTRA EXTERNA</td>
-            <td colSpan={3} style={{ ...cellStyle, width: "25%", padding: "4px 6px" }}>
+            <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                 <span>N° PRENDAS 1:</span>
                 <span style={{ color: "black", fontSize: "10px" }}>{nPrendas1}</span>
@@ -425,7 +425,7 @@ function SingleSheetView({
           <tr style={{ height: "26px" }}>
             <td colSpan={2} style={{ ...cellStyle }}>NOMBRE DE TELA:</td>
             <td colSpan={7} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{nombreTela}</td>
-            <td colSpan={3} style={{ ...cellStyle, width: "25%", padding: "4px 6px" }}>
+            <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                 <span>N° PRENDAS 2:</span>
                 <span style={{ color: "black", fontSize: "10px" }}>{nPrendas2}</span>
@@ -439,7 +439,7 @@ function SingleSheetView({
             <td colSpan={4} style={{ ...cellStyle, ...valStyle }}>{fechaIngreso}</td>
             <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>CODIGO:</td>
             <td colSpan={2} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{codigo}</td>
-            <td colSpan={3} style={{ ...cellStyle, width: "25%", padding: "4px 6px" }}>
+            <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                 <span>PESO (kg):</span>
                 <span style={{ color: "black", fontSize: "10px" }}>{peso}</span>
@@ -455,11 +455,11 @@ function SingleSheetView({
 
           {/* Fila 7: Encabezados de Tabla de Manualidades */}
           <tr style={{ height: "18px", background: "#002060" }}>
-            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "22%" }}>MANUALIDADES</td>
-            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "25%" }}>NOMBRE</td>
-            <td colSpan={1} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "10%" }}>CANT</td>
-            <td colSpan={2} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "15%" }}>FIRMA</td>
-            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "28%" }}>OBSERVACIONES</td>
+            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "20%" }}>MANUALIDADES</td>
+            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "22%" }}>NOMBRE</td>
+            <td colSpan={1} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "8%" }}>CANT</td>
+            <td colSpan={2} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "12%" }}>FIRMA</td>
+            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "38%" }}>OBSERVACIONES</td>
           </tr>
 
           {/* Filas 8-18: Cuerpo de Tabla de Manualidades */}
@@ -499,20 +499,17 @@ function SingleSheetView({
 
                 {/* Columna Observaciones con fusiones */}
                 {idx === 0 && (
-                  <td colSpan={3} rowSpan={7} style={{ ...cellStyle, verticalAlign: "top", padding: "3px" }}>
+                  <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "3px" }}>
                     <div style={{ fontSize: "6px", color: "#002060", opacity: 0.6 }}>Faltantes:</div>
                   </td>
                 )}
-                {idx === 7 && (
-                  <td colSpan={3} rowSpan={2} style={{ ...cellStyle, textAlign: "center", fontSize: "8px", fontWeight: "black", background: "#002060/5" }}>
+                {idx === 6 && (
+                  <td colSpan={3} rowSpan={4} style={{ ...cellStyle, textAlign: "center", fontSize: "9px", fontWeight: "black", background: "#002060/5", height: "72px" }}>
                     FALTANTES
                   </td>
                 )}
-                {idx === 9 && (
-                  <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
-                )}
                 {idx === 10 && (
-                  <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "8px", fontWeight: "black", background: "#002060/5" }}>
+                  <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "9px", fontWeight: "black", background: "#002060/5", height: "32px" }}>
                     TOTAL ENVIADO
                   </td>
                 )}
