@@ -466,8 +466,8 @@ function SingleSheetView({
                     objectFit: "contain", 
                     margin: "0 auto",
                     transform: "scale(1.3)",
-                    // Si se imprime en negro, convierte el logo a negro puro. Si es azul, mantiene su color original
-                    filter: printColor === "#000000" ? "brightness(0)" : "none"
+                    // Filtro para convertir a blanco y negro puro manteniendo los detalles internos blancos intactos
+                    filter: printColor === "#000000" ? "grayscale(100%) contrast(300%)" : "none"
                   }} 
                 />
               </td>
