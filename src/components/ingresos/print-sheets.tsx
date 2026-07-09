@@ -388,17 +388,7 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 2: CLIENTE (Fila sobre Tipo de Prenda con nombre primero/a la izquierda) */}
-            <tr style={{ height: "30px" }}>
-              <td colSpan={12} style={{ ...cellStyle, borderLeft: "none", borderRight: "none", padding: "4px 6px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                  <span style={{ color: "black", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase" }}>{cliente}</span>
-                  <span style={{ color: "#002060", fontSize: "9px", fontWeight: "bold" }}>CLIENTE:</span>
-                </div>
-              </td>
-            </tr>
-
-            {/* Fila 3: LOTE y N° INGRESO */}
+            {/* Fila 2: LOTE y N° INGRESO */}
             <tr style={{ height: "30px" }}>
               <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
               <td colSpan={5} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
@@ -408,6 +398,16 @@ function SingleSheetView({
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° INGRESO:</span>
                   <span style={{ color: "black", fontSize: "10px" }}>{nIngreso}</span>
+                </div>
+              </td>
+            </tr>
+
+            {/* Fila 3: CLIENTE (Fila sobre Tipo de Prenda con nombre primero/a la izquierda) */}
+            <tr style={{ height: "30px" }}>
+              <td colSpan={12} style={{ ...cellStyle, borderLeft: "none", borderRight: "none", padding: "4px 6px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <span style={{ color: "black", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase" }}>{cliente}</span>
+                  <span style={{ color: "#002060", fontSize: "9px", fontWeight: "bold" }}>CLIENTE:</span>
                 </div>
               </td>
             </tr>
