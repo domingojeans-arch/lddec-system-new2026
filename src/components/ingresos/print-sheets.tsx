@@ -98,7 +98,7 @@ export function PrintSheetsTab() {
       return;
     }
 
-    const finalLot = startNum - qty + 1;
+    const finalLot = startNum + qty - 1;
     localStorage.setItem("lastPrintedLot", String(finalLot));
     setLastPrintedLot(String(finalLot));
     localStorage.setItem("printColor", printColor);
@@ -109,7 +109,10 @@ export function PrintSheetsTab() {
   const startNum = parseInt(loteInicial) || 0;
   const qty = parseInt(cantidad) || 0;
   const listFichas = Array.from({ length: qty }).map((_, idx) => {
-    return startNum - idx;
+    // Secuencia ascendente (startNum hasta startNum + qty - 1)
+    // pero invertida al mandar a imprimir (mayor a menor) para que al apilarse
+    // en la bandeja de salida quede la menor (startNum) arriba del fajo.
+    return startNum + qty - 1 - idx;
   });
 
   return (
