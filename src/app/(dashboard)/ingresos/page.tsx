@@ -42,6 +42,8 @@ import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PrintSheetsTab } from "@/components/ingresos/print-sheets";
 
 function getEntryVisible(item: any, id: string): string {
   const candidates = [item.numeroIngreso, item.entryNumber, item.numeroIngresoMaestro, item.numero, item.entryID, id];
@@ -211,20 +213,37 @@ export default function IngresosPage() {
         )}
       </div>
 
-      <div className="bg-card p-6 rounded-[2rem] border border-border shadow-premium flex flex-col lg:flex-row items-center gap-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 w-full">
-          <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Buscador ID / Cliente</Label><div className="relative group"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Ej: 4804 o Socio..." className="pl-10 erp-input h-11" value={inputSearch} onChange={e => setInputSearch(e.target.value)} /></div></div>
-          <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Desde</Label><Popover open={isFromOpen} onOpenChange={setIsFromOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full h-11 erp-input bg-background justify-start text-left font-bold text-xs"><CalendarIcon className="mr-2 h-4 w-4 text-primary" />{dateFromObj && isValid(dateFromObj) ? format(dateFromObj, "dd/MM/yyyy") : "Desde"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden shadow-2xl border-none z-[100]" align="start"><Calendar mode="single" selected={dateFromObj} onSelect={(d) => { setDateFrom(d ? format(d, "yyyy-MM-dd") : ""); setIsFromOpen(false); }} locale={es} initialFocus /></PopoverContent></Popover></div>
-          <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Hasta</Label><Popover open={isToOpen} onOpenChange={setIsToOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full h-11 erp-input bg-background justify-start text-left font-bold text-xs"><CalendarIcon className="mr-2 h-4 w-4 text-primary" />{dateToObj && isValid(dateToObj) ? format(dateToObj, "dd/MM/yyyy") : "Hasta"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden shadow-2xl border-none z-[100]" align="start"><Calendar mode="single" selected={dateToObj} onSelect={(d) => { setDateTo(d ? format(d, "yyyy-MM-dd") : ""); setIsToOpen(false); }} locale={es} initialFocus /></PopoverContent></Popover></div>
-          <div className="lg:col-span-2 flex items-end"><Button onClick={loadEntries} disabled={loading} className="h-11 px-8 bg-muted hover:bg-muted/80 text-foreground font-black text-[10px] uppercase tracking-widest gap-2 rounded-xl border border-border w-full lg:w-auto">{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />} Consultar Periodo</Button></div>
-        </div>
-      </div>
+      <Tabs defaultValue="list" className="space-y-6">
+        <TabsList className="bg-muted/40 p-1.5 rounded-2xl border border-border/80 flex items-center justify-start gap-1 w-full md:w-max no-print">
+          <TabsTrigger value="list" className="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all data-[state=active]:bg-primary data-[state=active]:text-white">
+            Lista de Ingresos
+          </TabsTrigger>
+          <TabsTrigger value="print" className="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all data-[state=active]:bg-primary data-[state=active]:text-white">
+            Imprimir Fichas
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="min-h-[400px]">
-        {loading ? <div className="h-64 flex flex-col items-center justify-center space-y-4"><Loader2 className="h-12 w-12 animate-spin text-primary/20" /><p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Consultando Firestore...</p></div>
-        : filteredEntries.length > 0 ? <ActualEntryTable entries={filteredEntries} onView={(e) => { setViewingEntry(e); setIsDetailOpen(true); }} onEdit={(e) => { setEditingEntry(e); setIsSheetOpen(true); }} onDelete={async (id) => { await deleteDoc(doc(db, "entries", id)); loadEntries(); }} onPrint={(e) => { setViewingEntry(e); setIsDetailOpen(true); }} canEdit={user?.role === "admin" || user?.role === "bodega"} />
-        : <div className="h-64 rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground bg-muted/10"><ArrowDownCircle className="h-12 w-12 mb-4 opacity-20" /><p className="font-black text-sm uppercase tracking-widest">Sin registros en el rango seleccionado</p></div>}
-      </div>
+        <TabsContent value="list" className="space-y-6 outline-none">
+          <div className="bg-card p-6 rounded-[2rem] border border-border shadow-premium flex flex-col lg:flex-row items-center gap-6 no-print">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 w-full">
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Buscador ID / Cliente</Label><div className="relative group"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Ej: 4804 o Socio..." className="pl-10 erp-input h-11" value={inputSearch} onChange={e => setInputSearch(e.target.value)} /></div></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Desde</Label><Popover open={isFromOpen} onOpenChange={setIsFromOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full h-11 erp-input bg-background justify-start text-left font-bold text-xs"><CalendarIcon className="mr-2 h-4 w-4 text-primary" />{dateFromObj && isValid(dateFromObj) ? format(dateFromObj, "dd/MM/yyyy") : "Desde"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden shadow-2xl border-none z-[100]" align="start"><Calendar mode="single" selected={dateFromObj} onSelect={(d) => { setDateFrom(d ? format(d, "yyyy-MM-dd") : ""); setIsFromOpen(false); }} locale={es} initialFocus /></PopoverContent></Popover></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Hasta</Label><Popover open={isToOpen} onOpenChange={setIsToOpen}><PopoverTrigger asChild><Button variant="outline" className="w-full h-11 erp-input bg-background justify-start text-left font-bold text-xs"><CalendarIcon className="mr-2 h-4 w-4 text-primary" />{dateToObj && isValid(dateToObj) ? format(dateToObj, "dd/MM/yyyy") : "Hasta"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0 rounded-2xl overflow-hidden shadow-2xl border-none z-[100]" align="start"><Calendar mode="single" selected={dateToObj} onSelect={(d) => { setDateTo(d ? format(d, "yyyy-MM-dd") : ""); setIsToOpen(false); }} locale={es} initialFocus /></PopoverContent></Popover></div>
+              <div className="lg:col-span-2 flex items-end"><Button onClick={loadEntries} disabled={loading} className="h-11 px-8 bg-muted hover:bg-muted/80 text-foreground font-black text-[10px] uppercase tracking-widest gap-2 rounded-xl border border-border w-full lg:w-auto">{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />} Consultar Periodo</Button></div>
+            </div>
+          </div>
+
+          <div className="min-h-[400px]">
+            {loading ? <div className="h-64 flex flex-col items-center justify-center space-y-4"><Loader2 className="h-12 w-12 animate-spin text-primary/20" /><p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Consultando Firestore...</p></div>
+            : filteredEntries.length > 0 ? <ActualEntryTable entries={filteredEntries} onView={(e) => { setViewingEntry(e); setIsDetailOpen(true); }} onEdit={(e) => { setEditingEntry(e); setIsSheetOpen(true); }} onDelete={async (id) => { await deleteDoc(doc(db, "entries", id)); loadEntries(); }} onPrint={(e) => { setViewingEntry(e); setIsDetailOpen(true); }} canEdit={user?.role === "admin" || user?.role === "bodega"} />
+            : <div className="h-64 rounded-[2.5rem] border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground bg-muted/10"><ArrowDownCircle className="h-12 w-12 mb-4 opacity-20" /><p className="font-black text-sm uppercase tracking-widest">Sin registros en el rango seleccionado</p></div>}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="print" className="outline-none">
+          <PrintSheetsTab />
+        </TabsContent>
+      </Tabs>
 
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}><SheetContent className="w-full sm:max-w-[650px] bg-card border-l-border p-0 overflow-hidden"><div className="h-full flex flex-col"><div className="p-8 border-b border-border bg-muted/20"><SheetHeader><SheetTitle className="text-3xl font-black text-foreground uppercase tracking-tight">{editingEntry ? "Editar Ingreso" : "Nuevo Ingreso"}</SheetTitle></SheetHeader></div><div className="flex-1 overflow-y-auto p-8">{submitting ? <div className="h-full flex flex-col items-center justify-center gap-4"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Sincronizando...</p></div> : <ActualEntryForm key={editingEntry?.id || 'new'} initialData={editingEntry} clients={clients} garmentCatalog={garmentCatalog} processCatalog={processCatalog} onSubmit={handleFormSubmit} onCancel={() => setIsSheetOpen(false)} />}</div></div></SheetContent></Sheet>
 
