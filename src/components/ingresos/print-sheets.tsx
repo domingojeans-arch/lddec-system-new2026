@@ -395,12 +395,10 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 2: LOTE y N° INGRESO (Subido un casillero hacia arriba) */}
+            {/* Fila 2: CLIENTE y N° INGRESO */}
             <tr style={{ height: "30px" }}>
-              <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
-              <td colSpan={8} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
-                {lote || ""}
-              </td>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none", width: "15%" }}>CLIENTE:</td>
+              <td colSpan={7} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° INGRESO:</span>
@@ -409,10 +407,12 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 3: CLIENTE y N° PRENDAS 1 (Subido un casillero hacia arriba) */}
+            {/* Fila 3: LOTE y N° PRENDAS 1 */}
             <tr style={{ height: "30px" }}>
-              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none", width: "15%" }}>CLIENTE:</td>
-              <td colSpan={7} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
+              <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
+              <td colSpan={8} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
+                {lote || ""}
+              </td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° PRENDAS 1:</span>
