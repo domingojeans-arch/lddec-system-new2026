@@ -479,8 +479,12 @@ function SingleSheetView({
 
             {/* Fila 2: CLIENTE y N° INGRESO */}
             <tr style={{ height: "30px" }}>
-              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none", width: "15%" }}>CLIENTE:</td>
-              <td colSpan={7} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
+              <td colSpan={9} style={{ ...cellStyle, borderLeft: "none", padding: "3px 6px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>CLIENTE:</span>
+                  <span style={{ ...valStyle, textTransform: "uppercase" }}>{cliente}</span>
+                </div>
+              </td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° INGRESO:</span>
