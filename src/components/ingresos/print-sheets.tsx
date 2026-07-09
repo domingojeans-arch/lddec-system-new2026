@@ -257,7 +257,7 @@ export function PrintSheetsTab() {
       {/* SECCIÓN VISTA PREVIA (no-print) */}
       <div className="no-print space-y-4">
         <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
-          Vista Previa de la Ficha (Horizontal A5)
+          Vista Previa de la Ficha
         </h4>
         {qty > 0 && startNum > 0 ? (
           <div className="flex justify-center bg-muted/20 p-8 rounded-[2rem] border border-border">
@@ -284,7 +284,7 @@ export function PrintSheetsTab() {
         )}
       </div>
 
-      {/* ÁREA DE IMPRESIÓN REAL (PORTADA DIRECTAMENTE A BODY PARA IMPRESIÓN PERFECTA) */}
+      {/* ÁREA DE IMPRESIÓN REAL */}
       {mounted && typeof document !== "undefined" && createPortal(
         <div className="hidden print:block absolute left-0 top-0 w-full" id="print-area">
           <style dangerouslySetInnerHTML={{ __html: `
@@ -299,19 +299,16 @@ export function PrintSheetsTab() {
                 left: 0 !important;
                 top: 0 !important;
                 width: 210mm !important;
-                height: 148mm !important;
-                margin: 0 !important;
-                padding: 0 !important;
+                height: auto !important;
               }
               @page {
-                size: A5 landscape;
+                size: portrait;
                 margin: 0 !important;
               }
               body, html {
                 margin: 0 !important;
                 padding: 0 !important;
                 width: 210mm !important;
-                height: 148mm !important;
                 background: #fff !important;
                 overflow: visible !important;
               }
