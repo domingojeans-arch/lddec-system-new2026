@@ -419,8 +419,10 @@ export default function SalidasPage() {
       const existingQtyHistorical = getHistoricalDispatched();
       const totalAlreadyUsed = existingQtyInGuide + existingQtyHistorical;
 
+      const isResolved = !!(lot.isNoveltyResolved || lot.fallaLavado);
+
       // Bloquear si el lote ya está despachado por completo (historia + actual)
-      if (totalAlreadyUsed >= originalTotalQty) {
+      if (!isResolved && totalAlreadyUsed >= originalTotalQty) {
         toast({
           variant: "destructive",
           title: "Acción Bloqueada",
@@ -446,7 +448,7 @@ export default function SalidasPage() {
         const originalVal = Number(g.quantity || g.cantidad || 0);
         const confirmedVal = Number(g.cantidadConfirmada !== undefined ? g.cantidadConfirmada : originalVal);
         
-        const remaining = Math.max(0, confirmedVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
+        const remaining = isResolved ? 0 : Math.max(0, confirmedVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
 
         return { 
           id: g.id || Math.random().toString(36).substr(2, 9), 
@@ -468,7 +470,7 @@ export default function SalidasPage() {
         const originalVal = Number(lot.quantity || lot.cantidad || 0);
         const confirmedVal = Number(lot.cantidadConfirmada !== undefined ? lot.cantidadConfirmada : originalVal);
         
-        const remaining = Math.max(0, confirmedVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
+        const remaining = isResolved ? 0 : Math.max(0, confirmedVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
 
         breakdown.push({
           id: "legacy",

@@ -13,7 +13,8 @@ import {
   Edit3,
   Building2,
   Layers,
-  Printer
+  Printer,
+  RotateCcw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +50,7 @@ import {
   where, 
   onSnapshot, 
   doc, 
+  updateDoc,
   writeBatch, 
   Timestamp, 
   serverTimestamp 
@@ -243,6 +245,113 @@ export default function FaltantesPage() {
       f.visibleIngresoNumber.toLowerCase().includes(searchTerm.toLowerCase())
     ).sort((a, b) => b.entryDateMs - a.entryDateMs);
   }, [entries, outputs, searchTerm]);
+
+  const resolvedFaltantesData = useMemo(() => {
+    const results: any[] = [];
+
+    entries.forEach(entry => {
+      (entry.lotes || []).forEach((lote: any) => {
+        if (!(lote.isNoveltyResolved || lote.fallaLavado)) {
+          return;
+        }
+
+        const internalId = (lote.loteId || lote.id || lote.lotNumber || lote.numeroLote || "").toString().toUpperCase();
+        const visibleLotName = getVisibleLotName(lote);
+        
+        const garmentsArr = Array.isArray(lote.originalPrendas) ? lote.originalPrendas : 
+                           Array.isArray(lote.prendas) ? lote.prendas : 
+                           Array.isArray(lote.garments) ? lote.garments : [];
+
+        const qtyFromArr = garmentsArr.reduce((sum: number, p: any) => sum + (Number(p.quantity || p.cantidad || 0)), 0);
+        const originalQuantity = qtyFromArr > 0 ? qtyFromArr : Number(lote.cantidadConfirmada || lote.quantity || lote.cantidad || 0);
+
+        let salidaReferencia = "S/D";
+
+        const totalDispatched = outputs.reduce((sum, out) => {
+          const items = out.itemsDispatched || [];
+          const itemMatch = items.find((it: any) => {
+            const itInternal = (it.entryLotNumber || it.lotNumber || it.loteId || "").toString().toUpperCase();
+            const itVisible = getVisibleLotName(it);
+            return itInternal === internalId || itVisible === visibleLotName;
+          });
+          
+          if (itemMatch) {
+            if (itemMatch.reportarFaltante) {
+               salidaReferencia = out.numeroSalida || "S/D";
+            } else if (salidaReferencia === "S/D") {
+               salidaReferencia = out.numeroSalida || "S/D";
+            }
+            return sum + (Number(itemMatch.quantityToDispatch || 0));
+          }
+          return sum;
+        }, 0);
+
+        const prenda = lote.garmentType || lote.prendas?.[0]?.tipo || lote.garments?.[0]?.garmentType || "Varios";
+        const cantidadFaltante = Number(originalQuantity || 0) - Number(totalDispatched || 0);
+
+        results.push({
+          id: `${entry.id}-${internalId}`, 
+          loteId: visibleLotName,
+          internalId,
+          parentIngresoId: entry.id,
+          parentEntry: entry,
+          entryDateMs: entry.date?.toMillis ? entry.date.toMillis() : (entry.date?.seconds ? entry.date.seconds * 1000 : new Date(entry.entryDate || entry.date || 0).getTime()),
+          entryDate: entry.entryDate || (entry.date?.toDate ? entry.date.toDate().toLocaleDateString('es-EC') : 'S/F'),
+          visibleIngresoNumber: getEntryVisible(entry, entry.id),
+          clientName: (entry.clientName || entry.clienteNombre || "Socio").toUpperCase(),
+          prenda,
+          originalQuantity,
+          totalDispatched,
+          faltante: cantidadFaltante,
+          salidaReferencia,
+          tipoResolucion: lote.fallaLavado ? "Falla Lavado" : "Despachado",
+          fechaResolucion: lote.fechaResolucion ? new Date(lote.fechaResolucion).toLocaleDateString('es-EC') : '---',
+          resueltoPor: lote.resueltoPor || "S/D"
+        });
+      });
+    });
+
+    return results.filter(f => 
+      f.loteId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      f.visibleIngresoNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    ).sort((a, b) => b.entryDateMs - a.entryDateMs);
+  }, [entries, outputs, searchTerm]);
+
+  const handleUndoResolution = async (item: any) => {
+    if (isReadOnly) return;
+    if (!window.confirm(`¿Está seguro de revertir la resolución del lote ${item.loteId}? Volverá a aparecer como Faltante.`)) {
+      return;
+    }
+    
+    setProcessing(true);
+    try {
+      const entryRef = doc(db, "entries", item.parentIngresoId);
+      const updatedLotes = item.parentEntry.lotes.map((l: any) => {
+        const lid = getVisibleLotName(l);
+        if (lid === item.loteId) {
+          // Revertir todos los campos de resolución
+          const { isNoveltyResolved, productionStatus, fallaLavado, observacionesFalla, resueltoPor, fechaResolucion, ...rest } = l;
+          return {
+            ...rest,
+            productionStatus: "In Progress"
+          };
+        }
+        return l;
+      });
+      
+      await updateDoc(entryRef, { lotes: updatedLotes, updatedAt: serverTimestamp() });
+      toast({ 
+        title: "Resolución Revertida", 
+        description: `El lote ${item.loteId} ha sido devuelto a la lista de faltantes.` 
+      });
+    } catch (e) {
+      console.error(e);
+      toast({ variant: "destructive", title: "Error al revertir resolución" });
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   const handleOpenResolution = (item: any) => {
     if (isReadOnly) return;
@@ -490,6 +599,91 @@ export default function FaltantesPage() {
             </TableBody>
           </Table>
         )}
+      </div>
+
+      <div className="space-y-4 pt-6 print:hidden">
+        <div className="bg-muted/30 px-6 py-2 rounded-full border border-border text-[10px] font-black uppercase text-muted-foreground tracking-widest w-fit">
+          Historial de Faltantes Resueltos ({MONTHS[selectedMonth]} {selectedYear})
+        </div>
+        
+        <div className="rounded-[2.5rem] border border-border bg-card overflow-hidden shadow-premium min-h-[150px]">
+          <Table>
+            <TableHeader className="bg-muted/50">
+              <TableRow className="border-border">
+                <TableHead className="text-[10px] font-black uppercase text-muted-foreground py-5 pl-8">Fecha Ingreso</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-muted-foreground">N° Ingreso</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-muted-foreground">N° Lote</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-muted-foreground">Cliente</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-muted-foreground">Resolución</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-center">Faltante</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-muted-foreground">Fecha Res.</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-muted-foreground">Usuario</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-right pr-8">Acción</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {resolvedFaltantesData.length > 0 ? (
+                resolvedFaltantesData.map((item) => (
+                  <TableRow key={item.id} className="border-border hover:bg-muted/10 transition-colors group opacity-85">
+                    <TableCell className="pl-8 py-4">
+                      <span className="text-xs font-medium text-muted-foreground">{item.entryDate}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs font-bold text-primary">{item.visibleIngresoNumber}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm font-black">{item.loteId}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-[11px] font-bold uppercase truncate block max-w-[150px]">{item.clientName}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className={cn(
+                        "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border",
+                        item.tipoResolucion === "Falla Lavado" 
+                          ? "bg-rose-50 text-rose-700 border-rose-100" 
+                          : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                      )}>
+                        {item.tipoResolucion}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center font-bold text-muted-foreground">
+                      {item.faltante}
+                    </TableCell>
+                    <TableCell className="text-xs font-medium text-muted-foreground">
+                      {item.fechaResolucion}
+                    </TableCell>
+                    <TableCell className="text-[10px] font-medium text-muted-foreground truncate max-w-[100px]">
+                      {item.resueltoPor}
+                    </TableCell>
+                    <TableCell className="text-right pr-8">
+                      {!isReadOnly && (
+                        <Button 
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleUndoResolution(item)}
+                          className="h-9 w-9 rounded-xl text-red-500 hover:text-red-700 hover:bg-red-50 transition-all"
+                          title="Deshacer resolución y devolver a faltantes"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-28 text-center">
+                    <div className="flex flex-col items-center justify-center opacity-20">
+                      <ClipboardList className="h-8 w-8 mb-2" />
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em]">Sin faltantes resueltos en este periodo</p>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
