@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,6 +30,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { FacturaPendienteRow } from "@/components/cobranzas/FacturaPendienteRow";
 import { CobranzaForm } from "@/components/cobranzas/CobranzaForm";
 import { PagoDetalle, EstadoCobranza } from "@/types/lddec";
+import { useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -43,6 +46,7 @@ export default function CobranzasPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isReadOnly = user?.role === "socio";
+  const searchParams = useSearchParams();
 
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
@@ -61,6 +65,8 @@ export default function CobranzasPage() {
   // Estados para controlar los Popovers de calendario
   const [isFromOpen, setIsFromOpen] = useState(false);
   const [isToOpen, setIsToOpen] = useState(false);
+  const [clientComboOpen, setClientComboOpen] = useState(false);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
 
   useEffect(() => {
     const d = new Date(); 
@@ -88,6 +94,17 @@ export default function CobranzasPage() {
   }, []);
 
   useEffect(() => {
+    const cid = searchParams.get("clientId");
+    if (cid && clients.length > 0) {
+      const match = clients.find(c => c.id === cid);
+      if (match) {
+        setSelectedClientId(cid);
+        setIsGenerated(true);
+      }
+    }
+  }, [searchParams, clients]);
+
+  useEffect(() => {
     if (selectedClientId) {
       setCurrentClient(clients.find(c => c.id === selectedClientId));
       setIsGenerated(false); // Resetear al cambiar cliente
@@ -102,9 +119,30 @@ export default function CobranzasPage() {
       const filtered = docs.filter((inv: any) => inv.clientId === selectedClientId || inv.clienteId === selectedClientId);
       setAllInvoices(filtered);
       setLoading(false);
+
+      const targetInvId = searchParams.get("invoiceId");
+      if (targetInvId) {
+        const belongs = filtered.some(f => f.id === targetInvId);
+        if (belongs) {
+          setSelectedInvoices([targetInvId]);
+          setPaymentLines(prev => {
+            const exists = prev.some(line => line.invoiceId === targetInvId);
+            if (!exists) {
+              return [{
+                id: Math.random().toString(36).substr(2, 9),
+                monto: 0,
+                tipoTransaccion: "Pago",
+                fechaTransaccion: new Date(),
+                invoiceId: targetInvId
+              }];
+            }
+            return prev;
+          });
+        }
+      }
     });
     return () => unsubInvoices();
-  }, [selectedClientId]);
+  }, [selectedClientId, searchParams]);
 
   const accountMetrics = useMemo(() => {
     if (!isGenerated || !selectedClientId || !currentClient || !dateFrom || !dateTo) return null;
@@ -310,14 +348,48 @@ export default function CobranzasPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase ml-1">Socio Industrial</Label>
-            <Select value={selectedClientId} onValueChange={(val) => { setSelectedClientId(val); setSelectedInvoices([]); setPaymentLines([]); setIsGenerated(false); }}>
-              <SelectTrigger className="erp-input h-12 font-bold">
-                <SelectValue placeholder="Seleccione un socio..." />
-              </SelectTrigger>
-              <SelectContent className="rounded-2xl shadow-2xl max-h-[350px]">
-                {clients.map(c => <SelectItem key={c.id} value={c.id} className="text-xs uppercase font-bold">{c.displayName}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Popover open={clientComboOpen} onOpenChange={setClientComboOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full h-12 erp-input bg-card justify-between text-left font-bold text-xs">
+                  {clients.find(c => c.id === selectedClientId)?.displayName || "Seleccione un socio..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-4 rounded-2xl bg-card border border-border shadow-2xl space-y-3 z-[100]" align="start">
+                <Input
+                  placeholder="Buscar socio..."
+                  value={clientSearchQuery}
+                  onChange={(e) => setClientSearchQuery(e.target.value)}
+                  className="h-10 font-bold"
+                />
+                <ScrollArea className="h-[250px]">
+                  <div className="space-y-1 pr-2">
+                    {clients
+                      .filter(c => c.displayName.toLowerCase().includes(clientSearchQuery.toLowerCase()))
+                      .map(c => (
+                        <Button
+                          key={c.id}
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedClientId(c.id);
+                            setSelectedInvoices([]);
+                            setPaymentLines([]);
+                            setIsGenerated(false);
+                            setClientComboOpen(false);
+                            setClientSearchQuery("");
+                          }}
+                          className={cn(
+                            "w-full justify-start text-xs font-bold h-10 px-4 rounded-xl text-left truncate block",
+                            selectedClientId === c.id ? "bg-primary text-white hover:bg-primary/95" : "hover:bg-muted/50"
+                          )}
+                        >
+                          {c.displayName}
+                        </Button>
+                      ))}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="space-y-2">
@@ -453,6 +525,12 @@ export default function CobranzasPage() {
               <div className="text-center space-y-1">
                 <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Acción Comercial</h5>
                 <p className="text-xs font-bold text-foreground">Confirmar Cobranza</p>
+              </div>
+              <div className="text-center space-y-1 w-full border-t border-b border-border py-3 my-1">
+                <h5 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Total a Cobrar</h5>
+                <p className="text-2xl font-black text-emerald-600 tracking-tighter">
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(paymentLines.reduce((acc, curr) => acc + Number(curr.monto || 0), 0))}
+                </p>
               </div>
               <Button 
                 onClick={handleConfirmPayments} 

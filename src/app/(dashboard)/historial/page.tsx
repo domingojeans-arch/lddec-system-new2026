@@ -22,7 +22,9 @@ import {
   ArrowRight,
   Receipt,
   Eye,
-  X
+  X,
+  Download,
+  ChevronsUpDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +77,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toDate } from "@/lib/toDate";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import * as XLSX from "xlsx";
 
 const statusMap: Record<string, string> = {
   "Por Cobrar": "bg-amber-100 text-amber-700 border-amber-200",
@@ -163,6 +166,10 @@ export default function HistorialPage() {
   const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(false);
   const [auditData, setAuditData] = useState<any>(null);
+  const [currentView, setCurrentView] = useState<"timeline" | "estado_cuenta">("timeline");
+  const [filterEstado, setFilterEstado] = useState<string>("all");
+  const [openClientCombo, setOpenClientCombo] = useState(false);
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
 
   // Estados para el Modal de Detalles (Ojito)
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -199,9 +206,14 @@ export default function HistorialPage() {
     loadClients();
   }, []);
 
+  const getClientName = (clientId: string) => {
+    const c = clients.find(cl => cl.id === clientId);
+    return c ? c.displayName : "CLIENTE DESCONOCIDO";
+  };
+
   const handleGenerateAudit = async () => {
     if (!selectedClientId) {
-      toast({ variant: "destructive", title: "Atención", description: "Seleccione un cliente para auditar." });
+      toast({ variant: "destructive", title: "Atención", description: "Seleccione un cliente para auditar o elija Todos." });
       return;
     }
 
@@ -209,49 +221,80 @@ export default function HistorialPage() {
     setAuditData(null);
 
     try {
-      const clientDoc = await getDoc(doc(db, "clients", selectedClientId));
-      const clientData = clientDoc.data() || {};
-      const baseDebt = Number(clientData.baseDebt || clientData.saldoInicial || 0);
-
-      // 1. Obtener facturas filtradas por clientId y clienteId en paralelo
-      const qInvoicesClient = query(collection(db, "facturas"), where("clientId", "==", selectedClientId));
-      const qInvoicesCliente = query(collection(db, "facturas"), where("clienteId", "==", selectedClientId));
-      const [invoicesClientSnap, invoicesClienteSnap] = await Promise.all([
-        getDocs(qInvoicesClient),
-        getDocs(qInvoicesCliente)
-      ]);
-      
-      const invoicesMap = new Map();
-      invoicesClientSnap.docs.forEach(d => invoicesMap.set(d.id, { id: d.id, ...d.data() }));
-      invoicesClienteSnap.docs.forEach(d => invoicesMap.set(d.id, { id: d.id, ...d.data() }));
-      const clientInvoices = Array.from(invoicesMap.values());
-
-      // 2. Obtener ingresos (entries) filtrados por clientId y clienteId en paralelo
-      const qEntriesClient = query(collection(db, "entries"), where("clientId", "==", selectedClientId));
-      const qEntriesCliente = query(collection(db, "entries"), where("clienteId", "==", selectedClientId));
-      const [entriesClientSnap, entriesClienteSnap] = await Promise.all([
-        getDocs(qEntriesClient),
-        getDocs(qEntriesCliente)
-      ]);
-      
-      const entriesMap = new Map();
-      entriesClientSnap.docs.forEach(d => entriesMap.set(d.id, { id: d.id, ...d.data() }));
-      entriesClienteSnap.docs.forEach(d => entriesMap.set(d.id, { id: d.id, ...d.data() }));
-      const clientEntries = Array.from(entriesMap.values());
-
+      let clientInvoices: any[] = [];
+      let clientEntries: any[] = [];
+      let baseDebt = 0;
+      let clientData: any = {};
       const timeline: any[] = [];
 
-      if (baseDebt > 0) {
-        timeline.push({
-          type: "INITIAL_BALANCE_DOC",
-          date: new Date("2026-01-01T12:00:00"),
-          id: "initial-balance-2026",
-          number: "SALDO INICIAL 2026",
-          monto: baseDebt,
-          movimientos: clientData?.pagosSaldoInicial || [],
-          clientId: selectedClientId,
-          description: "Documento base de apertura del período fiscal 2026."
+      if (selectedClientId === "all") {
+        const [invoicesSnap, entriesSnap, clientsSnap] = await Promise.all([
+          getDocs(collection(db, "facturas")),
+          getDocs(collection(db, "entries")),
+          getDocs(collection(db, "clients"))
+        ]);
+        clientInvoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        clientEntries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // Cargar saldos iniciales de clientes con saldo inicial
+        clientsSnap.docs.forEach(cDoc => {
+          const cData = cDoc.data() || {};
+          const cBaseDebt = Number(cData.baseDebt || cData.saldoInicial || 0);
+          if (cBaseDebt > 0) {
+            const rawName = (cData.name || cData.nombre || "").trim().toUpperCase();
+            timeline.push({
+              type: "INITIAL_BALANCE_DOC",
+              date: new Date("2026-01-01T12:00:00"),
+              id: `initial-balance-${cDoc.id}`,
+              number: `SALDO INICIAL ${rawName}`,
+              monto: cBaseDebt,
+              movimientos: cData?.pagosSaldoInicial || [],
+              clientId: cDoc.id,
+              description: `Saldo de apertura fiscal 2026 para ${rawName}.`
+            });
+          }
         });
+      } else {
+        const clientDoc = await getDoc(doc(db, "clients", selectedClientId));
+        clientData = clientDoc.data() || {};
+        baseDebt = Number(clientData.baseDebt || clientData.saldoInicial || 0);
+
+        const qInvoicesClient = query(collection(db, "facturas"), where("clientId", "==", selectedClientId));
+        const qInvoicesCliente = query(collection(db, "facturas"), where("clienteId", "==", selectedClientId));
+        const [invoicesClientSnap, invoicesClienteSnap] = await Promise.all([
+          getDocs(qInvoicesClient),
+          getDocs(qInvoicesCliente)
+        ]);
+        
+        const invoicesMap = new Map();
+        invoicesClientSnap.docs.forEach(d => invoicesMap.set(d.id, { id: d.id, ...d.data() }));
+        invoicesClienteSnap.docs.forEach(d => invoicesMap.set(d.id, { id: d.id, ...d.data() }));
+        clientInvoices = Array.from(invoicesMap.values());
+
+        const qEntriesClient = query(collection(db, "entries"), where("clientId", "==", selectedClientId));
+        const qEntriesCliente = query(collection(db, "entries"), where("clienteId", "==", selectedClientId));
+        const [entriesClientSnap, entriesClienteSnap] = await Promise.all([
+          getDocs(qEntriesClient),
+          getDocs(qEntriesCliente)
+        ]);
+        
+        const entriesMap = new Map();
+        entriesClientSnap.docs.forEach(d => entriesMap.set(d.id, { id: d.id, ...d.data() }));
+        entriesClienteSnap.docs.forEach(d => entriesMap.set(d.id, { id: d.id, ...d.data() }));
+        clientEntries = Array.from(entriesMap.values());
+
+        if (baseDebt > 0) {
+          timeline.push({
+            type: "INITIAL_BALANCE_DOC",
+            date: new Date("2026-01-01T12:00:00"),
+            id: "initial-balance-2026",
+            number: "SALDO INICIAL 2026",
+            monto: baseDebt,
+            movimientos: clientData?.pagosSaldoInicial || [],
+            clientId: selectedClientId,
+            description: "Documento base de apertura del período fiscal 2026."
+          });
+        }
       }
 
       clientEntries.forEach((entry: any) => {
@@ -354,8 +397,6 @@ export default function HistorialPage() {
       const totalFacturado = invoicesInPeriod.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
 
       let totalCobradoFacturas = 0;
-      // Para "Recaudación Lograda", sumamos los movimientos de TODAS las facturas (no solo las del periodo)
-      // pero SOLO los movimientos que ocurrieron DENTRO del rango de fechas.
       clientInvoices.forEach(inv => {
         const movimientos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
         movimientos.forEach((m: any) => {
@@ -372,27 +413,55 @@ export default function HistorialPage() {
         });
       });
 
-      // Pagos del periodo para "Recaudación Lograda"
       let totalCobradoSI_Periodo = 0;
-      // Pagos globales para "Saldo Inicial Pendiente"
-      let pagosSIGlobal = 0;
+      let saldoInicialPendiente = 0;
 
-      const pagosSI = Array.isArray(clientData?.pagosSaldoInicial) ? clientData.pagosSaldoInicial : [];
-      pagosSI.forEach((m: any) => {
-        if (!m.anulado) {
-          const mAmount = Number(m.monto || 0);
-          const isReverso = m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso';
+      if (selectedClientId === "all") {
+        const clientsSnap = await getDocs(collection(db, "clients"));
+        clientsSnap.docs.forEach(cDoc => {
+          const cData = cDoc.data() || {};
+          const cBaseDebt = Number(cData.baseDebt || cData.saldoInicial || 0);
           
-          if (isReverso) pagosSIGlobal -= mAmount;
-          else pagosSIGlobal += mAmount;
+          let cPagosSIGlobal = 0;
+          const cPagosSI = Array.isArray(cData?.pagosSaldoInicial) ? cData.pagosSaldoInicial : [];
+          cPagosSI.forEach((m: any) => {
+            if (!m.anulado) {
+              const mAmount = Number(m.monto || 0);
+              const isReverso = m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso';
+              
+              if (isReverso) cPagosSIGlobal -= mAmount;
+              else cPagosSIGlobal += mAmount;
 
-          const d = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
-          if (d && d >= fromDate && d <= toDateObj) {
-            if (isReverso) totalCobradoSI_Periodo -= mAmount;
-            else totalCobradoSI_Periodo += mAmount;
+              const d = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
+              if (d && d >= fromDate && d <= toDateObj) {
+                if (isReverso) totalCobradoSI_Periodo -= mAmount;
+                else totalCobradoSI_Periodo += mAmount;
+              }
+            }
+          });
+
+          saldoInicialPendiente += Math.max(0, cBaseDebt - cPagosSIGlobal);
+        });
+      } else {
+        let pagosSIGlobal = 0;
+        const pagosSI = Array.isArray(clientData?.pagosSaldoInicial) ? clientData.pagosSaldoInicial : [];
+        pagosSI.forEach((m: any) => {
+          if (!m.anulado) {
+            const mAmount = Number(m.monto || 0);
+            const isReverso = m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso';
+            
+            if (isReverso) pagosSIGlobal -= mAmount;
+            else pagosSIGlobal += mAmount;
+
+            const d = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
+            if (d && d >= fromDate && d <= toDateObj) {
+              if (isReverso) totalCobradoSI_Periodo -= mAmount;
+              else totalCobradoSI_Periodo += mAmount;
+            }
           }
-        }
-      });
+        });
+        saldoInicialPendiente = Math.max(0, baseDebt - pagosSIGlobal);
+      }
 
       let saldoPendienteFacturas = 0;
       invoicesInPeriod.forEach(inv => {
@@ -409,8 +478,127 @@ export default function HistorialPage() {
       });
 
       const totalCobrado = totalCobradoFacturas + totalCobradoSI_Periodo;
-      const saldoInicialPendiente = baseDebt - pagosSIGlobal;
       const saldoPendienteGeneral = saldoPendienteFacturas + saldoInicialPendiente;
+
+      // Compilar los items aplanados para la vista de "Estado de Cuenta"
+      const estadoCuentaItems: any[] = [];
+
+      filteredTimeline.forEach((item: any) => {
+        if (item.type === "INITIAL_BALANCE_DOC") {
+          let abonosSI = 0;
+          const movimientos = Array.isArray(item.movimientos) ? item.movimientos : [];
+          movimientos.forEach((m: any) => {
+            if (!m.anulado) {
+              const mAmount = Number(m.monto || 0);
+              if (m.tipoTransaccion === 'Reverso' || m.tipo === 'Reverso') abonosSI -= mAmount;
+              else abonosSI += mAmount;
+            }
+          });
+          const saldo = Math.max(0, Number(item.monto || 0) - abonosSI);
+          
+          estadoCuentaItems.push({
+            id: item.id,
+            fecha: item.date,
+            ingresoMaestro: "SALDO INICIAL",
+            numeroFactura: "---",
+            clienteNombre: item.number.replace("SALDO INICIAL ", ""),
+            lotes: 0,
+            prendas: 0,
+            peso: 0,
+            valorFacturado: Number(item.monto || 0),
+            abonos: abonosSI,
+            saldoPendiente: saldo,
+            estado: saldo <= 0.01 ? "Pagada" : "Pago parcial",
+            isSample: false,
+            clientId: item.clientId
+          });
+        } else if (item.type === "entry") {
+          const lotesCount = (item.data.lotes || []).length;
+          const prendasCount = item.data.lotes ? item.data.lotes.reduce((acc: number, curr: any) => acc + Number(curr.cantidad || curr.quantity || 0), 0) : 0;
+          const pesoTotal = item.data.lotes ? item.data.lotes.reduce((acc: number, curr: any) => acc + Number(curr.peso || curr.weight || 0), 0) : 0;
+          const clienteNombre = item.data.clientName || item.data.clienteNombre || getClientName(item.data.clientId || item.data.clienteId);
+
+          if (item.invoices && item.invoices.length > 0) {
+            item.invoices.forEach((inv: any) => {
+              const badge = getInvoiceBadgeInfo(inv);
+              const totalVal = Number(inv.totalFactura || inv.total || 0);
+              const payments = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : [];
+              const abonosVal = payments.reduce((acc: number, p: any) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0)), 0);
+              const saldoVal = Math.max(0, totalVal - abonosVal);
+
+              let statusStr = "Pago parcial";
+              if (inv.status === "Anulada" || inv.anulada) statusStr = "Anulada";
+              else if (saldoVal <= 0.01) statusStr = "Pagada";
+              else if (badge.text === "FACTURA VENCIDA") statusStr = "Factura vencida";
+
+              estadoCuentaItems.push({
+                id: inv.id,
+                fecha: item.date,
+                ingresoMaestro: item.number,
+                numeroFactura: inv.numeroFactura || inv.id,
+                clienteNombre,
+                lotes: lotesCount,
+                prendas: prendasCount,
+                peso: pesoTotal,
+                valorFacturado: totalVal,
+                abonos: abonosVal,
+                saldoPendiente: saldoVal,
+                estado: statusStr,
+                isSample: !!item.data.isSample || inv.isSample === true || inv.tipoFactura === "muestra",
+                clientId: item.data.clientId || item.data.clienteId
+              });
+            });
+          } else {
+            estadoCuentaItems.push({
+              id: item.id,
+              fecha: item.date,
+              ingresoMaestro: item.number,
+              numeroFactura: "---",
+              clienteNombre,
+              lotes: lotesCount,
+              prendas: prendasCount,
+              peso: pesoTotal,
+              valorFacturado: 0,
+              abonos: 0,
+              saldoPendiente: 0,
+              estado: "Pendiente de facturar",
+              isSample: !!item.data.isSample,
+              clientId: item.data.clientId || item.data.clienteId
+            });
+          }
+        } else if (item.type === "invoice_standalone") {
+          const badge = getInvoiceBadgeInfo(item.data);
+          const totalVal = Number(item.data.totalFactura || item.data.total || 0);
+          const payments = Array.isArray(item.movimientos) ? item.movimientos : [];
+          const abonosVal = payments.reduce((acc: number, p: any) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0)), 0);
+          const saldoVal = Math.max(0, totalVal - abonosVal);
+          const clienteNombre = item.data.clienteNombre || item.data.clientName || getClientName(item.data.clientId || item.data.clienteId);
+
+          let statusStr = "Pago parcial";
+          if (item.data.status === "Anulada" || item.data.anulada) statusStr = "Anulada";
+          else if (saldoVal <= 0.01) statusStr = "Pagada";
+          else if (badge.text === "FACTURA VENCIDA") statusStr = "Factura vencida";
+
+          estadoCuentaItems.push({
+            id: item.id,
+            fecha: item.date,
+            ingresoMaestro: "---",
+            numeroFactura: item.number,
+            clienteNombre,
+            lotes: 0,
+            prendas: 0,
+            peso: 0,
+            valorFacturado: totalVal,
+            abonos: abonosVal,
+            saldoPendiente: saldoVal,
+            estado: statusStr,
+            isSample: item.data.isSample === true || item.data.tipoFactura === "muestra",
+            clientId: item.data.clientId || item.data.clienteId
+          });
+        }
+      });
+
+      estadoCuentaItems.sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
 
       setAuditData({
         client: clientData,
@@ -421,7 +609,8 @@ export default function HistorialPage() {
           totalCobrado,
           saldoPendienteGeneral
         },
-        timeline: filteredTimeline
+        timeline: filteredTimeline,
+        estadoCuentaItems
       });
 
     } catch (error) {
@@ -652,6 +841,94 @@ export default function HistorialPage() {
     return format(d, 'dd/MM/yy');
   };
 
+  const filteredEstadoCuentaItems = useMemo(() => {
+    if (!auditData || !auditData.estadoCuentaItems) return [];
+    
+    return auditData.estadoCuentaItems.filter((item: any) => {
+      if (filterEstado === "facturadas") {
+        return item.numeroFactura !== "---" && item.estado !== "Pendiente de facturar";
+      }
+      if (filterEstado === "pendientes") {
+        return item.estado === "Pendiente de facturar";
+      }
+      if (filterEstado === "vencidas") {
+        return item.estado === "Factura vencida";
+      }
+      if (filterEstado === "muestras") {
+        return item.isSample === true;
+      }
+      return true;
+    });
+  }, [auditData, filterEstado]);
+
+  const estadoCuentaSummary = useMemo(() => {
+    let totalFacturado = 0;
+    let totalAbonado = 0;
+    let totalSaldoPendiente = 0;
+    let numFacturas = 0;
+    let numFacturasVencidas = 0;
+
+    filteredEstadoCuentaItems.forEach((item: any) => {
+      const hasInvoiceNum = item.numeroFactura && item.numeroFactura !== "---";
+      const isSaldoInicial = item.ingresoMaestro === "SALDO INICIAL";
+      
+      if (hasInvoiceNum || isSaldoInicial) {
+        numFacturas += 1;
+        totalFacturado += item.valorFacturado;
+        totalAbonado += item.abonos;
+        totalSaldoPendiente += item.saldoPendiente;
+        
+        if (item.estado === "Factura vencida") {
+          numFacturasVencidas += 1;
+        }
+      }
+    });
+
+    return {
+      totalFacturado,
+      totalAbonado,
+      totalSaldoPendiente,
+      numFacturas,
+      numFacturasVencidas
+    };
+  }, [filteredEstadoCuentaItems]);
+
+  const handleExportExcel = () => {
+    if (filteredEstadoCuentaItems.length === 0) {
+      toast({ variant: "destructive", title: "Sin datos", description: "No hay filas para exportar." });
+      return;
+    }
+
+    const dataToExport = filteredEstadoCuentaItems.map((item: any) => ({
+      "Fecha": item.fecha ? format(toDate(item.fecha)!, 'dd/MM/yyyy') : "---",
+      "Ingreso Maestro": item.ingresoMaestro,
+      "N.º Factura": item.numeroFactura,
+      "Cliente": item.clienteNombre,
+      "Lotes": item.lotes,
+      "Valor Facturado": item.valorFacturado,
+      "Abonos": item.abonos,
+      "Saldo Pendiente": item.saldoPendiente,
+      "Estado": item.estado,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Estado de Cuenta");
+
+    const maxLens = Object.keys(dataToExport[0]).map(key => {
+      let max = key.length;
+      dataToExport.forEach((row: any) => {
+        const valStr = String(row[key] ?? "");
+        if (valStr.length > max) max = valStr.length;
+      });
+      return { wch: max + 2 };
+    });
+    worksheet["!cols"] = maxLens;
+
+    XLSX.writeFile(workbook, `Estado_de_Cuenta_${format(new Date(), "yyyyMMdd_HHmmss")}.xlsx`);
+    toast({ title: "Exportación exitosa", description: "El archivo Excel se ha descargado." });
+  };
+
   const dateFromObj = dateFrom ? parseISO(dateFrom) : undefined;
   const dateToObj = dateTo ? parseISO(dateTo) : undefined;
 
@@ -770,6 +1047,13 @@ export default function HistorialPage() {
           .print-flex-row .h-9.w-9 {
             display: none !important; /* ocultar botón del ojo en impresión */
           }
+
+          .print-view-timeline {
+            display: ${currentView === "timeline" ? "block" : "none"} !important;
+          }
+          .print-view-estado-cuenta {
+            display: ${currentView === "estado_cuenta" ? "block" : "none"} !important;
+          }
         }
       `}</style>
       
@@ -780,17 +1064,62 @@ export default function HistorialPage() {
       </div>
 
       <div className="bg-card p-8 rounded-[2.5rem] border border-border shadow-premium space-y-8 print:hidden">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className={cn("grid grid-cols-1 gap-8", currentView === "estado_cuenta" ? "md:grid-cols-4" : "md:grid-cols-3")}>
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Socio Industrial</Label>
-            <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-              <SelectTrigger className="erp-input h-12 font-bold">
-                <SelectValue placeholder="Elija un cliente..." />
-              </SelectTrigger>
-              <SelectContent className="rounded-2xl max-h-[350px]">
-                {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.displayName}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Popover open={openClientCombo} onOpenChange={setOpenClientCombo}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full h-12 erp-input bg-card justify-between text-left font-bold text-xs">
+                  {selectedClientId === "all" ? "-- TODOS LOS CLIENTES --" : (clients.find(c => c.id === selectedClientId)?.displayName || "Elija un socio...")}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50 text-primary" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-4 rounded-2xl bg-card border border-border shadow-2xl space-y-3 z-[100]" align="start">
+                <Input
+                  placeholder="Buscar socio..."
+                  value={clientSearchQuery}
+                  onChange={(e) => setClientSearchQuery(e.target.value)}
+                  className="h-10 font-bold"
+                />
+                <ScrollArea className="h-[250px]">
+                  <div className="space-y-1 pr-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setSelectedClientId("all");
+                        setOpenClientCombo(false);
+                        setClientSearchQuery("");
+                      }}
+                      className={cn(
+                        "w-full justify-start font-black text-xs h-10 px-4 rounded-xl text-primary",
+                        selectedClientId === "all" ? "bg-primary/10" : ""
+                      )}
+                    >
+                      -- TODOS LOS CLIENTES --
+                    </Button>
+                    {clients
+                      .filter(c => c.displayName.toLowerCase().includes(clientSearchQuery.toLowerCase()))
+                      .map(c => (
+                        <Button
+                          key={c.id}
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedClientId(c.id);
+                            setOpenClientCombo(false);
+                            setClientSearchQuery("");
+                          }}
+                          className={cn(
+                            "w-full justify-start text-xs font-bold h-10 px-4 rounded-xl text-left truncate block",
+                            selectedClientId === c.id ? "bg-primary text-white hover:bg-primary/95" : "hover:bg-muted/50"
+                          )}
+                        >
+                          {c.displayName}
+                        </Button>
+                      ))}
+                  </div>
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
           </div>
           
           <div className="space-y-2">
@@ -834,6 +1163,24 @@ export default function HistorialPage() {
               </PopoverContent>
             </Popover>
           </div>
+
+          {currentView === "estado_cuenta" && (
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Estado de Pago</Label>
+              <Select value={filterEstado} onValueChange={setFilterEstado}>
+                <SelectTrigger className="erp-input h-12 font-bold">
+                  <SelectValue placeholder="Todos los estados..." />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl">
+                  <SelectItem value="all">TODOS LOS ESTADOS</SelectItem>
+                  <SelectItem value="facturadas">FACTURADAS</SelectItem>
+                  <SelectItem value="pendientes">PENDIENTES DE FACTURAR</SelectItem>
+                  <SelectItem value="vencidas">FACTURAS VENCIDAS</SelectItem>
+                  <SelectItem value="muestras">MUESTRAS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <Button 
           onClick={handleGenerateAudit} 
@@ -845,8 +1192,30 @@ export default function HistorialPage() {
         </Button>
       </div>
 
+      {/* Selector de Vistas */}
       {auditData && (
-        <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
+        <div className="flex justify-center md:justify-start gap-4 print:hidden my-2">
+          <Button
+            variant={currentView === "timeline" ? "default" : "outline"}
+            onClick={() => setCurrentView("timeline")}
+            className={cn("rounded-2xl font-black uppercase text-xs h-12 px-6 gap-2", currentView === "timeline" ? "bg-primary text-white hover:bg-primary/95" : "bg-card border border-border text-foreground hover:bg-muted/10")}
+          >
+            <HistoryIcon className="h-4 w-4" />
+            Línea de Tiempo (Auditoría)
+          </Button>
+          <Button
+            variant={currentView === "estado_cuenta" ? "default" : "outline"}
+            onClick={() => setCurrentView("estado_cuenta")}
+            className={cn("rounded-2xl font-black uppercase text-xs h-12 px-6 gap-2", currentView === "estado_cuenta" ? "bg-primary text-white hover:bg-primary/95" : "bg-card border border-border text-foreground hover:bg-muted/10")}
+          >
+            <FileText className="h-4 w-4" />
+            Estado de Cuenta
+          </Button>
+        </div>
+      )}
+
+      {auditData && currentView === "timeline" && (
+        <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500 print-view-timeline">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6 print-grid-2x2">
             <div className="bg-card p-8 rounded-[2rem] border border-border text-center space-y-1 shadow-sm opacity-60">
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Saldo Inicial Base</p>
@@ -892,29 +1261,32 @@ export default function HistorialPage() {
                 <div className="space-y-4">
                   <div className={cn(
                     "py-3.5 px-6 rounded-2xl border shadow-premium transition-all",
-                    event.type === 'entry' ? "bg-card border-border" : "bg-amber-50/10 border-amber-200"
+                    event.type === 'INITIAL_BALANCE_DOC' ? "bg-amber-50/30 border-amber-200" : "bg-card border-border hover:border-muted-foreground/30"
                   )}>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print-flex-row">
-                      <div className="flex items-center gap-4">
+                    <div className="flex items-start justify-between gap-6 print-flex-row">
+                      <div className="flex items-start gap-4">
                         <div className={cn(
                           "h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0",
-                          event.type === 'entry' ? "bg-primary/5 text-primary" : "bg-amber-500/5 text-amber-600"
+                          event.type === 'entry' ? "bg-primary/5 text-primary" : 
+                          event.type === 'INITIAL_BALANCE_DOC' ? "bg-amber-100 text-amber-600" : "bg-primary/5 text-primary"
                         )}>
-                          {event.type === 'entry' ? <ArrowDownCircle className="h-5 w-5" /> : <Wallet className="h-5 w-5" />}
+                          {event.type === 'entry' ? <Layers className="h-5 w-5" /> : 
+                           event.type === 'INITIAL_BALANCE_DOC' ? <Wallet className="h-5 w-5" /> : <Receipt className="h-5 w-5" />}
                         </div>
-                        <div>
-                          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
-                            {event.type === 'entry' ? 'INGRESO MAESTRO' : 'DOCUMENTO VIRTUAL BASE'}
-                          </p>
-                          <div className="flex items-center flex-wrap gap-2 mt-0.5">
-                            <h4 className="text-sm font-black text-foreground tracking-tight">
-                              {event.number}
-                            </h4>
-                            {event.type === 'entry' && (!event.invoices || event.invoices.length === 0) && (
-                              <span className="text-[9px] font-black uppercase tracking-widest border px-2 py-0.5 rounded-md text-amber-600 bg-amber-50 border-amber-200">
-                                FACTURA: PENDIENTE
+                        <div className="space-y-1">
+                          <div className="flex items-center flex-wrap gap-2">
+                            <span className="font-black text-sm uppercase tracking-tight">
+                              {event.type === 'INITIAL_BALANCE_DOC' ? event.number : 
+                               event.type === 'entry' ? `Ingreso Maestro: ${event.number}` : `Factura Standalone: ${event.number}`}
+                            </span>
+                            
+                            {/* Mostrar nombre del socio si se seleccionó "Todos los Clientes" */}
+                            {selectedClientId === "all" && event.type !== 'INITIAL_BALANCE_DOC' && (
+                              <span className="text-[9px] font-black uppercase bg-primary/10 text-primary px-2 py-0.5 rounded-md">
+                                {event.data?.clientName || event.data?.clienteNombre || getClientName(event.data?.clientId || event.data?.clienteId)}
                               </span>
                             )}
+
                             {event.type === 'entry' && event.invoices && event.invoices.length > 0 && (
                               <div className="flex flex-wrap gap-1.5">
                                 {event.invoices.map((inv: any) => {
@@ -969,6 +1341,165 @@ export default function HistorialPage() {
                 <p className="text-sm font-black uppercase tracking-[0.3em]">Sin registros detectados para este período</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {auditData && currentView === "estado_cuenta" && (
+        <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500 print-view-estado-cuenta">
+          {/* Cabecera del resumen del Estado de Cuenta */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 print-grid-2x2">
+            <div className="bg-card p-8 rounded-[2rem] border border-border text-center space-y-1 shadow-sm">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Facturado</p>
+              <p className="text-3xl font-black text-foreground">{formatCurrency(estadoCuentaSummary.totalFacturado)}</p>
+            </div>
+            <div className="bg-card p-8 rounded-[2rem] border border-border text-center space-y-1 shadow-sm">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Abonado</p>
+              <p className="text-3xl font-black text-emerald-600">{formatCurrency(estadoCuentaSummary.totalAbonado)}</p>
+            </div>
+            <div className="bg-primary/10 p-8 rounded-[2rem] border border-primary/30 text-center space-y-1 shadow-md">
+              <p className="text-[10px] font-black text-primary uppercase tracking-widest">Saldo Pendiente</p>
+              <p className="text-4xl font-black text-primary tracking-tighter">{formatCurrency(estadoCuentaSummary.totalSaldoPendiente)}</p>
+            </div>
+            <div className="bg-card p-8 rounded-[2rem] border border-border text-center space-y-1 shadow-sm">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">N.º Facturas</p>
+              <p className="text-3xl font-black text-foreground">{estadoCuentaSummary.numFacturas}</p>
+            </div>
+            <div className={cn(
+              "p-8 rounded-[2rem] border text-center space-y-1 shadow-sm",
+              estadoCuentaSummary.numFacturasVencidas > 0 ? "bg-red-50/50 border-red-200" : "bg-card border-border"
+            )}>
+              <p className="text-[10px] font-black uppercase tracking-widest text-red-500">Facturas Vencidas</p>
+              <p className={cn("text-3xl font-black", estadoCuentaSummary.numFacturasVencidas > 0 ? "text-red-600" : "text-foreground")}>
+                {estadoCuentaSummary.numFacturasVencidas}
+              </p>
+            </div>
+          </div>
+
+          {/* Botones de acción específicos de la vista */}
+          <div className="flex items-center justify-between border-b border-border pb-4">
+            <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+              <FileText className="h-6 w-6 text-primary" />
+              Estado de Cuenta Detallado
+            </h3>
+            <div className="flex items-center gap-3 print:hidden">
+              <Button 
+                variant="outline" 
+                onClick={handleExportExcel} 
+                className="rounded-xl font-bold uppercase text-[10px] gap-2 h-10 px-4 border-emerald-300 text-emerald-700 hover:bg-emerald-50/50"
+              >
+                <Download className="h-4 w-4" /> Exportar Excel
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => window.print()} 
+                className="rounded-xl font-bold uppercase text-[10px] gap-2 h-10 px-4"
+              >
+                <Printer className="h-4 w-4" /> Exportar PDF
+              </Button>
+            </div>
+          </div>
+
+          {/* Tabla de Estado de Cuenta */}
+          <div className="rounded-[2rem] border border-border bg-card overflow-hidden shadow-premium">
+            <Table>
+              <TableHeader className="bg-muted/50 border-b border-border">
+                <TableRow>
+                  <TableHead className="text-[9px] font-black uppercase py-5 pl-8">Fecha</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase">Ingreso Maestro</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase">N.º Factura</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase">Cliente</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase text-center">Lotes</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase text-right">Valor Facturado</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase text-right">Abonos</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase text-right">Saldo Pendiente</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase pr-8">Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEstadoCuentaItems.map((item: any, itemIdx: number) => {
+                  let badgeColor = "bg-slate-50 text-slate-500 border-slate-100";
+                  if (item.estado === "Pagada") {
+                    badgeColor = "bg-emerald-50 text-emerald-700/90 border-emerald-100";
+                  } else if (item.estado === "Pago parcial") {
+                    badgeColor = "bg-amber-50 text-amber-700/90 border-amber-100";
+                  } else if (item.estado === "Factura vencida") {
+                    badgeColor = "bg-rose-50 text-rose-700/90 border-rose-100";
+                  } else if (item.estado === "Pendiente de facturar") {
+                    badgeColor = "bg-sky-50 text-sky-700/90 border-sky-100";
+                  }
+
+                  return (
+                    <TableRow 
+                      key={itemIdx} 
+                      className={cn(
+                        "border-b border-border hover:bg-muted/5 transition-colors", 
+                        item.estado === "Anulada" && "opacity-50 italic"
+                      )}
+                    >
+                      <TableCell className="pl-8 py-4 font-bold text-xs">
+                        {item.fecha ? format(toDate(item.fecha)!, 'dd/MM/yyyy') : "---"}
+                      </TableCell>
+                      <TableCell className="font-black text-xs text-primary uppercase">
+                        {item.ingresoMaestro}
+                      </TableCell>
+                      <TableCell className="font-bold text-xs uppercase">
+                        {item.numeroFactura}
+                      </TableCell>
+                      <TableCell className="font-bold text-xs uppercase">
+                        {item.clienteNombre}
+                      </TableCell>
+                      <TableCell className="text-center font-bold text-xs">
+                        {item.lotes}
+                      </TableCell>
+                      <TableCell className="text-right font-black text-xs text-slate-800">
+                        {formatCurrency(item.valorFacturado)}
+                      </TableCell>
+                      <TableCell className="text-right font-black text-xs text-emerald-600">
+                        {formatCurrency(item.abonos)}
+                      </TableCell>
+                      <TableCell className="text-right font-black text-xs text-primary">
+                        {formatCurrency(item.saldoPendiente)}
+                      </TableCell>
+                      <TableCell className="pr-8">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "text-[9px] font-black uppercase tracking-widest border px-2.5 py-1 rounded-md inline-block text-center min-w-[120px]", 
+                            badgeColor
+                          )}>
+                            {item.estado}
+                          </span>
+                          {item.estado === "Factura vencida" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                window.location.href = `/cobranzas?clientId=${item.clientId}&invoiceId=${item.id}`;
+                              }}
+                              className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full print:hidden"
+                              title="Cobrar en Cobranzas"
+                            >
+                              <ArrowRight className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+
+                {filteredEstadoCuentaItems.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={11} className="h-64 text-center">
+                      <div className="flex flex-col items-center justify-center opacity-20">
+                        <FileText className="h-12 w-12 mb-4" />
+                        <p className="text-sm font-black uppercase tracking-[0.2em]">Sin registros para mostrar con los filtros activos</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         </div>
       )}

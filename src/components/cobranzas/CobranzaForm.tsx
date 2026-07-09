@@ -92,7 +92,7 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
                   <Input 
                     type="number" 
                     step="0.01"
-                    value={line.monto}
+                    value={line.monto === 0 ? "" : line.monto}
                     onChange={(e) => onUpdateLine(line.id, { monto: parseFloat(e.target.value) || 0 })}
                     className="erp-input h-11 bg-background font-black text-emerald-600 text-lg"
                   />
