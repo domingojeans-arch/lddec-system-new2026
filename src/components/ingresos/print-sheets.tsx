@@ -456,15 +456,16 @@ function SingleSheetView({
                 <div style={{ fontSize: "11px", fontWeight: "900", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
               </td>
               {/* Celda del Logo combinada verticalmente */}
-              <td colSpan={2} rowSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none", padding: "2px" }}>
+              <td colSpan={2} rowSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none", padding: "0px", overflow: "hidden" }}>
                 <img 
                   src="/logo-lddec.png" 
                   alt="Logo" 
                   style={{ 
-                    height: "54px", 
+                    height: "58px", 
                     width: "100%", 
                     objectFit: "contain", 
                     margin: "0 auto",
+                    transform: "scale(1.3)",
                     // Si se imprime en negro, convierte el logo a negro puro. Si es azul, mantiene su color original
                     filter: printColor === "#000000" ? "brightness(0)" : "none"
                   }} 
