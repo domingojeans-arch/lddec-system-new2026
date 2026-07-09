@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Printer, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ export function PrintSheetsTab() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [searchLot, setSearchLot] = useState("");
+  const [mounted, setMounted] = useState(false);
 
   // Campos de la Ficha
   const [loteInicial, setLoteInicial] = useState("");
@@ -27,6 +29,10 @@ export function PrintSheetsTab() {
   const [nPrendas1, setNPrendas1] = useState("");
   const [nPrendas2, setNPrendas2] = useState("");
   const [peso, setPeso] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleSearchLot = async () => {
     const term = searchLot.trim().toUpperCase();
@@ -278,51 +284,71 @@ export function PrintSheetsTab() {
         )}
       </div>
 
-      {/* ÁREA DE IMPRESIÓN REAL */}
-      <div className="hidden print:block absolute left-0 top-0 w-full" id="print-area">
-        <style dangerouslySetInnerHTML={{ __html: `
-          @media print {
-            body, html {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: #fff !important;
+      {/* ÁREA DE IMPRESIÓN REAL (PORTADA DIRECTAMENTE A BODY PARA IMPRESIÓN PERFECTA) */}
+      {mounted && typeof document !== "undefined" && createPortal(
+        <div className="hidden print:block absolute left-0 top-0 w-full" id="print-area">
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              /* Ocultar absolutamente todo excepto el area de impresion */
+              body > *:not(#print-area) {
+                display: none !important;
+              }
+              #print-area {
+                display: block !important;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 210mm !important;
+                height: 148mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+              }
+              @page {
+                size: A5 landscape;
+                margin: 0 !important;
+              }
+              body, html {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 210mm !important;
+                height: 148mm !important;
+                background: #fff !important;
+                overflow: visible !important;
+              }
+              .ficha-print-container {
+                page-break-after: always !important;
+                page-break-inside: avoid !important;
+                box-sizing: border-box;
+                width: 210mm;
+                height: 148mm;
+                padding: 4mm 6mm;
+                background: white;
+              }
+              .ficha-print-container:last-child {
+                page-break-after: avoid !important;
+              }
             }
-            @page {
-              size: A5 landscape;
-              margin: 0 !important;
-            }
-            .ficha-print-container {
-              page-break-after: always !important;
-              page-break-inside: avoid !important;
-              box-sizing: border-box;
-              width: 210mm;
-              height: 148mm;
-              padding: 4mm 6mm;
-              background: white;
-            }
-            .ficha-print-container:last-child {
-              page-break-after: avoid !important;
-            }
-          }
-        `}} />
-        {listFichas.map((lNum, i) => (
-          <div key={i} className="ficha-print-container">
-            <SingleSheetView
-              lote={lNum}
-              cliente={cliente}
-              tipoPrenda={tipoPrenda}
-              nombreTela={nombreTela}
-              fechaIngreso={fechaIngreso}
-              codigo={codigo}
-              proceso={proceso}
-              nIngreso={nIngreso}
-              nPrendas1={nPrendas1}
-              nPrendas2={nPrendas2}
-              peso={peso}
-            />
-          </div>
-        ))}
-      </div>
+          `}} />
+          {listFichas.map((lNum, i) => (
+            <div key={i} className="ficha-print-container">
+              <SingleSheetView
+                lote={lNum}
+                cliente={cliente}
+                tipoPrenda={tipoPrenda}
+                nombreTela={nombreTela}
+                fechaIngreso={fechaIngreso}
+                codigo={codigo}
+                proceso={proceso}
+                nIngreso={nIngreso}
+                nPrendas1={nPrendas1}
+                nPrendas2={nPrendas2}
+                peso={peso}
+              />
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
