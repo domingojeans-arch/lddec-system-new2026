@@ -373,148 +373,152 @@ function SingleSheetView({
 
   return (
     <div style={{ width: "100%", height: "100%", boxSizing: "border-box", padding: "1px" }}>
-      <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "1.2px solid #002060", borderRadius: "5px", overflow: "hidden" }}>
-        <tbody>
-          {/* Fila 1: Cabecera */}
-          <tr style={{ height: "40px" }}>
-            <td colSpan={7} style={{ ...cellStyle, textAlign: "center", borderRadius: "5px 0 0 0" }}>
-              <div style={{ fontSize: "12px", fontWeight: "bold", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
-              <div style={{ fontSize: "11px", fontWeight: "bold", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
-            </td>
-            <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%" }}>
-              <img src="/logo-lddec.png" alt="Logo" style={{ height: "30px", margin: "0 auto", objectFit: "contain" }} />
-            </td>
-            <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "30%", borderRadius: "0 5px 0 0" }}>
-              <div style={{ borderBottom: "1.2px solid #002060", background: "#002060", color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "2px 0" }}>
-                CONFIRMADO
-              </div>
-              <div style={{ height: "20px" }}></div>
-            </td>
-          </tr>
+      {/* Contenedor wrapper con bordes redondeados y borde general garantizado */}
+      <div style={{ width: "100%", height: "100%", border: "1.2px solid #002060", borderRadius: "5px", overflow: "hidden", boxSizing: "border-box" }}>
+        <table style={{ width: "100%", height: "100%", borderCollapse: "collapse", border: "none" }}>
+          <tbody>
+            {/* Fila 1: Cabecera */}
+            <tr style={{ height: "30px" }}>
+              <td colSpan={7} style={{ ...cellStyle, textAlign: "center", borderTop: "none", borderLeft: "none" }}>
+                <div style={{ fontSize: "12px", fontWeight: "bold", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
+                <div style={{ fontSize: "11px", fontWeight: "bold", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
+              </td>
+              <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none" }}>
+                <img src="/logo-lddec.png" alt="Logo" style={{ height: "26px", margin: "0 auto", objectFit: "contain" }} />
+              </td>
+              <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "30%", borderTop: "none", borderRight: "none" }}>
+                <div style={{ borderBottom: "1.2px solid #002060", background: "#002060", color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "1.5px 0" }}>
+                  CONFIRMADO
+                </div>
+                <div style={{ height: "10px" }}></div>
+              </td>
+            </tr>
 
-          {/* Fila 2: LOTE y CLIENTE y N° INGRESO */}
-          <tr style={{ height: "30px" }}>
-            <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>LOTE N°</td>
-            <td colSpan={2} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black", width: "18%" }}>
-              {lote || ""}
-            </td>
-            <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>CLIENTE:</td>
-            <td colSpan={5} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
-            <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                <span>N° INGRESO:</span>
-                <span style={{ color: "black", fontSize: "10px" }}>{nIngreso}</span>
-              </div>
-            </td>
-          </tr>
+            {/* Fila 2: LOTE y CLIENTE y N° INGRESO */}
+            <tr style={{ height: "30px" }}>
+              <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
+              <td colSpan={2} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black", width: "18%" }}>
+                {lote || ""}
+              </td>
+              <td colSpan={1} style={{ ...cellStyle, width: "10%" }}>CLIENTE:</td>
+              <td colSpan={5} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
+              <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <span>N° INGRESO:</span>
+                  <span style={{ color: "black", fontSize: "10px" }}>{nIngreso}</span>
+                </div>
+              </td>
+            </tr>
 
-          {/* Fila 3: TIPO DE PRENDA y MUESTRA EXTERNA y N° PRENDAS 1 */}
-          <tr style={{ height: "26px" }}>
-            <td colSpan={2} style={{ ...cellStyle, width: "15%" }}>TIPO DE PRENDA:</td>
-            <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{tipoPrenda}</td>
-            <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
-              <div style={{ fontSize: "8px", color: "#002060" }}>MUESTRA EXTERNA</div>
-            </td>
-            <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                <span>N° PRENDAS 1:</span>
-                <span style={{ color: "black", fontSize: "10px" }}>{nPrendas1}</span>
-              </div>
-            </td>
-          </tr>
+            {/* Fila 3: TIPO DE PRENDA y MUESTRA EXTERNA y N° PRENDAS 1 */}
+            <tr style={{ height: "26px" }}>
+              <td colSpan={2} style={{ ...cellStyle, width: "15%", borderLeft: "none" }}>TIPO DE PRENDA:</td>
+              <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{tipoPrenda}</td>
+              <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
+                <div style={{ fontSize: "8px", color: "#002060" }}>MUESTRA EXTERNA</div>
+              </td>
+              <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <span>N° PRENDAS 1:</span>
+                  <span style={{ color: "black", fontSize: "10px" }}>{nPrendas1}</span>
+                </div>
+              </td>
+            </tr>
 
-          {/* Fila 4: NOMBRE DE TELA y N° PRENDAS 2 */}
-          <tr style={{ height: "26px" }}>
-            <td colSpan={2} style={{ ...cellStyle }}>NOMBRE DE TELA:</td>
-            <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{nombreTela}</td>
-            <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                <span>N° PRENDAS 2:</span>
-                <span style={{ color: "black", fontSize: "10px" }}>{nPrendas2}</span>
-              </div>
-            </td>
-          </tr>
+            {/* Fila 4: NOMBRE DE TELA y N° PRENDAS 2 */}
+            <tr style={{ height: "26px" }}>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>NOMBRE DE TELA:</td>
+              <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{nombreTela}</td>
+              <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <span>N° PRENDAS 2:</span>
+                  <span style={{ color: "black", fontSize: "10px" }}>{nPrendas2}</span>
+                </div>
+              </td>
+            </tr>
 
-          {/* Fila 5: FECHA e INGRESO y PESO */}
-          <tr style={{ height: "26px" }}>
-            <td colSpan={2} style={{ ...cellStyle }}>FECHA DE INGRESO:</td>
-            <td colSpan={3} style={{ ...cellStyle, ...valStyle }}>{fechaIngreso}</td>
-            <td colSpan={1} style={{ ...cellStyle, width: "8%" }}>CODIGO:</td>
-            <td colSpan={3} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{codigo}</td>
-            <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                <span>PESO (kg):</span>
-                <span style={{ color: "black", fontSize: "10px" }}>{peso}</span>
-              </div>
-            </td>
-          </tr>
+            {/* Fila 5: FECHA e INGRESO y PESO */}
+            <tr style={{ height: "34px" }}>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>FECHA DE INGRESO:</td>
+              <td colSpan={4} style={{ ...cellStyle, ...valStyle }}>{fechaIngreso}</td>
+              <td colSpan={1} style={{ ...cellStyle, width: "8%" }}>CODIGO:</td>
+              <td colSpan={2} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{codigo}</td>
+              <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "6px 6px", borderRight: "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <span style={{ fontSize: "9px" }}>PESO (kg):</span>
+                  <span style={{ color: "black", fontSize: "12px", fontWeight: "bold" }}>{peso}</span>
+                </div>
+              </td>
+            </tr>
 
-          {/* Fila 6: PROCESO */}
-          <tr style={{ height: "32px" }}>
-            <td colSpan={2} style={{ ...cellStyle }}>PROCESO:</td>
-            <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{proceso}</td>
-          </tr>
+            {/* Fila 6: PROCESO */}
+            <tr style={{ height: "32px" }}>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>PROCESO:</td>
+              <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{proceso}</td>
+            </tr>
 
-          {/* Fila 7: Encabezados de Tabla de Manualidades */}
-          <tr style={{ height: "18px", background: "#002060" }}>
-            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "20%" }}>MANUALIDADES</td>
-            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "22%" }}>NOMBRE</td>
-            <td colSpan={1} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "8%" }}>CANT</td>
-            <td colSpan={2} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "12%" }}>FIRMA</td>
-            <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "38%" }}>OBSERVACIONES</td>
-          </tr>
+            {/* Fila 7: Encabezados de Tabla de Manualidades */}
+            <tr style={{ height: "18px", background: "#002060" }}>
+              <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "20%", borderLeft: "none" }}>MANUALIDADES</td>
+              <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "22%" }}>NOMBRE</td>
+              <td colSpan={1} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "8%" }}>CANT</td>
+              <td colSpan={2} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "12%" }}>FIRMA</td>
+              <td colSpan={3} style={{ ...cellStyle, color: "white", textAlign: "center", fontSize: "8px", padding: "1px", width: "38%", borderRight: "none" }}>OBSERVACIONES</td>
+            </tr>
 
-          {/* Filas 8-18: Cuerpo de Tabla de Manualidades */}
-          {Array.from({ length: 11 }).map((_, idx) => {
-            return (
-              <tr key={idx} style={{ height: "18px" }}>
-                {/* Columnas manualidades, nombre, cant, firma */}
-                {idx < 8 ? (
-                  <>
-                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
-                  </>
-                ) : idx === 8 ? (
-                  <>
-                    <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5" }}>PROCESO</td>
-                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
-                  </>
-                ) : idx === 9 ? (
-                  <>
-                    <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5" }}>SECADO</td>
-                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
-                  </>
-                ) : (
-                  <>
-                    <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5", borderRadius: "0 0 0 5px" }}>DESPACHO</td>
-                    <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
-                    <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
-                  </>
-                )}
+            {/* Filas 8-18: Cuerpo de Tabla de Manualidades */}
+            {Array.from({ length: 11 }).map((_, idx) => {
+              const isLast = idx === 10;
+              return (
+                <tr key={idx} style={{ height: "18px" }}>
+                  {/* Columnas manualidades, nombre, cant, firma */}
+                  {idx < 8 ? (
+                    <>
+                      <td colSpan={3} style={{ ...cellStyle, padding: "0", borderLeft: "none" }}></td>
+                      <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                      <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
+                      <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
+                    </>
+                  ) : idx === 8 ? (
+                    <>
+                      <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5", borderLeft: "none" }}>PROCESO</td>
+                      <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                      <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
+                      <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
+                    </>
+                  ) : idx === 9 ? (
+                    <>
+                      <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5", borderLeft: "none" }}>SECADO</td>
+                      <td colSpan={3} style={{ ...cellStyle, padding: "0" }}></td>
+                      <td colSpan={1} style={{ ...cellStyle, padding: "0" }}></td>
+                      <td colSpan={2} style={{ ...cellStyle, padding: "0" }}></td>
+                    </>
+                  ) : (
+                    <>
+                      <td colSpan={3} style={{ ...cellStyle, textAlign: "center", fontSize: "7px", padding: "1px", background: "#002060/5", borderLeft: "none", borderBottom: "none" }}>DESPACHO</td>
+                      <td colSpan={3} style={{ ...cellStyle, padding: "0", borderBottom: "none" }}></td>
+                      <td colSpan={1} style={{ ...cellStyle, padding: "0", borderBottom: "none" }}></td>
+                      <td colSpan={2} style={{ ...cellStyle, padding: "0", borderBottom: "none" }}></td>
+                    </>
+                  )}
 
-                {/* Columna Observaciones con division en Faltantes y Total Enviado */}
-                {idx === 0 && (
-                  <td colSpan={3} rowSpan={5} style={{ ...cellStyle, verticalAlign: "top", padding: "2px 4px", height: "90px" }}>
-                    <div style={{ fontSize: "7px", color: "#002060", fontWeight: "bold" }}>FALTANTES</div>
-                  </td>
-                )}
-                {idx === 5 && (
-                  <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "2px 4px", height: "108px", borderRadius: "0 0 5px 0" }}>
-                    <div style={{ fontSize: "7px", color: "#002060", fontWeight: "bold" }}>TOTAL ENVIADO</div>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  {/* Columna Observaciones con division en Faltantes y Total Enviado */}
+                  {idx === 0 && (
+                    <td colSpan={3} rowSpan={5} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "90px", borderRight: "none" }}>
+                      <div style={{ fontSize: "10px", color: "#002060", fontWeight: "bold" }}>FALTANTES</div>
+                    </td>
+                  )}
+                  {idx === 5 && (
+                    <td colSpan={3} rowSpan={6} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px", height: "108px", borderRight: "none", borderBottom: "none" }}>
+                      <div style={{ fontSize: "10px", color: "#002060", fontWeight: "bold" }}>TOTAL ENVIADO</div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
