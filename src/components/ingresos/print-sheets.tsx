@@ -461,7 +461,7 @@ function SingleSheetView({
             </tr>
 
             {/* Fila 7: PROCESO */}
-            <tr style={{ height: "32px" }}>
+            <tr style={{ height: "46px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>PROCESO:</td>
               <td colSpan={10} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase", borderRight: "none" }}>{proceso}</td>
             </tr>
