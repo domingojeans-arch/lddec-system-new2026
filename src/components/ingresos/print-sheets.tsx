@@ -333,6 +333,11 @@ export function PrintSheetsTab() {
                 width: 210mm !important;
                 height: auto !important;
               }
+              /* Forzar la impresion de colores y graficos de fondo */
+              * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
               @page {
                 size: portrait;
                 margin: 0 !important;
