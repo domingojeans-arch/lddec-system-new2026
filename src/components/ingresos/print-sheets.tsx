@@ -365,6 +365,13 @@ function SingleSheetView({
     verticalAlign: "middle" as const,
   };
 
+  const valStyle = {
+    fontSize: "9px",
+    fontWeight: "bold",
+    color: "black",
+    fontFamily: "Arial, Helvetica, sans-serif",
+  };
+
   return (
     <div style={{ width: "100%", height: "100%", boxSizing: "border-box", padding: "1px" }}>
       {/* Contenedor wrapper con bordes redondeados y borde general garantizado en horizontal */}
@@ -402,14 +409,10 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 3: CLIENTE (Fila sobre Tipo de Prenda con nombre primero/a la izquierda) */}
+            {/* Fila 3: CLIENTE (Fila sobre Tipo de Prenda con label a la izquierda) */}
             <tr style={{ height: "30px" }}>
-              <td colSpan={12} style={{ ...cellStyle, borderLeft: "none", borderRight: "none", padding: "4px 6px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                  <span style={{ color: "black", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase" }}>{cliente}</span>
-                  <span style={{ color: "#002060", fontSize: "9px", fontWeight: "bold" }}>CLIENTE:</span>
-                </div>
-              </td>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none", width: "15%" }}>CLIENTE:</td>
+              <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{cliente}</td>
             </tr>
 
             {/* Fila 4: TIPO DE PRENDA y MUESTRA EXTERNA y N° PRENDAS 1 */}
