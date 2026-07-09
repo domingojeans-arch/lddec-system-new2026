@@ -198,7 +198,7 @@ export function BillingVsCollectionsReport({
     <div className="space-y-10 animate-in fade-in duration-500 print:m-0 print:p-0">
       <style jsx global>{`
         @media print {
-          @page { size: auto; margin: 15mm; }
+          @page { size: A4 landscape; margin: 10mm 15mm; }
           body { margin: 0; padding: 0; background: white !important; }
           #billing-report-area {
             width: 100% !important;

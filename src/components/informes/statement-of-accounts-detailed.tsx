@@ -185,7 +185,7 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
         }
 
         @media print {
-          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
+          @page { size: A4 landscape; margin: 10mm 15mm 10mm 15mm; }
           body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
           .print-hidden { display: none !important; }
           #statement-report { padding: 0 !important; width: 100% !important; max-width: 100% !important; border: none !important; box-shadow: none !important; }
