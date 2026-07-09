@@ -455,12 +455,13 @@ function SingleSheetView({
                 <div style={{ fontSize: "12px", fontWeight: "900", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
                 <div style={{ fontSize: "11px", fontWeight: "900", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
               </td>
-              <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none", padding: "1px" }}>
+              {/* Celda del Logo combinada verticalmente */}
+              <td colSpan={2} rowSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none", padding: "2px" }}>
                 <img 
                   src="/logo-lddec.png" 
                   alt="Logo" 
                   style={{ 
-                    height: "28px", 
+                    height: "54px", 
                     width: "100%", 
                     objectFit: "contain", 
                     margin: "0 auto",
@@ -477,9 +478,9 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 2: CLIENTE y N° INGRESO */}
+            {/* Fila 2: CLIENTE y N° INGRESO (Logo con rowSpan ocupa las cols 8 y 9) */}
             <tr style={{ height: "30px" }}>
-              <td colSpan={9} style={{ ...cellStyle, borderLeft: "none", padding: "3px 6px" }}>
+              <td colSpan={7} style={{ ...cellStyle, borderLeft: "none", padding: "3px 6px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                   <span>CLIENTE:</span>
                   <span style={{ ...valStyle, textTransform: "uppercase" }}>{cliente}</span>
