@@ -437,7 +437,7 @@ function SingleSheetView({
             </tr>
 
             {/* Fila 5: NOMBRE DE TELA, CÓDIGO y PESO (kg) (rowspan 2) */}
-            <tr style={{ height: "34px" }}>
+            <tr style={{ height: "26px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>NOMBRE DE TELA:</td>
               <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{nombreTela}</td>
               <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
