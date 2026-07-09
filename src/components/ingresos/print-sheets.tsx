@@ -282,17 +282,40 @@ export function PrintSheetsTab() {
       <div className="hidden print:block absolute left-0 top-0 w-full" id="print-area">
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
+            /* Ocultar absolutamente todo excepto el area de impresion */
+            body * {
+              visibility: hidden !important;
+            }
+            #print-area, #print-area * {
+              visibility: visible !important;
+            }
+            #print-area {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 210mm !important;
+              height: 148mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              display: block !important;
+            }
+
+            /* Forzar el comportamiento de la pagina */
+            @page {
+              size: A5 landscape;
+              margin: 0 !important;
+            }
             body, html {
               margin: 0 !important;
               padding: 0 !important;
+              width: 210mm !important;
+              height: 148mm !important;
               background: #fff !important;
-            }
-            @page {
-              size: A5 landscape;
-              margin: 0mm !important;
+              overflow: visible !important;
             }
             .ficha-print-container {
               page-break-after: always !important;
+              page-break-inside: avoid !important;
               box-sizing: border-box;
               width: 210mm;
               height: 148mm;
