@@ -365,13 +365,6 @@ function SingleSheetView({
     verticalAlign: "middle" as const,
   };
 
-  const valStyle = {
-    fontSize: "9px",
-    fontWeight: "bold",
-    color: "black",
-    fontFamily: "Arial, Helvetica, sans-serif",
-  };
-
   return (
     <div style={{ width: "100%", height: "100%", boxSizing: "border-box", padding: "1px" }}>
       {/* Contenedor wrapper con bordes redondeados y borde general garantizado en horizontal */}
@@ -395,7 +388,17 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 2: LOTE y N° INGRESO */}
+            {/* Fila 2: CLIENTE (Fila sobre Tipo de Prenda con nombre primero/a la izquierda) */}
+            <tr style={{ height: "30px" }}>
+              <td colSpan={12} style={{ ...cellStyle, borderLeft: "none", borderRight: "none", padding: "4px 6px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <span style={{ color: "black", fontSize: "11px", fontWeight: "bold", textTransform: "uppercase" }}>{cliente}</span>
+                  <span style={{ color: "#002060", fontSize: "9px", fontWeight: "bold" }}>CLIENTE:</span>
+                </div>
+              </td>
+            </tr>
+
+            {/* Fila 3: LOTE y N° INGRESO */}
             <tr style={{ height: "30px" }}>
               <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
               <td colSpan={5} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
@@ -409,10 +412,10 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 3: TIPO DE PRENDA y MUESTRA EXTERNA y N° PRENDAS 1 */}
+            {/* Fila 4: TIPO DE PRENDA y MUESTRA EXTERNA y N° PRENDAS 1 */}
             <tr style={{ height: "26px" }}>
               <td colSpan={2} style={{ ...cellStyle, width: "15%", borderLeft: "none" }}>TIPO DE PRENDA:</td>
-              <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{tipoPrenda}</td>
+              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{tipoPrenda}</td>
               <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
                 <div style={{ fontSize: "8px", color: "#002060" }}>MUESTRA EXTERNA</div>
               </td>
@@ -424,10 +427,10 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 4: NOMBRE DE TELA y N° PRENDAS 2 */}
+            {/* Fila 5: NOMBRE DE TELA y N° PRENDAS 2 */}
             <tr style={{ height: "26px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>NOMBRE DE TELA:</td>
-              <td colSpan={4} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{nombreTela}</td>
+              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{nombreTela}</td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° PRENDAS 2:</span>
@@ -436,12 +439,12 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 5: FECHA e INGRESO y PESO */}
+            {/* Fila 6: FECHA e INGRESO y PESO */}
             <tr style={{ height: "34px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>FECHA DE INGRESO:</td>
-              <td colSpan={4} style={{ ...cellStyle, ...valStyle }}>{fechaIngreso}</td>
+              <td colSpan={4} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black" }}>{fechaIngreso}</td>
               <td colSpan={1} style={{ ...cellStyle, width: "8%" }}>CODIGO:</td>
-              <td colSpan={2} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{codigo}</td>
+              <td colSpan={2} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase" }}>{codigo}</td>
               <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "6px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span style={{ fontSize: "9px" }}>PESO (kg):</span>
@@ -450,16 +453,10 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 6: CLIENTE (Fila sobre procesos) */}
-            <tr style={{ height: "30px" }}>
-              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>CLIENTE:</td>
-              <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{cliente}</td>
-            </tr>
-
             {/* Fila 7: PROCESO */}
             <tr style={{ height: "32px" }}>
               <td colSpan={2} style={{ ...cellStyle, borderLeft: "none" }}>PROCESO:</td>
-              <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{proceso}</td>
+              <td colSpan={10} style={{ ...cellStyle, fontSize: "9px", fontWeight: "bold", color: "black", textTransform: "uppercase", borderRight: "none" }}>{proceso}</td>
             </tr>
 
             {/* Fila 8: Encabezados de Tabla de Manualidades */}
