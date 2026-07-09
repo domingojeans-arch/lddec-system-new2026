@@ -395,24 +395,25 @@ function SingleSheetView({
               </td>
             </tr>
 
-            {/* Fila 2: LOTE y N° INGRESO */}
+            {/* Fila 2: LOTE */}
             <tr style={{ height: "30px" }}>
               <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
-              <td colSpan={5} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
+              <td colSpan={8} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
                 {lote || ""}
               </td>
-              <td colSpan={6} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
+              <td colSpan={3} style={{ ...cellStyle, width: "30%", borderRight: "none", background: "#002060/5" }}></td>
+            </tr>
+
+            {/* Fila 3: CLIENTE y N° INGRESO (Alineados) */}
+            <tr style={{ height: "30px" }}>
+              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none", width: "15%" }}>CLIENTE:</td>
+              <td colSpan={7} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase" }}>{cliente}</td>
+              <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderRight: "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <span>N° INGRESO:</span>
                   <span style={{ color: "black", fontSize: "10px" }}>{nIngreso}</span>
                 </div>
               </td>
-            </tr>
-
-            {/* Fila 3: CLIENTE (Fila sobre Tipo de Prenda con label a la izquierda) */}
-            <tr style={{ height: "30px" }}>
-              <td colSpan={2} style={{ ...cellStyle, borderLeft: "none", width: "15%" }}>CLIENTE:</td>
-              <td colSpan={10} style={{ ...cellStyle, ...valStyle, textTransform: "uppercase", borderRight: "none" }}>{cliente}</td>
             </tr>
 
             {/* Fila 4: TIPO DE PRENDA y MUESTRA EXTERNA y N° PRENDAS 1 */}
