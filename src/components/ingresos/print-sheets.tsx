@@ -110,9 +110,9 @@ export function PrintSheetsTab() {
   const qty = parseInt(cantidad) || 0;
   const listFichas = Array.from({ length: qty }).map((_, idx) => {
     // Secuencia ascendente (startNum hasta startNum + qty - 1)
-    // pero invertida al mandar a imprimir (mayor a menor) para que al apilarse
-    // en la bandeja de salida quede la menor (startNum) arriba del fajo.
-    return startNum + qty - 1 - idx;
+    // Cambiado a orden ascendente nativo para apilarse correctamente
+    // segun el comportamiento de salida de la impresora (1 arriba del fajo).
+    return startNum + idx;
   });
 
   return (
