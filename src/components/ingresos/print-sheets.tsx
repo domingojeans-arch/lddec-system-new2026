@@ -381,8 +381,8 @@ function SingleSheetView({
             {/* Fila 1: Cabecera */}
             <tr style={{ height: "30px" }}>
               <td colSpan={7} style={{ ...cellStyle, textAlign: "center", borderTop: "none", borderLeft: "none" }}>
-                <div style={{ fontSize: "12px", fontWeight: "bold", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
-                <div style={{ fontSize: "11px", fontWeight: "bold", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
+                <div style={{ fontSize: "12px", fontWeight: "900", letterSpacing: "0.5px" }}>LABORATORIO DEL DENIM ECUADOR</div>
+                <div style={{ fontSize: "11px", fontWeight: "900", letterSpacing: "1.5px", marginTop: "2px" }}>FICHA DE PROCESOS</div>
               </td>
               <td colSpan={2} style={{ ...cellStyle, textAlign: "center", width: "10%", borderTop: "none" }}>
                 <img src="/logo-lddec.png" alt="Logo" style={{ height: "26px", margin: "0 auto", objectFit: "contain" }} />
@@ -410,7 +410,7 @@ function SingleSheetView({
             {/* Fila 3: LOTE y N° PRENDAS 1 */}
             <tr style={{ height: "30px" }}>
               <td colSpan={1} style={{ ...cellStyle, width: "10%", borderLeft: "none" }}>LOTE N°</td>
-              <td colSpan={5} style={{ ...cellStyle, fontSize: "16px", fontWeight: "bold", textAlign: "center", color: "black" }}>
+              <td colSpan={5} style={{ ...cellStyle, fontSize: "16px", fontWeight: "900", textAlign: "center", color: "black" }}>
                 {lote || ""}
               </td>
               <td colSpan={3} rowSpan={2} style={{ ...cellStyle, verticalAlign: "top", padding: "3px 5px" }}>
