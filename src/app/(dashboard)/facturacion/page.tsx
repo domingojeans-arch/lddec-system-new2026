@@ -67,6 +67,60 @@ export default function FacturacionPage() {
   const isReadOnly = user?.role === "socio";
 
   useEffect(() => {
+    console.log("[Facturacion] Inicializando MutationObserver para control de overlays del body.");
+    
+    const handleBodyUnlock = () => {
+      [0, 100, 300, 500].forEach((delay) => {
+        setTimeout(() => {
+          const hasOverlay = document.querySelector('[role="dialog"]') || 
+                             document.querySelector('[data-radix-portal]') || 
+                             document.querySelector('[data-state="open"]') ||
+                             document.querySelector('.fixed.inset-0');
+          
+          if (!hasOverlay) {
+            const bodyStyle = document.body.style;
+            if (bodyStyle.pointerEvents === 'none') {
+              console.log(`[Facturacion] Body bloqueado (pointerEvents) detectado sin overlays activos a los ${delay}ms. Desbloqueando.`);
+              bodyStyle.pointerEvents = '';
+              bodyStyle.removeProperty('pointer-events');
+            }
+            if (bodyStyle.overflow === 'hidden' || bodyStyle.overflow === 'clip') {
+              console.log(`[Facturacion] Body bloqueado (overflow) detectado sin overlays activos a los ${delay}ms. Desbloqueando.`);
+              bodyStyle.overflow = '';
+              bodyStyle.removeProperty('overflow');
+            }
+            // También remover posibles atributos de scroll-lock si Radix los dejó colgados
+            if (document.body.hasAttribute('data-scroll-locked')) {
+              console.log(`[Facturacion] Atributo data-scroll-locked detectado a los ${delay}ms. Removiendo.`);
+              document.body.removeAttribute('data-scroll-locked');
+            }
+          }
+        }, delay);
+      });
+    };
+
+    const observer = new MutationObserver((mutations) => {
+      let checkNeeded = false;
+      for (const m of mutations) {
+        if (m.removedNodes.length > 0 || m.type === 'attributes') {
+          checkNeeded = true;
+          break;
+        }
+      }
+      if (checkNeeded) {
+        handleBodyUnlock();
+      }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+
+    return () => {
+      observer.disconnect();
+      console.log("[Facturacion] MutationObserver desconectado.");
+    };
+  }, []);
+
+  useEffect(() => {
     const now = new Date();
     const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -85,6 +139,7 @@ export default function FacturacionPage() {
     // Quitamos orderBy y limit para que Firestore no excluya documentos sin "fechaFactura"
     const q = query(collection(db, "facturas"));
     const unsubInvoices = onSnapshot(q, (snapshot) => {
+      console.log(`[Facturacion] Firestore onSnapshot disparado. Recibidos ${snapshot.docs.length} documentos.`);
       const data = snapshot.docs.map(docSnap => {
         const d = docSnap.data();
         
@@ -172,9 +227,14 @@ export default function FacturacionPage() {
   }, [filteredInvoices]);
 
   const handleFormSubmit = async (data: any) => {
-    if (isReadOnly || isSubmitting) return;
+    console.log("[Facturacion] handleFormSubmit invocado. Datos recibidos:", data);
+    if (isReadOnly || isSubmitting) {
+      console.log("[Facturacion] Cancelando submit (ReadOnly o ya Submitting)");
+      return;
+    }
 
     // VALIDACIÓN DE UNICIDAD EN FIRESTORE
+    console.log("[Facturacion] Validando unicidad de factura:", data.numeroFactura);
     setIsSubmitting(true);
     try {
       const qFacturas = query(
@@ -190,6 +250,7 @@ export default function FacturacionPage() {
       });
 
       if (isDuplicate) {
+        console.warn("[Facturacion] Duplicado detectado para factura:", data.numeroFactura);
         toast({
           variant: "destructive",
           title: "Alerta de Duplicado",
@@ -199,7 +260,7 @@ export default function FacturacionPage() {
         return false;
       }
     } catch (error) {
-      console.error("Error al validar unicidad:", error);
+      console.error("[Facturacion] Error al validar unicidad:", error);
       toast({
         variant: "destructive",
         title: "Error en validación",
@@ -215,6 +276,7 @@ export default function FacturacionPage() {
       const fbTimestamp = Timestamp.fromDate(parsedDate);
       
       if (editingInvoice) {
+        console.log("[Facturacion] Editando factura existente. ID:", editingInvoice.id);
         const invoiceRef = doc(db, "facturas", editingInvoice.id);
         const oldTotal = Number(editingInvoice.totalFactura) || (Number(editingInvoice.subtotal || 0) + Number(editingInvoice.iva || 0));
         const oldSaldo = Number(editingInvoice.saldoPendiente) || oldTotal;
@@ -225,6 +287,7 @@ export default function FacturacionPage() {
           updatedAt: serverTimestamp(),
           saldoPendiente: totalF - (oldTotal - oldSaldo)
         });
+        console.log("[Facturacion] Factura guardada en Firestore. Procediendo a actualizar entries.");
         // ACTUALIZAR NUMERO DE FACTURA EN ENTRIES SI SE EDITÓ
         try {
           const entryIdsToUpdate = data.ingresoMaestroIds || (data.ingresoMaestroId ? [data.ingresoMaestroId] : []);
@@ -311,25 +374,29 @@ export default function FacturacionPage() {
         return true;
       }
     } catch (error) {
-      console.error("Error saving invoice:", error);
+      console.error("[Facturacion] Error al guardar factura:", error);
       toast({ variant: "destructive", title: "Error al guardar" });
       return false;
     } finally {
+      console.log("[Facturacion] handleFormSubmit finalizado. Restableciendo isSubmitting = false.");
       setIsSubmitting(false);
     }
   };
 
   const handleEdit = (invoice: Invoice) => {
+    console.log("[Facturacion] handleEdit invocado para factura:", invoice);
     if (isReadOnly) return;
     setEditingInvoice(invoice);
     setIsSheetOpen(true);
   };
 
   const handleDelete = async (id: string) => {
+    console.log("[Facturacion] handleDelete (Anular) invocado para ID:", id);
     const userRole = (user?.role || "").toLowerCase();
     const canAnular = userRole === "admin" || userRole === "administrador" || userRole === "facturacion";
 
     if (isReadOnly || !canAnular) {
+      console.warn("[Facturacion] Denegado por permisos o ReadOnly.");
       toast({ variant: "destructive", title: "Acceso Denegado" });
       return;
     }
@@ -342,23 +409,27 @@ export default function FacturacionPage() {
         saldoPendiente: 0,
         updatedAt: serverTimestamp()
       });
+      console.log("[Facturacion] Factura anulada exitosamente en Firestore.");
       toast({ title: "Factura Anulada" });
     } catch (error) {
-      console.error("Error al anular factura:", error);
+      console.error("[Facturacion] Error al anular factura:", error);
       toast({ variant: "destructive", title: "Error" });
     }
   };
 
   const handleDeleteFully = async (invoice: Invoice) => {
+    console.log("[Facturacion] handleDeleteFully (Eliminar definitivamente) invocado para factura:", invoice);
     const userRole = (user?.role || "").toLowerCase();
     const canAnular = userRole === "admin" || userRole === "administrador" || userRole === "facturacion";
 
     if (isReadOnly || !canAnular) {
+      console.warn("[Facturacion] Denegado por permisos o ReadOnly.");
       toast({ variant: "destructive", title: "Acceso Denegado" });
       return;
     }
     try {
       await deleteDoc(doc(db, "facturas", invoice.id));
+      console.log("[Facturacion] Documento de factura eliminado de Firestore.");
       
       const entryIdsToUpdate = invoice.ingresoMaestroIds || (invoice.ingresoMaestroId ? [invoice.ingresoMaestroId] : []);
       for (const eid of entryIdsToUpdate) {
@@ -390,9 +461,10 @@ export default function FacturacionPage() {
         }
       }
       
+      console.log("[Facturacion] Ingresos vinculados actualizados a PENDIENTE.");
       toast({ title: "Factura Eliminada", description: "El registro y sus ingresos vinculados han sido revertidos." });
     } catch (error) {
-      console.error("Error al eliminar factura:", error);
+      console.error("[Facturacion] Error al eliminar factura:", error);
       toast({ variant: "destructive", title: "Error" });
     }
   };
@@ -488,16 +560,30 @@ export default function FacturacionPage() {
         </Card>
       </div>
 
-      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+      <Dialog open={isDetailOpen} onOpenChange={(open) => {
+        console.log(`[Facturacion] Detail Dialog onOpenChange: ${open}`);
+        setIsDetailOpen(open);
+        if (!open) {
+          console.log("[Facturacion] Limpiando viewingInvoice");
+          setViewingInvoice(null);
+        }
+      }}>
         <DialogContent className="sm:max-w-[1000px] bg-card border-border text-foreground p-0 overflow-hidden rounded-[2.5rem] shadow-premium-lg">
           <div className="max-h-[85vh] overflow-y-auto p-12">
             <DialogHeader className="mb-10 border-b border-border pb-6"><DialogTitle className="text-4xl font-black uppercase tracking-tight">Detalle de Factura</DialogTitle></DialogHeader>
             {viewingInvoice && <InvoiceDetail invoice={viewingInvoice} />}
-    </div>
+          </div>
         </DialogContent>
       </Dialog>
 
-      <Sheet open={isSheetOpen} onOpenChange={(open) => setIsSheetOpen(open)}>
+      <Sheet open={isSheetOpen} onOpenChange={(open) => {
+        console.log(`[Facturacion] Edit Sheet onOpenChange: ${open}`);
+        setIsSheetOpen(open);
+        if (!open) {
+          console.log("[Facturacion] Limpiando editingInvoice");
+          setEditingInvoice(null);
+        }
+      }}>
         <SheetContent side="right" className="w-full sm:max-w-[800px] overflow-y-auto bg-card border-l border-border p-10">
           <SheetHeader className="mb-10">
             <SheetTitle className="text-3xl font-black uppercase tracking-tight">Editar Factura</SheetTitle>
