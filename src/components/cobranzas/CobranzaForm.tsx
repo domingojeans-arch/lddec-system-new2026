@@ -51,15 +51,6 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
           <Wallet className="h-5 w-5 text-primary" />
           <h4 className="text-sm font-black uppercase tracking-widest text-foreground">Registro de Pagos Asignados</h4>
         </div>
-        <Button 
-          onClick={onAddLine}
-          variant="outline"
-          size="sm"
-          className="h-9 border-dashed border-2 border-primary/30 text-primary hover:bg-primary/5 font-bold text-[10px] uppercase tracking-widest rounded-xl"
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Nueva Línea de Pago
-        </Button>
       </div>
 
       <div className="space-y-4">
@@ -208,9 +199,25 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
         })}
 
         {lines.length === 0 && (
-          <div className="h-32 border-2 border-dashed border-border rounded-[2rem] flex flex-col items-center justify-center text-muted-foreground/30">
-            <Plus className="h-10 w-10 mb-2" />
-            <p className="text-xs font-black uppercase tracking-widest">Añada líneas de pago para comenzar</p>
+          <div 
+            onClick={onAddLine}
+            className="h-32 border-2 border-dashed border-border hover:border-primary/45 hover:bg-primary/5 transition-all cursor-pointer rounded-[2rem] flex flex-col items-center justify-center text-muted-foreground/30 hover:text-primary/50 group"
+          >
+            <Plus className="h-10 w-10 mb-2 transition-transform group-hover:scale-110" />
+            <p className="text-xs font-black uppercase tracking-widest">Haga clic aquí para añadir una línea de pago</p>
+          </div>
+        )}
+
+        {lines.length > 0 && (
+          <div className="flex justify-center pt-2">
+            <Button 
+              onClick={onAddLine}
+              variant="outline"
+              className="w-full h-12 border-dashed border-2 border-primary/30 text-primary hover:bg-primary/5 font-black text-xs uppercase tracking-widest rounded-2xl gap-2 shadow-sm transition-all hover:scale-[1.01]"
+            >
+              <Plus className="h-4 w-4" />
+              Añadir Otra Línea de Pago
+            </Button>
           </div>
         )}
       </div>
