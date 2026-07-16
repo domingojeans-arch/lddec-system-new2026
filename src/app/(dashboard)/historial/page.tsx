@@ -24,7 +24,9 @@ import {
   Eye,
   X,
   Download,
-  ChevronsUpDown
+  ChevronsUpDown,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,15 +110,18 @@ function getInvoiceBadgeInfo(inv: any) {
   const isVencida = fechaVencimiento < new Date() && saldo > 0;
 
   if (saldo <= 0.01) {
-    return { text: `FACTURA: ${num} PAGADA`, colors: "text-emerald-700 bg-emerald-50 border-emerald-200" };
+    return { text: `FACTURA: ${num} PAGADA`, colors: "text-emerald-700 bg-emerald-50 border-emerald-200", isVencida: false };
   }
   if (abonado > 0.01 && saldo > 0.01) {
-    return { text: `FACTURA: ${num} PAGO PARCIAL`, colors: "text-blue-700 bg-blue-50 border-blue-200" };
+    if (isVencida) {
+      return { text: `FACTURA VENCIDA: ${num} (P. PARCIAL)`, colors: "text-red-700 bg-red-50 border-red-200", isVencida: true };
+    }
+    return { text: `FACTURA: ${num} PAGO PARCIAL`, colors: "text-blue-700 bg-blue-50 border-blue-200", isVencida: false };
   }
   if (abonado <= 0.01 && isVencida) {
-    return { text: `FACTURA VENCIDA`, colors: "text-red-700 bg-red-50 border-red-200" };
+    return { text: `FACTURA VENCIDA: ${num}`, colors: "text-red-700 bg-red-50 border-red-200", isVencida: true };
   }
-  return { text: `FACTURA: PENDIENTE`, colors: "text-amber-600 bg-amber-50 border-amber-200" };
+  return { text: `FACTURA: PENDIENTE`, colors: "text-amber-600 bg-amber-50 border-amber-200", isVencida: false };
 }
 
 /**
@@ -170,6 +175,18 @@ export default function HistorialPage() {
   const [filterEstado, setFilterEstado] = useState<string>("all");
   const [openClientCombo, setOpenClientCombo] = useState(false);
   const [clientSearchQuery, setClientSearchQuery] = useState("");
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [sortField, setSortField] = useState<"fecha" | "ingresoMaestro" | "numeroFactura">("fecha");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  const handleSort = (field: "fecha" | "ingresoMaestro" | "numeroFactura") => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
 
   // Estados para el Modal de Detalles (Ojito)
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -529,7 +546,7 @@ export default function HistorialPage() {
               let statusStr = "Pago parcial";
               if (inv.status === "Anulada" || inv.anulada) statusStr = "Anulada";
               else if (saldoVal <= 0.01) statusStr = "Pagada";
-              else if (badge.text === "FACTURA VENCIDA") statusStr = "Factura vencida";
+              else if (badge.isVencida) statusStr = "Factura vencida";
 
               estadoCuentaItems.push({
                 id: inv.id,
@@ -577,7 +594,7 @@ export default function HistorialPage() {
           let statusStr = "Pago parcial";
           if (item.data.status === "Anulada" || item.data.anulada) statusStr = "Anulada";
           else if (saldoVal <= 0.01) statusStr = "Pagada";
-          else if (badge.text === "FACTURA VENCIDA") statusStr = "Factura vencida";
+          else if (badge.isVencida) statusStr = "Factura vencida";
 
           estadoCuentaItems.push({
             id: item.id,
@@ -844,7 +861,7 @@ export default function HistorialPage() {
   const filteredEstadoCuentaItems = useMemo(() => {
     if (!auditData || !auditData.estadoCuentaItems) return [];
     
-    return auditData.estadoCuentaItems.filter((item: any) => {
+    let items = auditData.estadoCuentaItems.filter((item: any) => {
       if (filterEstado === "facturadas") {
         return item.numeroFactura !== "---" && item.estado !== "Pendiente de facturar";
       }
@@ -859,7 +876,34 @@ export default function HistorialPage() {
       }
       return true;
     });
-  }, [auditData, filterEstado]);
+
+    if (invoiceSearchQuery.trim()) {
+      const q = invoiceSearchQuery.toLowerCase().trim();
+      items = items.filter((item: any) => 
+        String(item.numeroFactura || "").toLowerCase().includes(q) ||
+        String(item.ingresoMaestro || "").toLowerCase().includes(q)
+      );
+    }
+
+    items = [...items].sort((a: any, b: any) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === "fecha") {
+        const timeA = valA ? new Date(valA).getTime() : 0;
+        const timeB = valB ? new Date(valB).getTime() : 0;
+        return sortDirection === "asc" ? timeA - timeB : timeB - timeA;
+      }
+
+      const cleanA = String(valA || "").trim().toLowerCase();
+      const cleanB = String(valB || "").trim().toLowerCase();
+
+      const comparison = cleanA.localeCompare(cleanB, undefined, { numeric: true, sensitivity: "base" });
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
+    return items;
+  }, [auditData, filterEstado, invoiceSearchQuery, sortField, sortDirection]);
 
   const estadoCuentaSummary = useMemo(() => {
     let totalFacturado = 0;
@@ -1377,26 +1421,37 @@ export default function HistorialPage() {
           </div>
 
           {/* Botones de acción específicos de la vista */}
-          <div className="flex items-center justify-between border-b border-border pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-4 gap-4">
             <h3 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
               <FileText className="h-6 w-6 text-primary" />
               Estado de Cuenta Detallado
             </h3>
-            <div className="flex items-center gap-3 print:hidden">
-              <Button 
-                variant="outline" 
-                onClick={handleExportExcel} 
-                className="rounded-xl font-bold uppercase text-[10px] gap-2 h-10 px-4 border-emerald-300 text-emerald-700 hover:bg-emerald-50/50"
-              >
-                <Download className="h-4 w-4" /> Exportar Excel
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => window.print()} 
-                className="rounded-xl font-bold uppercase text-[10px] gap-2 h-10 px-4"
-              >
-                <Printer className="h-4 w-4" /> Exportar PDF
-              </Button>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 print:hidden w-full md:w-auto">
+              <div className="relative w-full sm:w-[250px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Buscar factura o ingreso..." 
+                  className="pl-9 h-10 rounded-xl erp-input text-xs font-bold"
+                  value={invoiceSearchQuery} 
+                  onChange={(e) => setInvoiceSearchQuery(e.target.value)} 
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={handleExportExcel} 
+                  className="rounded-xl font-bold uppercase text-[10px] gap-2 h-10 px-4 border-emerald-300 text-emerald-700 hover:bg-emerald-50/50"
+                >
+                  <Download className="h-4 w-4" /> Exportar Excel
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.print()} 
+                  className="rounded-xl font-bold uppercase text-[10px] gap-2 h-10 px-4"
+                >
+                  <Printer className="h-4 w-4" /> Exportar PDF
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -1405,9 +1460,45 @@ export default function HistorialPage() {
             <Table>
               <TableHeader className="bg-muted/50 border-b border-border">
                 <TableRow>
-                  <TableHead className="text-[9px] font-black uppercase py-5 pl-8">Fecha</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase">Ingreso Maestro</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase">N.º Factura</TableHead>
+                  <TableHead 
+                    className="text-[9px] font-black uppercase py-5 pl-8 cursor-pointer select-none hover:text-primary transition-colors"
+                    onClick={() => handleSort("fecha")}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      Fecha
+                      {sortField === "fecha" ? (
+                        sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5 text-primary" /> : <ChevronDown className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-[9px] font-black uppercase cursor-pointer select-none hover:text-primary transition-colors"
+                    onClick={() => handleSort("ingresoMaestro")}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      Ingreso Maestro
+                      {sortField === "ingresoMaestro" ? (
+                        sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5 text-primary" /> : <ChevronDown className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-[9px] font-black uppercase cursor-pointer select-none hover:text-primary transition-colors"
+                    onClick={() => handleSort("numeroFactura")}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      N.º Factura
+                      {sortField === "numeroFactura" ? (
+                        sortDirection === "asc" ? <ChevronUp className="h-3.5 w-3.5 text-primary" /> : <ChevronDown className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="text-[9px] font-black uppercase">Cliente</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-center">Lotes</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-right">Valor Facturado</TableHead>
@@ -1467,7 +1558,7 @@ export default function HistorialPage() {
                             "text-[9px] font-black uppercase tracking-widest border px-2.5 py-1 rounded-md inline-block text-center min-w-[120px]", 
                             badgeColor
                           )}>
-                            {item.estado}
+                            {item.estado === "Factura vencida" ? `Vencida: ${item.numeroFactura}` : item.estado}
                           </span>
                           {item.estado === "Factura vencida" && (
                             <Button
