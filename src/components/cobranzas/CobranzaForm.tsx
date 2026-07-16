@@ -69,11 +69,30 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
                       <SelectValue placeholder="Seleccione..." />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      {invoices.map(inv => (
-                        <SelectItem key={inv.id} value={inv.id} className="text-xs uppercase font-bold">
-                          {inv._normalizedNumero || inv.numeroFactura || "DOCTO"} (Saldo: ${formatBalance(inv._normalizedSaldo || inv.saldoPendiente)})
-                        </SelectItem>
-                      ))}
+                      {invoices.map(inv => {
+                        const isAlreadySelected = lines.some(line => line.invoiceId === inv.id);
+                        return (
+                          <SelectItem 
+                            key={inv.id} 
+                            value={inv.id} 
+                            className={cn(
+                              "text-xs uppercase font-bold",
+                              isAlreadySelected && "bg-green-50/70 border-l-2 border-green-400 data-[highlighted]:bg-green-100"
+                            )}
+                          >
+                            <div className="flex w-full items-center justify-between gap-2">
+                              <span>
+                                {inv._normalizedNumero || inv.numeroFactura || "DOCTO"} (Saldo: ${formatBalance(inv._normalizedSaldo || inv.saldoPendiente)})
+                              </span>
+                              {isAlreadySelected && (
+                                <span className="shrink-0 text-[10px] font-black uppercase text-green-700 bg-green-100/50 px-1.5 py-0.5 rounded">
+                                  Agregada
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
