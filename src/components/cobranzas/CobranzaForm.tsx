@@ -54,13 +54,21 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
       </div>
 
       <div className="space-y-4">
-        {lines.map((line) => {
+        {lines.map((line, index) => {
           const isNotaCredito = line.tipoTransaccion === "Nota de Crédito";
           const isRetencion = line.tipoTransaccion === "Retención";
           const disablePaymentMethod = isNotaCredito || isRetencion;
 
           return (
             <div key={line.id} className="bg-muted/20 p-6 rounded-[1.5rem] border border-border space-y-6 animate-in slide-in-from-right-2">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-3 py-1 rounded-full tracking-widest">
+                  Documento #{index + 1}
+                </span>
+                <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground/60">
+                  Línea de Cobro
+                </span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 <div className="space-y-1.5 md:col-span-8">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Factura Destino</Label>
