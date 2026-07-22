@@ -120,7 +120,16 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
           .filter(s => {
             const isNotBilled = !billedEntryIds.has(s.id);
             const isNotResolved = s.status !== "resolved"; 
-            return isNotBilled && isNotResolved;
+            
+            // Filtrar para mostrar solo muestras del 2026 en adelante (este año)
+            const rawDate = s.date || s.entryDate || s.createdAt || s.fecha;
+            let parsedDate: Date | null = null;
+            if (rawDate?.toDate) parsedDate = rawDate.toDate();
+            else if (rawDate) parsedDate = new Date(rawDate);
+            
+            const isCurrentYearOrNewer = parsedDate ? parsedDate.getFullYear() >= 2026 : false;
+            
+            return isNotBilled && isNotResolved && isCurrentYearOrNewer;
           });
 
         setUnbilledSamples(samples);
