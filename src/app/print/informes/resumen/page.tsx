@@ -48,11 +48,11 @@ function PrintContent() {
 
   if (mode === "mensual" && monthlyData) {
     return (
-      <div className="space-y-0">
+      <div className="print-container-mensual">
         <style>{`
           @page {
             size: A4;
-            margin: 0;
+            margin: 1.5cm;
           }
           body {
             margin: 0;
@@ -60,91 +60,89 @@ function PrintContent() {
             background: #f0f0f0;
             -webkit-print-color-adjust: exact;
           }
-          .print-page {
+          .print-container-mensual {
             width: 21cm;
-            height: 29.7cm;
             margin: 0 auto;
             background: white;
             padding: 1.5cm;
-            position: relative;
             font-family: 'Inter', sans-serif;
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
-            page-break-after: always;
+            box-sizing: border-box;
           }
           @media print {
             body { background: white; }
-            .print-page { 
+            .print-container-mensual { 
               box-shadow: none; 
               margin: 0;
-              width: 21cm;
-              height: 29.7cm;
+              width: 100%;
+              padding: 0;
             }
           }
-          .header-logo {
-            position: absolute;
-            top: 1.5cm;
-            right: 1.5cm;
-            width: 2.2cm;
-            height: 2.2cm;
-            object-fit: contain;
+          .monthly-report-card {
+            border: 1.5pt solid black;
+            padding: 20px;
+            margin-bottom: 25px;
+            background: white;
+            page-break-inside: avoid;
+            position: relative;
           }
-          .header-title {
-            position: absolute;
-            top: 2.0cm;
-            left: 1.5cm;
-            font-size: 16pt;
+          .card-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            border-bottom: 1pt solid #e2e8f0;
+            padding-bottom: 10px;
+          }
+          .card-title-area {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+          }
+          .card-title-main {
+            font-size: 11pt;
             font-weight: 900;
-            color: black;
-            letter-spacing: -0.02em;
             text-transform: uppercase;
+            color: black;
           }
-          .header-subtitle {
-            position: absolute;
-            top: 2.8cm;
-            left: 1.5cm;
-            font-size: 13pt;
+          .card-title-sub {
+            font-size: 9pt;
             font-weight: 700;
             color: #3b82f6;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
           }
-          .meta-info {
-            position: absolute;
-            top: 4.2cm;
-            left: 1.5cm;
-            font-size: 10pt;
+          .card-meta-text {
+            font-size: 8pt;
             font-weight: 600;
             color: #64748b;
             text-transform: uppercase;
+            text-align: right;
           }
-          .main-table {
-            position: absolute;
-            top: 6.0cm;
-            left: 1.5cm;
-            width: 18cm;
+          .monthly-table {
+            width: 100%;
             border-collapse: collapse;
             border: 1.5pt solid black;
+            margin-bottom: 8px;
           }
-          .main-table th {
+          .monthly-table th {
             background: #f1f5f9;
             border: 1.5pt solid black;
             padding: 6px 10px;
             text-align: left;
-            font-size: 9pt;
+            font-size: 8pt;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 0.05em;
           }
-          .main-table td {
+          .monthly-table td {
             border: 1pt solid #e2e8f0;
-            padding: 4px 10px;
-            font-size: 9pt;
+            padding: 5px 10px;
+            font-size: 8.5pt;
             vertical-align: middle;
             line-height: 1.1;
           }
-          .col-label { width: 70%; }
-          .col-value { width: 30%; text-align: right; font-family: monospace; font-weight: 700; }
-          
+          .col-label { width: 75%; }
+          .col-value { width: 25%; text-align: right; font-family: monospace; font-weight: 700; }
           .row-in { color: #059669; font-weight: 800; }
           .row-out { color: #dc2626; font-weight: 800; }
           .row-sub { color: #64748b; font-style: italic; font-size: 8pt; }
@@ -152,36 +150,39 @@ function PrintContent() {
             background: #f8fafc;
             border-top: 2pt solid black !important;
           }
-          .final-label { font-weight: 900; text-transform: uppercase; font-size: 10pt; }
-          .final-value { font-size: 14pt; font-weight: 900; }
-
-          .footer-note {
-            position: absolute;
-            bottom: 1.5cm;
-            left: 1.5cm;
-            right: 1.5cm;
-            text-align: center;
-            font-size: 8pt;
+          .final-label { font-weight: 900; text-transform: uppercase; font-size: 9.5pt; }
+          .final-value { font-size: 12pt; font-weight: 900; }
+          .card-footer-note {
+            font-size: 7.5pt;
             color: #94a3b8;
             font-weight: 500;
-            border-top: 0.5pt solid #e2e8f0;
-            padding-top: 10px;
+            text-align: center;
           }
         `}</style>
 
+        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-tight">LABORATORIO DEL DENIM ECUADOR</h1>
+            <h2 className="text-sm font-bold uppercase text-primary">Desglose Operativo Mensual de Inventario</h2>
+            <p className="text-[10px] font-black uppercase text-muted-foreground mt-1">Periodo: {monthlyData.from} al {monthlyData.to}</p>
+          </div>
+          <img src="/logo-lddec.png" alt="Logo" className="w-16 h-16 object-contain" />
+        </div>
+
         {monthlyData.months.map((month: any, index: number) => (
-          <div key={index} className="print-page">
-            <img src="/logo-lddec.png" alt="Logo" className="header-logo" />
-            
-            <div className="header-title">LABORATORIO DEL DENIM ECUADOR</div>
-            <div className="header-subtitle">Resumen Mensual: {month.label}</div>
-            
-            <div className="meta-info">
-              <p>Periodo: {month.from} al {month.to}</p>
-              <p style={{ marginTop: '2px' }}>Generado el: {fechaGenerada}</p>
+          <div key={index} className="monthly-report-card">
+            <div className="card-header-row">
+              <div className="card-title-area">
+                <span className="card-title-main">LDDEC - Resumen de Movimientos</span>
+                <span className="card-title-sub">{month.label}</span>
+              </div>
+              <div className="card-meta-text">
+                <p>Mes: {index + 1} / {monthlyData.months.length}</p>
+                <p style={{ marginTop: '2px' }}>Rango: {month.from} al {month.to}</p>
+              </div>
             </div>
 
-            <table className="main-table">
+            <table className="monthly-table">
               <thead>
                 <tr>
                   <th className="col-label">Métrica de Inventario</th>
@@ -202,11 +203,11 @@ function PrintContent() {
                   <td className="col-value">{formatNum(month.out)}</td>
                 </tr>
                 <tr className="row-sub">
-                  <td className="col-label" style={{ paddingLeft: '1cm' }}>• de las cuales facturadas</td>
+                  <td className="col-label" style={{ paddingLeft: '0.8cm' }}>• de las cuales facturadas</td>
                   <td className="col-value">{formatNum(month.df)}</td>
                 </tr>
                 <tr className="row-sub">
-                  <td className="col-label" style={{ paddingLeft: '1cm' }}>• de las cuales sin facturar</td>
+                  <td className="col-label" style={{ paddingLeft: '0.8cm' }}>• de las cuales sin facturar</td>
                   <td className="col-value">{formatNum(month.dsf)}</td>
                 </tr>
                 <tr className="row-final">
@@ -215,11 +216,9 @@ function PrintContent() {
                 </tr>
               </tbody>
             </table>
-
-            <div className="footer-note">
+            
+            <div className="card-footer-note mt-2">
               Lógica de cálculo: Stock Inicial Base al 01/01/2026 unificado con registros de ingresos y salidas del mes.
-              <br />
-              Este documento es para control interno administrativo de LDDEC. Pag {index + 1} de {monthlyData.months.length}
             </div>
           </div>
         ))}
