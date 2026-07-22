@@ -11,9 +11,19 @@ interface InventorySummaryReportProps {
   metrics: InventoryMetrics;
   dateFrom: string;
   dateTo: string;
+  allEntries?: any[];
+  allOutputs?: any[];
+  allInvoices?: any[];
 }
 
-export function InventorySummaryReport({ metrics, dateFrom, dateTo }: InventorySummaryReportProps) {
+export function InventorySummaryReport({ 
+  metrics, 
+  dateFrom, 
+  dateTo,
+  allEntries = [],
+  allOutputs = [],
+  allInvoices = []
+}: InventorySummaryReportProps) {
   
   const formatNum = (val: number) => {
     return Math.floor(val).toLocaleString('es-ES');
@@ -124,6 +134,114 @@ export function InventorySummaryReport({ metrics, dateFrom, dateTo }: InventoryS
           </div>
         </CardContent>
       </Card>
+
+      {/* Historial Operativo Mensual del Año Anterior */}
+      {(() => {
+        const currentYear = new Date().getFullYear();
+        const prevYear = currentYear - 1;
+
+        // Motores de parseo de fechas y cantidades
+        const getNormalizedQty = (item: any): number => {
+          if (!item) return 0;
+          const val = item.quantityToDispatch || item.cantidadConfirmada || item.quantity || item.cantidad || item.totalPrendas || item.total || 0;
+          const num = Number(val);
+          return isNaN(num) || !isFinite(num) ? 0 : num;
+        };
+
+        const getNormalizedDate = (doc: any): Date | null => {
+          if (!doc) return null;
+          const raw = doc.date || doc.fechaSalida || doc.fecha || doc.entryDate || doc.createdAt;
+          if (!raw) return null;
+          if (raw.toDate) return raw.toDate();
+          const d = new Date(raw);
+          return isNaN(d.getTime()) ? null : d;
+        };
+
+        // Generar 12 meses
+        const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+          monthName: new Date(prevYear, i, 1).toLocaleDateString('es-ES', { month: 'long' }),
+          monthNum: i,
+          ingresos: 0,
+          despachos: 0,
+          facturado: 0
+        }));
+
+        // Clasificar ingresos (entries)
+        allEntries.forEach(e => {
+          const d = getNormalizedDate(e);
+          if (d && d.getFullYear() === prevYear) {
+            const m = d.getMonth();
+            const lotes = e.lotes || e.lots || [];
+            lotes.forEach((l: any) => {
+              monthlyData[m].ingresos += getNormalizedQty(l);
+            });
+          }
+        });
+
+        // Clasificar despachos (outputs)
+        allOutputs.forEach(o => {
+          const d = getNormalizedDate(o);
+          if (d && d.getFullYear() === prevYear) {
+            const m = d.getMonth();
+            if (Array.isArray(o.itemsDispatched)) {
+              o.itemsDispatched.forEach((it: any) => {
+                monthlyData[m].despachos += getNormalizedQty(it);
+              });
+            } else {
+              monthlyData[m].despachos += getNormalizedQty(o);
+            }
+          }
+        });
+
+        // Clasificar facturado (invoices)
+        allInvoices.forEach(inv => {
+          const d = getNormalizedDate(inv);
+          if (d && d.getFullYear() === prevYear) {
+            const m = d.getMonth();
+            const totalF = Number(inv.totalFactura || inv.total || 0);
+            monthlyData[m].facturado += totalF;
+          }
+        });
+
+        return (
+          <Card className="max-w-4xl mx-auto border-border shadow-sm rounded-3xl overflow-hidden bg-card mt-10">
+            <div className="p-8 border-b border-border flex items-center gap-3 bg-muted/10">
+              <BarChart3 className="h-6 w-6 text-primary" />
+              <h2 className="text-xl font-black uppercase tracking-tight">Desglose Operativo Mensual (Año Anterior: {prevYear})</h2>
+            </div>
+            <CardContent className="p-10">
+              <div className="border border-border rounded-2xl overflow-hidden bg-background shadow-inner">
+                <Table>
+                  <TableHeader className="bg-muted/50">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-14 font-black uppercase tracking-widest pl-8 text-xs">Mes</TableHead>
+                      <TableHead className="h-14 font-black uppercase tracking-widest text-right text-xs">Ingresos (Prendas)</TableHead>
+                      <TableHead className="h-14 font-black uppercase tracking-widest text-right text-xs">Despachos (Prendas)</TableHead>
+                      <TableHead className="h-14 font-black uppercase tracking-widest text-right pr-8 text-xs">Total Facturado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {monthlyData.map((data, idx) => (
+                      <TableRow key={idx} className="border-b border-border/50 hover:bg-muted/5 transition-colors">
+                        <TableCell className="h-14 pl-8 font-bold text-foreground text-sm uppercase">{data.monthName}</TableCell>
+                        <TableCell className="h-14 pr-8 text-right font-semibold text-emerald-600 text-sm tabular-nums">
+                          {formatNum(data.ingresos)}
+                        </TableCell>
+                        <TableCell className="h-14 pr-8 text-right font-semibold text-red-600 text-sm tabular-nums">
+                          {formatNum(data.despachos)}
+                        </TableCell>
+                        <TableCell className="h-14 pr-8 text-right font-black text-primary text-sm tabular-nums">
+                          ${data.facturado.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
     </div>
   );
 }

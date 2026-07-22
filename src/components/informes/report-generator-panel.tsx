@@ -405,7 +405,16 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
 
       {reportGenerated && (
         <div className="animate-in slide-in-from-bottom-4 duration-500">
-          {filters.type === "Resumen Operativo Mes a Mes" && inventoryMetrics && <InventorySummaryReport metrics={inventoryMetrics} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
+          {filters.type === "Resumen Operativo Mes a Mes" && inventoryMetrics && (
+            <InventorySummaryReport 
+              metrics={inventoryMetrics} 
+              dateFrom={filters.dateFrom} 
+              dateTo={filters.dateTo} 
+              allEntries={reportData.allEntries || []}
+              allOutputs={reportData.allOutputs || []}
+              allInvoices={reportData.allInvoices || []}
+            />
+          )}
           {filters.type === "Informe de Ingresos Detallado" && <EntriesDetailedReport entries={reportData.entries} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Informe de Salidas Detallado" && <OutputsDetailedReport prodOutputs={reportData.outputs} sampleOutputs={[]} totals={{ prodPrendas: 0, samplePrendas: 0, totalGeneral: 0 }} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Informe Detallado de Ventas (Libro de Ventas)" && <SalesDetailedReport invoices={reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
