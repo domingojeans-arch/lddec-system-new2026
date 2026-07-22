@@ -85,7 +85,7 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
                             value={inv.id} 
                             className={cn(
                               "text-xs uppercase font-bold",
-                              isAlreadySelected && "bg-green-50/70 border-l-2 border-green-400 data-[highlighted]:bg-green-100"
+                              isAlreadySelected && "bg-green-50/70 dark:bg-green-950/40 border-l-2 border-green-400 dark:border-green-500 data-[highlighted]:bg-green-100 dark:data-[highlighted]:bg-green-900/40"
                             )}
                           >
                             <div className="flex w-full items-center justify-between gap-2">
@@ -93,7 +93,7 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
                                 {inv._normalizedNumero || inv.numeroFactura || "DOCTO"} (Saldo: ${formatBalance(inv._normalizedSaldo || inv.saldoPendiente)})
                               </span>
                               {isAlreadySelected && (
-                                <span className="shrink-0 text-[10px] font-black uppercase text-green-700 bg-green-100/50 px-1.5 py-0.5 rounded">
+                                <span className="shrink-0 text-[10px] font-black uppercase text-green-700 dark:text-green-400 bg-green-100/50 dark:bg-green-950/60 px-1.5 py-0.5 rounded">
                                   Agregada
                                 </span>
                               )}

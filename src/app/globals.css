@@ -102,6 +102,16 @@
   @apply bg-muted/30 border-border h-12 rounded-[14px] focus-visible:ring-primary/20 transition-all text-foreground;
 }
 
+input:disabled,
+textarea:disabled,
+select:disabled,
+button:disabled,
+.erp-input:disabled {
+  opacity: 0.75 !important;
+  color: hsl(var(--foreground)) !important;
+  -webkit-text-fill-color: hsl(var(--foreground)) !important;
+}
+
 .erp-table-header {
   @apply bg-muted/50 text-muted-foreground font-black uppercase tracking-widest text-[11px];
 }

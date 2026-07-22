@@ -95,13 +95,13 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
         </div>
       </div>
 {/* Salidas / Guías Asociadas – control visual */}
-<div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mt-6 shadow-sm">
-  <label className="block text-sm font-black uppercase text-blue-600 mb-2">Salidas / Guías Asociadas</label>
+<div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-zinc-800 rounded-xl p-6 mt-6 shadow-sm">
+  <label className="block text-sm font-black uppercase text-blue-600 dark:text-blue-400 mb-2">Salidas / Guías Asociadas</label>
   <textarea
     readOnly
     value={invoice.numeroSalida || "No se registraron guías asociadas a esta factura."}
     placeholder="Registre aquí las guías o salidas vinculadas a esta factura..."
-    className="w-full min-h-[80px] p-3 rounded-lg border border-blue-200 focus:outline-none bg-white text-sm font-bold text-slate-700 resize-none"
+    className="w-full min-h-[80px] p-3 rounded-lg border border-blue-200 dark:border-zinc-800 focus:outline-none bg-white dark:bg-zinc-900 text-sm font-bold text-slate-700 dark:text-zinc-300 resize-none"
   />
 </div>
       {/* Items Section */}

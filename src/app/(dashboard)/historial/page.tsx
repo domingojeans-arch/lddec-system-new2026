@@ -82,9 +82,9 @@ import { Calendar } from "@/components/ui/calendar";
 import * as XLSX from "xlsx";
 
 const statusMap: Record<string, string> = {
-  "Por Cobrar": "bg-amber-100 text-amber-700 border-amber-200",
-  "Parcialmente Cobrada": "bg-blue-100 text-blue-700 border-blue-200",
-  "Pagada": "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "Por Cobrar": "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/50",
+  "Parcialmente Cobrada": "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/50",
+  "Pagada": "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50",
 };
 
 function getEntryVisible(item: any, id: string): string {
@@ -110,18 +110,18 @@ function getInvoiceBadgeInfo(inv: any) {
   const isVencida = fechaVencimiento < new Date() && saldo > 0;
 
   if (saldo <= 0.01) {
-    return { text: `FACTURA: ${num} PAGADA`, colors: "text-emerald-700 bg-emerald-50 border-emerald-200", isVencida: false };
+    return { text: `FACTURA: ${num} PAGADA`, colors: "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-900/50", isVencida: false };
   }
   if (abonado > 0.01 && saldo > 0.01) {
     if (isVencida) {
-      return { text: `FACTURA VENCIDA: ${num} (P. PARCIAL)`, colors: "text-red-700 bg-red-50 border-red-200", isVencida: true };
+      return { text: `FACTURA VENCIDA: ${num} (P. PARCIAL)`, colors: "text-red-700 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/50", isVencida: true };
     }
-    return { text: `FACTURA: ${num} PAGO PARCIAL`, colors: "text-blue-700 bg-blue-50 border-blue-200", isVencida: false };
+    return { text: `FACTURA: ${num} PAGO PARCIAL`, colors: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/30 dark:border-blue-900/50", isVencida: false };
   }
   if (abonado <= 0.01 && isVencida) {
-    return { text: `FACTURA VENCIDA: ${num}`, colors: "text-red-700 bg-red-50 border-red-200", isVencida: true };
+    return { text: `FACTURA VENCIDA: ${num}`, colors: "text-red-700 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/50", isVencida: true };
   }
-  return { text: `FACTURA: PENDIENTE`, colors: "text-amber-600 bg-amber-50 border-amber-200", isVencida: false };
+  return { text: `FACTURA: PENDIENTE`, colors: "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-900/50", isVencida: false };
 }
 
 /**

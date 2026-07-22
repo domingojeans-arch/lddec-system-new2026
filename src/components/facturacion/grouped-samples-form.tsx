@@ -287,7 +287,7 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
 
         <div className={cn(
           "lg:col-span-8 bg-card p-10 rounded-[2.5rem] border border-border shadow-sm space-y-10 flex flex-col h-full transition-all duration-500",
-          selectedEntryIds.length === 0 && "opacity-60"
+          selectedEntryIds.length === 0 && "opacity-85"
         )}>
           <div className="flex items-center justify-between border-b border-border pb-6">
             <div className="space-y-1">
@@ -374,14 +374,14 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
             </div>
 
             {/* Control Visual de Salidas / Guías Asociadas */}
-            <div className="bg-blue-50/50 border border-blue-100/50 rounded-2xl p-6 space-y-4 pt-4">
+            <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/30 rounded-2xl p-6 space-y-4 pt-4">
               <FormField control={form.control} name="numeroSalida" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-blue-600">Salidas / Guías Asociadas (Control Visual)</FormLabel>
+                  <FormLabel className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400">Salidas / Guías Asociadas (Control Visual)</FormLabel>
                   <FormControl>
                     <Textarea 
                       placeholder="Registre aquí los números de guías de despacho o salidas asociadas a esta factura a modo de control visual..." 
-                      className="w-full min-h-[80px] p-3 rounded-xl border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-xs text-foreground font-bold resize-none" 
+                      className="w-full min-h-[80px] p-3 rounded-xl border border-blue-200 dark:border-zinc-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-xs text-foreground font-bold resize-none" 
                       disabled={selectedEntryIds.length === 0}
                       {...field} 
                     />
