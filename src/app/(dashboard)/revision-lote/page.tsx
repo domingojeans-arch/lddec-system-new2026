@@ -575,6 +575,24 @@ export default function RevisionLotePage() {
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-3">
                   {processCatalog.map((process) => {
                     const isSelected = isProcessSelected(process.id);
+                    const firstLetter = (process.name || "").trim().substring(0, 1).toUpperCase();
+                    
+                    let letterClass = "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground";
+                    let circleBorderClass = "border-muted-foreground/30";
+                    
+                    if (!isSelected) {
+                      if (firstLetter === "A") {
+                        letterClass = "bg-blue-50/60 dark:bg-blue-950/20 border-blue-200/60 dark:border-blue-900/30 text-blue-700 dark:text-blue-300 hover:border-blue-400 dark:hover:border-blue-700";
+                        circleBorderClass = "border-blue-300 dark:border-blue-800/50";
+                      } else if (firstLetter === "B") {
+                        letterClass = "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:border-emerald-400 dark:hover:border-emerald-700";
+                        circleBorderClass = "border-emerald-300 dark:border-emerald-800/50";
+                      } else if (firstLetter === "C") {
+                        letterClass = "bg-amber-50/60 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-700 dark:text-amber-300 hover:border-amber-400 dark:hover:border-amber-700";
+                        circleBorderClass = "border-amber-300 dark:border-amber-800/50";
+                      }
+                    }
+                    
                     return (
                       <button 
                         key={process.id} 
@@ -583,12 +601,12 @@ export default function RevisionLotePage() {
                           "flex items-center gap-2 h-10 px-3 rounded-xl border text-left transition-all group shrink-0", 
                           isSelected 
                             ? "bg-primary border-primary text-white shadow-md" 
-                            : "bg-background border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                            : letterClass
                         )}
                       >
                         <div className={cn(
                           "h-4 w-4 rounded-full border flex items-center justify-center shrink-0", 
-                          isSelected ? "border-white bg-white" : "border-muted-foreground/30"
+                          isSelected ? "border-white bg-white" : circleBorderClass
                         )}>
                           {isSelected && <Check className="h-2.5 w-2.5 text-primary" />}
                         </div>
