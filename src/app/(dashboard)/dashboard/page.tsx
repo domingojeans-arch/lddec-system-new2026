@@ -287,7 +287,12 @@ export default function DashboardPage() {
             const invDate = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate || inv.date || inv.timestamp);
             const matchMonth = invDate && invDate.getMonth() === d.getMonth() && invDate.getFullYear() === d.getFullYear();
             
-            const isSampleInvoice = inv.isSample === true || inv.tipoFactura === "muestra" || (inv.ingresoMaestroId && entriesRaw.find(e => e.id === inv.ingresoMaestroId)?.isSample === true);
+            const isSampleInvoice = 
+              inv.isSample === true || 
+              inv.tipoFactura === "muestra" || 
+              (inv.ingresoMaestroId && entriesRaw.find(e => e.id === inv.ingresoMaestroId)?.isSample === true) ||
+              (Array.isArray(inv.ingresoMaestroIds) && inv.ingresoMaestroIds.some((id: string) => entriesRaw.find(e => e.id === id)?.isSample === true));
+              
             return matchMonth && (isSample ? isSampleInvoice : !isSampleInvoice);
           });
           const totalBilledAmount = invsInMonth.reduce((acc, inv) => acc + Number(inv.totalFactura || inv.total || 0), 0);
