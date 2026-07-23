@@ -409,10 +409,13 @@ export default function DashboardPage() {
 
           const total = invoicesInMonth.length;
           let paidCount = 0;
+          let monthFacturado = 0;
+          let monthCobrado = 0;
 
           invoicesInMonth.forEach(invoice => {
             const totalFactura = Number(invoice.totalFactura || invoice.total || 0);
             if (totalFactura <= 0) return;
+            monthFacturado += totalFactura;
 
             // Fusión y deduplicación de pagos para este invoice
             const uniqueMvs = new Map<string, any>();
@@ -453,6 +456,8 @@ export default function DashboardPage() {
               return isReverso ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0);
             }, 0);
 
+            monthCobrado += totalCobrado;
+
             const saldo = totalFactura - totalCobrado;
             const isCobradaStatus = String(invoice.estadoCobranza || "").toUpperCase() === "COBRADA" || String(invoice.estadoCobranza || "").toUpperCase() === "PAGADA";
             if (saldo <= 0.01 || isCobradaStatus) {
@@ -463,7 +468,9 @@ export default function DashboardPage() {
           statsArr.push({
             month: label,
             count: `${paidCount}/${total}`,
-            pct: total > 0 ? Math.round((paidCount / total) * 100) : 0
+            pct: total > 0 ? Math.round((paidCount / total) * 100) : 0,
+            totalFacturado: monthFacturado,
+            totalCobrado: monthCobrado
           });
         }
         return statsArr;
@@ -748,13 +755,17 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground">ESTADO DE COBROS</CardTitle>
               </CardHeader>
               <CardContent className="px-10 pb-10 space-y-8">
-                {stats.metrics.collectionStats.map((item, i) => (
+                {stats.metrics.collectionStats.map((item: any, i) => (
                   <div key={i} className="space-y-3">
                     <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
                       <span className="text-muted-foreground">{item.month}</span>
                       <span className="text-foreground/60">{item.count} <span className="text-[8px] opacity-50">({item.pct}%)</span></span>
                     </div>
                     <Progress value={item.pct} className="h-2 bg-muted rounded-full overflow-hidden" />
+                    <div className="flex justify-between items-center text-[9px] font-bold text-muted-foreground/80 uppercase tracking-wider px-0.5">
+                      <span>Facturado: ${Number(item.totalFacturado || 0).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-emerald-600 dark:text-emerald-400">Cobrado: ${Number(item.totalCobrado || 0).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
                   </div>
                 ))}
               </CardContent>
