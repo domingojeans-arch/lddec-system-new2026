@@ -17,17 +17,35 @@ const STOCK_INICIAL_2026 = 4121; // Arrastre histórico real reportado
 const FECHA_BASE_2026 = new Date("2026-01-01T00:00:00");
 
 /**
- * MOTOR DE NORMALIZACIÓN DE CANTIDADES (Con operador ||)
+ * MOTOR DE NORMALIZACIÓN DE CANTIDADES
+ * Prioridad de lectura:
+ *   1. Campos planos en la raíz del lote (quantityToDispatch, cantidadConfirmada, quantity, etc.)
+ *   2. Si todos los campos planos están vacíos o en 0 (lote en estado "pending"),
+ *      se suman las cantidades del arreglo interno garments[].
+ *      Esto corrige el bug donde lotes pendientes registraban 0 ingresos
+ *      aunque sus prendas ya existían físicamente en el taller.
  */
 function getNormalizedQty(item: any): number {
   if (!item) return 0;
+
   const val = item.quantityToDispatch || 
               item.cantidadConfirmada || 
               item.quantity || 
               item.cantidad || 
               item.totalPrendas || 
               item.total || 0;
-  
+
+  // Si el valor plano es 0, intentar sumar desde garments[]
+  if (!val || Number(val) === 0) {
+    if (Array.isArray(item.garments) && item.garments.length > 0) {
+      const garmentSum = item.garments.reduce((acc: number, g: any) => {
+        const gVal = Number(g.quantity || g.cantidadConfirmada || g.cantidad || 0);
+        return acc + (isNaN(gVal) ? 0 : gVal);
+      }, 0);
+      if (garmentSum > 0) return garmentSum;
+    }
+  }
+
   const num = Number(val);
   return isNaN(num) || !isFinite(num) ? 0 : num;
 }
