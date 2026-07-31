@@ -59,10 +59,13 @@ export function calculateInventorySummary(
   // --- 1. CÁLCULO DE ARRASTRE (PREVIO AL PERIODO) ---
   let sumInBefore = 0;
   let sumOutBefore = 0;
+  let docsInBeforeCount = 0;
+  let docsOutBeforeCount = 0;
 
   entries.forEach(e => {
     const d = getNormalizedDate(e);
     if (d && d >= FECHA_BASE_2026 && d < from) {
+      docsInBeforeCount++;
       const lotes = e.lotes || e.lots || [];
       lotes.forEach((l: any) => { sumInBefore += getNormalizedQty(l); });
     }
@@ -71,6 +74,7 @@ export function calculateInventorySummary(
   allOutputs.forEach(o => {
     const d = getNormalizedDate(o);
     if (d && d >= FECHA_BASE_2026 && d < from) {
+      docsOutBeforeCount++;
       if (Array.isArray(o.itemsDispatched)) {
         o.itemsDispatched.forEach((it: any) => { sumOutBefore += getNormalizedQty(it); });
       } else {
@@ -84,10 +88,13 @@ export function calculateInventorySummary(
   // --- 2. MOVIMIENTOS DENTRO DEL PERIODO ---
   let ingresosPeriodo = 0;
   let despachosPeriodo = 0;
+  let docsInPeriodCount = 0;
+  let docsOutPeriodCount = 0;
 
   entries.forEach(e => {
     const d = getNormalizedDate(e);
     if (d && d >= from && d <= to) {
+      docsInPeriodCount++;
       const lotes = e.lotes || e.lots || [];
       lotes.forEach((l: any) => { ingresosPeriodo += getNormalizedQty(l); });
     }
@@ -113,6 +120,7 @@ export function calculateInventorySummary(
   allOutputs.forEach(o => {
     const d = getNormalizedDate(o);
     if (d && d >= from && d <= to) {
+      docsOutPeriodCount++;
       if (Array.isArray(o.itemsDispatched)) {
         o.itemsDispatched.forEach((it: any) => {
           const qty = getNormalizedQty(it);
@@ -158,6 +166,23 @@ export function calculateInventorySummary(
 
   const despachadasSinFacturar = Math.max(0, despachosPeriodo - despachadasFacturadas);
   const stockFinal = stockInicialPeriodo + ingresosPeriodo - despachosPeriodo;
+
+  // Imprimir en consola de depuración
+  console.log(`%c[DEBUG INVENTARIO] Periodo: ${dateFrom} al ${dateTo}`, "color: #ff9900; font-weight: bold;");
+  console.log(`- Arrastre previo (Ene 2026 - Inicio):`);
+  console.log(`  * Documentos Ingresos previos: ${docsInBeforeCount} docs, Suma: ${sumInBefore}`);
+  console.log(`  * Documentos Salidas previas: ${docsOutBeforeCount} docs, Suma: ${sumOutBefore}`);
+  console.log(`  * Base inicial 2026: ${STOCK_INICIAL_2026}`);
+  console.log(`  * Stock Inicial calculado: ${STOCK_INICIAL_2026} + ${sumInBefore} - ${sumOutBefore} = ${stockInicialPeriodo}`);
+  console.log(`- Movimientos periodo:`);
+  console.log(`  * Documentos Ingresos en periodo: ${docsInPeriodCount} docs, Suma: ${ingresosPeriodo}`);
+  console.log(`  * Documentos Salidas en periodo: ${docsOutPeriodCount} docs, Suma: ${despachosPeriodo}`);
+  console.log(`Formula:`);
+  console.log(`Stock Inicial = ${stockInicialPeriodo}`);
+  console.log(`Ingresos encontrados = ${ingresosPeriodo} (${docsInPeriodCount} documentos)`);
+  console.log(`Salidas encontradas = ${despachosPeriodo} (${docsOutPeriodCount} documentos)`);
+  console.log(`Fórmula: ${stockInicialPeriodo} + ${ingresosPeriodo} - ${despachosPeriodo} = ${stockFinal}`);
+  console.log("-----------------------------------------");
 
   return {
     stockInicial: stockInicialPeriodo,
