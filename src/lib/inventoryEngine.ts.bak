@@ -1,0 +1,92 @@
+// Backup of inventoryEngine.ts before applying final fix
+import { EntryMaestro, OutputMaestro, InvoiceMaestro } from "@/types/lddec";
+import { toDate } from "./toDate";
+
+export interface InventoryMetrics {
+  stockInicial: number;
+  ingresosPeriodo: number;
+  despachosPeriodo: number;
+  despachadasFacturadas: number;
+  despachadasSinFacturar: number;
+  stockFinal: number;
+}
+
+/**
+ * CONSTANTES MAESTRAS LDDEC 1.1
+ */
+const STOCK_INICIAL_2026 = 4121; // Arrastre histórico real reportado
+const FECHA_BASE_2026 = new Date("2026-01-01T00:00:00");
+
+/**
+ * MOTOR DE NORMALIZACIÓN DE CANTIDADES
+ * Prioridad de lectura:
+ *   1. Campos planos en la raíz del lote (quantityToDispatch, cantidadConfirmada, quantity, etc.)
+ *   2. Si todos los campos planos están vacíos o en 0 (lote en estado "pending"),
+ *      se suman las cantidades del arreglo interno garments[].
+ *      Esto corrige el bug donde lotes pendientes registraban 0 ingresos
+ *      aunque sus prendas ya existían físicamente en el taller.
+ */
+function getNormalizedQty(item: any): number {
+  if (!item) return 0;
+
+  const val = item.quantityToDispatch ||
+              item.cantidadConfirmada ||
+              item.quantity ||
+              item.cantidad ||
+              item.totalPrendas ||
+              item.total || 0;
+
+  // Si el valor plano es 0, intentar sumar desde garments[]
+  if (!val || Number(val) === 0) {
+    if (Array.isArray(item.garments) && item.garments.length > 0) {
+      const garmentSum = item.garments.reduce((acc: number, g: any) => {
+        const gVal = Number(g.quantity || g.cantidadConfirmada || g.cantidad || 0);
+        return acc + (isNaN(gVal) ? 0 : gVal);
+      }, 0);
+      if (garmentSum > 0) return garmentSum;
+    }
+  }
+
+  const num = Number(val);
+  return isNaN(num) || !isFinite(num) ? 0 : num;
+}
+
+/**
+ * SIMULADOR DE NORMALIZACIÓN DE CANTIDADES ORIGINAL (Con operador ??)
+ */
+function getCorrectNormalizedQty(item: any): number {
+  if (!item) return 0;
+  const val = item.quantityToDispatch !== undefined && item.quantityToDispatch !== null ? item.quantityToDispatch :
+              item.cantidadConfirmada !== undefined && item.cantidadConfirmada !== null ? item.cantidadConfirmada :
+              item.quantity !== undefined && item.quantity !== null ? item.quantity :
+              item.cantidad !== undefined && item.cantidad !== null ? item.cantidad :
+              item.totalPrendas !== undefined && item.totalPrendas !== null ? item.totalPrendas :
+              item.total !== undefined && item.total !== null ? item.total : 0;
+  
+  const num = Number(val);
+  return isNaN(num) || !isFinite(num) ? 0 : num;
+}
+
+/**
+ * MOTOR DE NORMALIZACIÓN DE FECHAS
+ */
+function getNormalizedDate(doc: any): Date | null {
+  if (!doc) return null;
+  return toDate(doc.date || doc.fechaSalida || doc.fecha || doc.entryDate || doc.createdAt);
+}
+
+/**
+ * MOTOR DE CÁLCULO OPERATIVO DE INVENTARIO LDDEC 1.1 (OPTIMIZADO)
+ * Realiza un balance de masa exacto cruzando ingresos, despachos y facturación.
+ */
+export function calculateInventorySummary(
+  entries: any[],
+  allOutputs: any[], // Colección fusionada (outputs + salidas + muestras)
+  invoices: any[],
+  dateFrom: string,
+  dateTo: string
+): InventoryMetrics {
+  const from = new Date(dateFrom + "T00:00:00");
+  const to = new Date(dateTo + "T23:59:59");
+  // ... (rest of file unchanged)
+}

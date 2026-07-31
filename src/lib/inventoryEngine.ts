@@ -28,18 +28,18 @@ const FECHA_BASE_2026 = new Date("2026-01-01T00:00:00");
 function getNormalizedQty(item: any): number {
   if (!item) return 0;
 
-  const val = item.quantityToDispatch || 
-              item.cantidadConfirmada || 
-              item.quantity || 
-              item.cantidad || 
-              item.totalPrendas || 
-              item.total || 0;
+  const val = item.quantityToDispatch ??
+              item.cantidadConfirmada ??
+              item.quantity ??
+              item.cantidad ??
+              item.totalPrendas ??
+              item.total ?? null;
 
-  // Si el valor plano es 0, intentar sumar desde garments[]
-  if (!val || Number(val) === 0) {
+  // If primary quantity is null/undefined/0, attempt to sum from garments[]
+  if (val == null || Number(val) === 0) {
     if (Array.isArray(item.garments) && item.garments.length > 0) {
       const garmentSum = item.garments.reduce((acc: number, g: any) => {
-        const gVal = Number(g.quantity || g.cantidadConfirmada || g.cantidad || 0);
+        const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
         return acc + (isNaN(gVal) ? 0 : gVal);
       }, 0);
       if (garmentSum > 0) return garmentSum;
@@ -49,6 +49,7 @@ function getNormalizedQty(item: any): number {
   const num = Number(val);
   return isNaN(num) || !isFinite(num) ? 0 : num;
 }
+
 
 /**
  * SIMULADOR DE NORMALIZACIÓN DE CANTIDADES ORIGINAL (Con operador ??)
