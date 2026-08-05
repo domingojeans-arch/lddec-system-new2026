@@ -375,6 +375,35 @@ export default function SalidasPage() {
         return; 
       }
       
+      const isSampleEntry = 
+        !!entryData.isSample || 
+        !!lot.isSample || 
+        lot.tipo === "muestra" || 
+        lot.esMuestra === true ||
+        String(entryData.tipo_ingreso || entryData.tipoIngreso || "").toUpperCase().includes("MUEST") ||
+        String(entryData.entryNumber || entryDoc.id || "").toUpperCase().startsWith("MUEST");
+
+      const isReviewedOrConfirmed = 
+        isSampleEntry ||
+        lot.status === "reviewed" || 
+        lot.status === "ready" || 
+        lot.status === "confirmed" || 
+        lot.productionStatus === "reviewed" || 
+        lot.productionStatus === "ready" || 
+        lot.productionStatus === "confirmed" || 
+        lot.productionStatus === "Completed" || 
+        !!lot.fechaRevision;
+
+      if (!isReviewedOrConfirmed) {
+        toast({
+          variant: "destructive",
+          title: "Lote No Confirmado / No Revisado",
+          description: `El lote ${term} aún no ha sido revisado ni confirmado. Debe ser revisado en el módulo de Revisión de Lote antes de agregarlo a la salida.`
+        });
+        setSearching(false);
+        return;
+      }
+
       const garmentsSource = lot.garments || lot.prendas || [];
       const originalTotalQty = garmentsSource.length > 0
         ? garmentsSource.reduce((acc: number, g: any) => acc + (Number(g.cantidadConfirmada || g.quantity || 0)), 0)
@@ -488,7 +517,7 @@ export default function SalidasPage() {
         clientName: (entryData.clientName || entryData.clienteNombre || "SOCIO").toUpperCase(), 
         process: (lot.process || lot.proceso || "S/D").toUpperCase(),
         breakdown, 
-        isReviewed: lot.status === "reviewed" || lot.status === "ready",
+        isReviewed: true,
         reportarFaltante: false
       });
       setIsQtyModalOpen(true);
@@ -501,6 +530,14 @@ export default function SalidasPage() {
 
   const handleConfirmLotAddition = () => {
     if (!foundLotResult) return;
+    if (!foundLotResult.isReviewed) {
+      toast({
+        variant: "destructive",
+        title: "Acción Bloqueada",
+        description: "El lote no ha sido confirmado ni revisado en el módulo de Revisión de Lote."
+      });
+      return;
+    }
     const totalQty = foundLotResult.breakdown.reduce((acc: number, g: any) => acc + (Number(g.toDispatch) || 0), 0);
     if (totalQty <= 0) return;
 
