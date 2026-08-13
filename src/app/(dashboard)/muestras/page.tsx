@@ -135,26 +135,26 @@ export default function MuestrasAntiguasPage() {
       orderBy("fechaFactura", "desc")
     );
 
-    const unsubEntries = onSnapshot(qEntries, (snap) => {
-      setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (err) => {
-      console.warn("Error en listener de entradas (muestras):", err);
-    });
+    const loadMuestrasData = async () => {
+      setLoading(true);
+      try {
+        const [entriesSnap, outputsSnap, invoicesSnap] = await Promise.all([
+          getDocs(qEntries),
+          getDocs(qOutputs),
+          getDocs(qInvoices)
+        ]);
 
-    const unsubOutputs = onSnapshot(qOutputs, (snap) => {
-      setOutputs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    const unsubInvoices = onSnapshot(qInvoices, (snap) => {
-      setInvoices(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    });
-
-    return () => {
-      unsubEntries();
-      unsubOutputs();
-      unsubInvoices();
+        setEntries(entriesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setOutputs(outputsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setInvoices(invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (err) {
+        console.warn("[Muestras] Error al cargar auditoría acotada:", err);
+      } finally {
+        setLoading(false);
+      }
     };
+
+    loadMuestrasData();
   }, []);
 
   const muestrasData = useMemo(() => {

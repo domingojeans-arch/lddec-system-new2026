@@ -148,14 +148,21 @@ export default function DashboardPage() {
       const startOfYear = new Date(currentYear, 0, 1);
       const startOfYearTs = Timestamp.fromDate(startOfYear);
 
-      // 1. Descarga Multicanal Filtrada (Solo el año actual en tiempo real para optimizar costos)
+      // 1. Descarga Multicanal Filtrada (Solo el año actual para optimizar costos)
+      let paymentsQueryPromise;
+      try {
+        paymentsQueryPromise = getDocs(query(collection(db, "payments"), where("fechaTransaccion", ">=", startOfYearTs)));
+      } catch {
+        paymentsQueryPromise = getDocs(collection(db, "payments"));
+      }
+
       const [entriesSnap, outputsSnap, legacySalidasSnap, legacyMuestrasSnap, invoicesSnap, paymentsSnap] = await Promise.all([
         getDocs(query(collection(db, "entries"), where("date", ">=", startOfYearTs))),
         getDocs(query(collection(db, "outputs"), where("date", ">=", startOfYearTs))),
         getDocs(query(collection(db, "salidas"), where("fechaSalida", ">=", startOfYearTs))),
         getDocs(query(collection(db, "muestras"), where("fecha", ">=", startOfYearTs))),
         getDocs(query(collection(db, "facturas"), where("fechaFactura", ">=", startOfYearTs))),
-        getDocs(collection(db, "payments"))
+        paymentsQueryPromise
       ]);
 
       const entriesRaw = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));

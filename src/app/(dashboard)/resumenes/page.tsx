@@ -20,7 +20,7 @@ import { calculateOperationalMetrics, filterByRange } from "@/lib/reports-helper
 import { ReportFilters } from "@/types/reports";
 import { Entry } from "@/types/lddec";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 
 import { OperationalSummary } from "@/components/informes/operational-summary";
 import { EntriesReport } from "@/components/informes/entries-report";
@@ -42,11 +42,10 @@ function getVisibleLotNumber(lot: any): string {
   return "S/L";
 }
 
-function getEntryVisible(item: any, id?: string): string {
-  if (!item) return id && id.length < 18 ? String(id).toUpperCase() : "INGRESO S/N";
+function getEntryVisible(item: any, id: string): string {
   const candidates = [
-    item.numeroIngreso, 
     item.entryNumber, 
+    item.numeroIngreso, 
     item.numeroIngresoMaestro, 
     item.numero,
     item.entryID
@@ -101,31 +100,55 @@ export default function ResumenesPage() {
       return;
     }
 
-    const unsubscribers = [
-      onSnapshot(collection(db, "clients"), (snap) => {
-        setClients(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.id })));
-      }),
-      onSnapshot(collection(db, "entries"), (snap) => {
-        setEntries(snap.docs.map(mapFirestoreToEntry));
-      }),
-      onSnapshot(collection(db, "outputs"), (snap) => {
-        setRawOutputs(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
-      }),
-      onSnapshot(collection(db, "salidas"), (snap) => {
-        setRawSalidas(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
-      }),
-      onSnapshot(collection(db, "muestras"), (snap) => {
-        setRawMuestras(snap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
-      }),
-      onSnapshot(collection(db, "facturas"), (snap) => {
-        setInvoices(snap.docs.map(doc => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const startOfYearTs = Timestamp.fromDate(new Date("2026-01-01T00:00:00"));
+
+        const safeQuery = async (colName: string, dateField: string) => {
+          try {
+            const q = query(collection(db, colName), where(dateField, ">=", startOfYearTs));
+            return await getDocs(q);
+          } catch {
+            return await getDocs(collection(db, colName));
+          }
+        };
+
+        const [
+          clientsSnap,
+          entriesSnap,
+          outputsSnap,
+          salidasSnap,
+          muestrasSnap,
+          invoicesSnap,
+          paymentsSnap,
+          manualSnap,
+          quimicosSnap,
+          recipesSnap
+        ] = await Promise.all([
+          getDocs(collection(db, "clients")),
+          safeQuery("entries", "date"),
+          safeQuery("outputs", "date"),
+          safeQuery("salidas", "fechaSalida"),
+          safeQuery("muestras", "fecha"),
+          safeQuery("facturas", "fechaFactura"),
+          safeQuery("payments", "fechaTransaccion"),
+          safeQuery("manualidades", "createdAt"),
+          getDocs(collection(db, "quimicos_stock")),
+          getDocs(collection(db, "quimicos_recetas"))
+        ]);
+
+        setClients(clientsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.id })));
+        setEntries(entriesSnap.docs.map(mapFirestoreToEntry));
+        setRawOutputs(outputsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
+        setRawSalidas(salidasSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
+        setRawMuestras(muestrasSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), clientId: doc.data().clientId || doc.data().clienteId || "" })));
+        setInvoices(invoicesSnap.docs.map(doc => {
           const data = doc.data();
           const total = Number(data.totalFactura || data.total || 0);
           return { id: doc.id, ...data, total, totalFactura: total, clientId: data.clientId || data.clienteId || "" };
         }));
-      }),
-      onSnapshot(collection(db, "payments"), (snap) => {
-        setCollections(snap.docs.map(doc => {
+        setCollections(paymentsSnap.docs.map(doc => {
           const data = doc.data();
           const dateStr = data.fechaTransaccion?.toDate ? data.fechaTransaccion.toDate().toISOString().split('T')[0] : data.collectionDate || new Date().toISOString().split('T')[0];
           const monto = Number(data.monto || data.totalReceived || 0);
@@ -144,24 +167,21 @@ export default function ResumenesPage() {
             ...data
           };
         }));
-      }),
-      onSnapshot(collection(db, "manualidades"), (snap) => {
-        setManualWorks(snap.docs.map(doc => {
+        setManualWorks(manualSnap.docs.map(doc => {
           const data = doc.data();
           const total = Number(data.total || data.totalCost || 0);
           return { id: doc.id, ...data, totalCost: total, total: total, clientId: data.clienteId || data.clientId || "" };
         }));
-      }),
-      onSnapshot(collection(db, "quimicos_stock"), (snap) => {
-        setChemicals(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      }),
-      onSnapshot(collection(db, "quimicos_recetas"), (snap) => {
-        setRecipes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setChemicals(quimicosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setRecipes(recipesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        console.error("Error al cargar datos en informes:", err);
+      } finally {
         setLoading(false);
-      })
-    ];
+      }
+    };
 
-    return () => unsubscribers.forEach(unsub => unsub());
+    loadData();
   }, []);
 
   const outputs = useMemo(() => {

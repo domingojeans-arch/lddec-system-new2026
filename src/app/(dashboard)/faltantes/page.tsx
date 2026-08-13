@@ -48,6 +48,7 @@ import {
   collection, 
   query, 
   where, 
+  getDocs,
   onSnapshot, 
   doc, 
   updateDoc,
@@ -143,25 +144,27 @@ export default function FaltantesPage() {
     const tsFrom = Timestamp.fromDate(fromDate);
     const tsTo = Timestamp.fromDate(toDateObj);
 
-    const unsubEntries = onSnapshot(
-      query(collection(db, "entries"), where("date", ">=", tsFrom), where("date", "<=", tsTo)),
-      (snap) => {
-        setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      }
-    );
+    const loadFaltantesData = async () => {
+      setLoading(true);
+      try {
+        const qEntries = query(collection(db, "entries"), where("date", ">=", tsFrom), where("date", "<=", tsTo));
+        const qOutputs = query(collection(db, "outputs"), where("date", ">=", tsFrom));
 
-    const unsubOutputs = onSnapshot(
-      query(collection(db, "outputs"), where("date", ">=", tsFrom)),
-      (snap) => {
-        setOutputs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const [entriesSnap, outputsSnap] = await Promise.all([
+          getDocs(qEntries),
+          getDocs(qOutputs)
+        ]);
+
+        setEntries(entriesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setOutputs(outputsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (err) {
+        console.warn("Error cargando faltantes acotados:", err);
+      } finally {
         setLoading(false);
       }
-    );
-
-    return () => {
-      unsubEntries();
-      unsubOutputs();
     };
+
+    loadFaltantesData();
   }, [selectedMonth, selectedYear]);
   const faltantesData = useMemo(() => {
     const results: any[] = [];
