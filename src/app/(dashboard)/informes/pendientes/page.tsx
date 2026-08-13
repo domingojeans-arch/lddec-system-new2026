@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toDate } from "@/lib/toDate";
 import { db } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import {
   Tabs,
@@ -54,13 +54,26 @@ function PendientesContent() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 1. Obtener todos los ingresos
-        const entriesSnap = await getDocs(collection(db, "entries"));
-        const rawEntries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const startOfYearTs = Timestamp.fromDate(new Date("2026-01-01T00:00:00"));
+        let entriesSnap, facturasSnap;
+        
+        try {
+          const qEntries = query(collection(db, "entries"), where("date", ">=", startOfYearTs));
+          const qFacturas = query(collection(db, "facturas"), where("fechaFactura", ">=", startOfYearTs));
+          [entriesSnap, facturasSnap] = await Promise.all([
+            getDocs(qEntries),
+            getDocs(qFacturas)
+          ]);
+        } catch (errQ) {
+          console.warn("[Informes Pendientes] Fallback a consulta general por fecha:", errQ);
+          [entriesSnap, facturasSnap] = await Promise.all([
+            getDocs(collection(db, "entries")),
+            getDocs(collection(db, "facturas"))
+          ]);
+        }
 
-        // 2. Obtener todas las facturas
-        const facturasSnap = await getDocs(collection(db, "facturas"));
-        const rawInvoices = facturasSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const rawEntries = entriesSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const rawInvoices = facturasSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
 
         setEntries(rawEntries);
         setInvoices(rawInvoices);

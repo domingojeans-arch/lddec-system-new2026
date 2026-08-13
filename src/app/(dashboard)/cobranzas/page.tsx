@@ -114,15 +114,27 @@ export default function CobranzasPage() {
   useEffect(() => {
     if (!db || !selectedClientId) { setAllInvoices([]); return; }
     setLoading(true);
-    const unsubInvoices = onSnapshot(collection(db, "facturas"), (snap) => {
+    const qInvoices = query(collection(db, "facturas"), where("clientId", "==", selectedClientId));
+    const unsubInvoices = onSnapshot(qInvoices, async (snap) => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const filtered = docs.filter((inv: any) => inv.clientId === selectedClientId || inv.clienteId === selectedClientId);
-      setAllInvoices(filtered);
+      
+      let finalInvoices = docs;
+      try {
+        const snapAlt = await getDocs(query(collection(db, "facturas"), where("clienteId", "==", selectedClientId)));
+        const docsAlt = snapAlt.docs.map(d => ({ id: d.id, ...d.data() }));
+        const map = new Map();
+        docs.forEach(d => map.set(d.id, d));
+        docsAlt.forEach(d => map.set(d.id, d));
+        finalInvoices = Array.from(map.values());
+      } catch {
+        // fallback
+      }
+      setAllInvoices(finalInvoices);
       setLoading(false);
 
       const targetInvId = searchParams.get("invoiceId");
       if (targetInvId) {
-        const belongs = filtered.some(f => f.id === targetInvId);
+        const belongs = finalInvoices.some((f: any) => f.id === targetInvId);
         if (belongs) {
           setSelectedInvoices([targetInvId]);
           setPaymentLines(prev => {

@@ -108,13 +108,27 @@ export default function ProduccionPage() {
     if (!db) return;
     if (!silent) setLoading(true);
     try {
-      // 1. Consulta unificada: Traer todos los lotes de manualidades sin límites físicos de fecha de creación
-      // Esto asegura que cualquier lote ingresado con fecha lógica en el mes seleccionado sea visible.
-      const qManual = query(
-        collection(db, "manualidades")
-      );
-      
-      const manualSnap = await getDocs(qManual);
+      let manualSnap;
+      if (busquedaGlobal) {
+        manualSnap = await getDocs(query(collection(db, "manualidades"), limit(500)));
+      } else {
+        const threeMonthsAgo = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 2, 1, 0, 0, 0);
+        const endMonthDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0, 23, 59, 59);
+        const startTs = Timestamp.fromDate(threeMonthsAgo);
+        const endTs = Timestamp.fromDate(endMonthDate);
+        
+        try {
+          const qManual = query(
+            collection(db, "manualidades"),
+            where("createdAt", ">=", startTs),
+            where("createdAt", "<=", endTs)
+          );
+          manualSnap = await getDocs(qManual);
+        } catch (errQ) {
+          console.warn("[Producción] Fallback query manualidades por fecha:", errQ);
+          manualSnap = await getDocs(query(collection(db, "manualidades"), limit(500)));
+        }
+      }
       const allManualList = manualSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
       // Extraer año y mes seleccionados en el control visual (ej: "05" y "2026")
