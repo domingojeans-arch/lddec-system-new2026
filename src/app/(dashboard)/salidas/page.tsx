@@ -305,15 +305,28 @@ export default function SalidasPage() {
         const fromTs = Timestamp.fromDate(new Date(dateFrom + "T00:00:00"));
         const toTs = Timestamp.fromDate(new Date(dateTo + "T23:59:59"));
 
-        const qOutputs = query(collection(db, "outputs"), where("date", ">=", fromTs), where("date", "<=", toTs), orderBy("date", "desc"), limit(200));
-        const qSalidas = query(collection(db, "salidas"), where("fechaSalida", ">=", fromTs), where("fechaSalida", "<=", toTs), orderBy("fechaSalida", "desc"), limit(200));
-        const qMuestras = query(collection(db, "muestras"), where("fecha", ">=", fromTs), where("fecha", "<=", toTs), orderBy("fecha", "desc"), limit(200));
+        const qOutputs = query(collection(db, "outputs"), where("date", ">=", fromTs), where("date", "<=", toTs), orderBy("date", "desc"), limit(50));
+        const qSalidas = query(collection(db, "salidas"), where("fechaSalida", ">=", fromTs), where("fechaSalida", "<=", toTs), orderBy("fechaSalida", "desc"), limit(50));
+        const qMuestras = query(collection(db, "muestras"), where("fecha", ">=", fromTs), where("fecha", "<=", toTs), orderBy("fecha", "desc"), limit(50));
 
-        const [resOutputs, resSalidas, resMuestras] = await Promise.all([
-          getDocs(qOutputs),
-          getDocs(qSalidas),
-          getDocs(qMuestras)
-        ]);
+        let resOutputs, resSalidas, resMuestras;
+        try {
+          [resOutputs, resSalidas, resMuestras] = await Promise.all([
+            getDocs(qOutputs),
+            getDocs(qSalidas),
+            getDocs(qMuestras)
+          ]);
+        } catch (errQ) {
+          console.warn("[Salidas] Fallback a consulta acotada por fecha:", errQ);
+          const fallbackOutputs = query(collection(db, "outputs"), where("date", ">=", fromTs), where("date", "<=", toTs), limit(50));
+          const fallbackSalidas = query(collection(db, "salidas"), where("fechaSalida", ">=", fromTs), where("fechaSalida", "<=", toTs), limit(50));
+          const fallbackMuestras = query(collection(db, "muestras"), where("fecha", ">=", fromTs), where("fecha", "<=", toTs), limit(50));
+          [resOutputs, resSalidas, resMuestras] = await Promise.all([
+            getDocs(fallbackOutputs),
+            getDocs(fallbackSalidas),
+            getDocs(fallbackMuestras)
+          ]);
+        }
 
         setOutputsRaw(resOutputs.docs.map((d: any) => ({ id: d.id, ...d.data() })));
         setSalidasRaw(resSalidas.docs.map((d: any) => ({ id: d.id, ...d.data() })));

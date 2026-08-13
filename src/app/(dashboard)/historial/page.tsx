@@ -245,11 +245,24 @@ export default function HistorialPage() {
       const timeline: any[] = [];
 
       if (selectedClientId === "all") {
-        const [invoicesSnap, entriesSnap, clientsSnap] = await Promise.all([
-          getDocs(collection(db, "facturas")),
-          getDocs(collection(db, "entries")),
-          getDocs(collection(db, "clients"))
-        ]);
+        const startOfYearTs = Timestamp.fromDate(new Date("2026-01-01T00:00:00"));
+        let invoicesSnap, entriesSnap, clientsSnap;
+        try {
+          const qInvoices = query(collection(db, "facturas"), where("fechaFactura", ">=", startOfYearTs));
+          const qEntries = query(collection(db, "entries"), where("date", ">=", startOfYearTs));
+          [invoicesSnap, entriesSnap, clientsSnap] = await Promise.all([
+            getDocs(qInvoices),
+            getDocs(qEntries),
+            getDocs(collection(db, "clients"))
+          ]);
+        } catch (errQ) {
+          console.warn("[Historial] Fallback a consulta completa por fecha:", errQ);
+          [invoicesSnap, entriesSnap, clientsSnap] = await Promise.all([
+            getDocs(collection(db, "facturas")),
+            getDocs(collection(db, "entries")),
+            getDocs(collection(db, "clients"))
+          ]);
+        }
         clientInvoices = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         clientEntries = entriesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
