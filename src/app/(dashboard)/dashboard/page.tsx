@@ -275,13 +275,24 @@ export default function DashboardPage() {
             return isBilled;
           }).length;
 
+          // Muestras cerradas administrativamente sin facturar
+          const closedUnbilled = entriesInMonth.filter(entry => {
+            return entry.status === "closed_unbilled" || 
+                   String(entry.estadoFacturacion || "").toUpperCase() === "CERRADA SIN FACTURAR" || 
+                   entry.isClosedUnbilled === true || 
+                   entry.status === "resolved";
+          }).length;
+
+          // Para muestras, Muestras Resueltas = Facturadas + Cerradas sin facturar
+          const resolvedCount = isSample ? (billed + closedUnbilled) : billed;
+
           // Calcular cantidad total de prendas ingresadas en el mes
           const totalGarments = entriesInMonth.reduce((acc, e) => {
             const lotes = e.lotes || e.lots || [];
             return acc + lotes.reduce((lAcc: number, l: any) => lAcc + (Number(l.cantidadConfirmada || l.quantity || l.cantidad || 0)), 0);
           }, 0);
 
-          // Calcular monto total facturado en el mes ($ USD) para esta categoría
+          // Calcular monto total facturado en el mes ($ USD) para esta categoría (NO incluye cierres sin facturar)
           const invsInMonth = invoicesRaw.filter(inv => {
             if (!inv || inv.anulado) return false;
             const invDate = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate || inv.date || inv.timestamp);
@@ -299,8 +310,8 @@ export default function DashboardPage() {
 
           statsArr.push({ 
             month: label, 
-            count: `${billed}/${total}`, 
-            pct: total > 0 ? Math.round((billed / total) * 100) : 0,
+            count: `${resolvedCount}/${total}`, 
+            pct: total > 0 ? Math.round((resolvedCount / total) * 100) : 0,
             totalGarments,
             totalBilledAmount
           });

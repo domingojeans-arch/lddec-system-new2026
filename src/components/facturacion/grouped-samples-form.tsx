@@ -10,6 +10,9 @@ import {
   query, 
   where, 
   getDocs, 
+  doc,
+  updateDoc,
+  serverTimestamp,
   Timestamp 
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
@@ -31,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Receipt, Boxes, X, Save, Loader2, Package, Calendar as CalendarIcon } from "lucide-react";
+import { Receipt, Boxes, X, Save, Loader2, Package, Calendar as CalendarIcon, FileX, AlertTriangle, ShieldAlert } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +43,16 @@ import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 const groupedInvoiceSchema = z.object({
   numeroFactura: z.string().min(1, "Nro. de factura obligatorio"),
@@ -59,9 +72,16 @@ interface GroupedSamplesFormProps {
 }
 
 export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting = false }: GroupedSamplesFormProps) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const isAdmin = user?.role === "admin" || (user?.role as any) === "administrador" || (user?.role as any) === "ADMIN";
+
   const [loading, setLoading] = useState(true);
   const [unbilledSamples, setUnbilledSamples] = useState<any[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
+  const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
+  const [closeReason, setCloseReason] = useState("");
+  const [isClosing, setIsClosing] = useState(false);
 
   const form = useForm<z.infer<typeof groupedInvoiceSchema>>({
     resolver: zodResolver(groupedInvoiceSchema),
@@ -120,6 +140,7 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
           .filter(s => {
             const isNotBilled = !billedEntryIds.has(s.id);
             const isNotResolved = s.status !== "resolved"; 
+            const isNotClosedUnbilled = s.status !== "closed_unbilled" && s.estadoFacturacion !== "Cerrada sin facturar" && s.isClosedUnbilled !== true;
             
             // Filtrar para mostrar solo muestras del 2026 en adelante (este año)
             const rawDate = s.date || s.entryDate || s.createdAt || s.fecha;
@@ -129,7 +150,7 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
             
             const isCurrentYearOrNewer = parsedDate ? parsedDate.getFullYear() >= 2026 : false;
             
-            return isNotBilled && isNotResolved && isCurrentYearOrNewer;
+            return isNotBilled && isNotResolved && isNotClosedUnbilled && isCurrentYearOrNewer;
           });
 
         setUnbilledSamples(samples);
@@ -196,6 +217,60 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
         numeroSalida: "",
       });
       setSelectedEntryIds([]);
+    }
+  };
+
+  const handleConfirmAdministrativeClose = async () => {
+    const reason = closeReason.trim();
+    if (!reason) {
+      toast({
+        variant: "destructive",
+        title: "Motivo Obligatorio",
+        description: "Debe ingresar un motivo obligatorio para realizar el cierre administrativo."
+      });
+      return;
+    }
+
+    if (selectedEntryIds.length === 0) return;
+
+    setIsClosing(true);
+    try {
+      const cerrador = user?.displayName || user?.email || "Administrador";
+      const cerradorUid = user?.uid || "";
+
+      for (const entryId of selectedEntryIds) {
+        const entryRef = doc(db, "entries", entryId);
+        await updateDoc(entryRef, {
+          estadoFacturacion: "Cerrada sin facturar",
+          status: "closed_unbilled",
+          isClosedUnbilled: true,
+          cerradoPor: cerrador,
+          cerradoPorUid: cerradorUid,
+          fechaCierre: serverTimestamp(),
+          fechaCierreIso: new Date().toISOString(),
+          motivoCierre: reason,
+          updatedAt: serverTimestamp()
+        });
+      }
+
+      toast({
+        title: "Cierre Administrativo Completado",
+        description: `${selectedEntryIds.length} muestra(s) cerrada(s) sin facturar correctamente.`
+      });
+
+      setUnbilledSamples(prev => prev.filter(s => !selectedEntryIds.includes(s.id)));
+      setSelectedEntryIds([]);
+      setCloseReason("");
+      setIsCloseModalOpen(false);
+    } catch (error) {
+      console.error("Error al cerrar muestras sin facturar:", error);
+      toast({
+        variant: "destructive",
+        title: "Error de Cierre",
+        description: "No se pudieron cerrar las muestras seleccionadas."
+      });
+    } finally {
+      setIsClosing(false);
     }
   };
 
@@ -400,14 +475,27 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
             </div>
           </div>
 
-          <div className="flex justify-end gap-4 pt-10 mt-auto border-t border-border">
-            <Button type="button" variant="ghost" onClick={onCancel} className="h-14 px-10 rounded-2xl font-black uppercase text-[10px] tracking-widest text-muted-foreground hover:bg-muted transition-all">
+          <div className="flex flex-wrap justify-end items-center gap-4 pt-10 mt-auto border-t border-border">
+            <Button type="button" variant="ghost" onClick={onCancel} className="h-14 px-8 rounded-2xl font-black uppercase text-[10px] tracking-widest text-muted-foreground hover:bg-muted transition-all">
               <X className="h-4 w-4 mr-2" /> Cancelar
             </Button>
+
+            {isAdmin && selectedEntryIds.length > 0 && (
+              <Button
+                type="button"
+                onClick={() => setIsCloseModalOpen(true)}
+                disabled={isSubmitting || isClosing}
+                className="bg-amber-600 hover:bg-amber-700 text-white h-14 px-8 rounded-2xl font-black uppercase text-[10px] tracking-[0.15em] shadow-xl shadow-amber-600/20 transition-all active:scale-95 flex items-center gap-2"
+              >
+                <FileX className="h-4 w-4" />
+                Cerrar sin facturar
+              </Button>
+            )}
+
             <Button 
               type="submit" 
-              disabled={selectedEntryIds.length === 0 || isSubmitting} 
-              className="bg-primary hover:bg-primary/90 text-white h-14 px-14 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-primary/20 transition-all active:scale-95 disabled:opacity-30"
+              disabled={selectedEntryIds.length === 0 || isSubmitting || isClosing} 
+              className="bg-primary hover:bg-primary/90 text-white h-14 px-12 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] shadow-2xl shadow-primary/20 transition-all active:scale-95 disabled:opacity-30"
             >
               {isSubmitting ? (
                 <>
@@ -417,13 +505,82 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-3" />
-                  {isNotaDeVenta ? "Crear Nota de Venta" : "Crear Factura"}
+                  {isNotaDeVenta ? "Crear Nota de Venta" : "Facturar"}
                 </>
               )}
             </Button>
           </div>
         </div>
       </form>
+
+      {/* Modal Dialog para Cierre Administrativo */}
+      <Dialog open={isCloseModalOpen} onOpenChange={setIsCloseModalOpen}>
+        <DialogContent className="max-w-lg rounded-[2.5rem] p-8 border-border">
+          <DialogHeader className="space-y-3">
+            <div className="h-12 w-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-xl font-black uppercase tracking-tight text-foreground">
+              Cierre Administrativo sin Facturar
+            </DialogTitle>
+            <DialogDescription className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              Esta acción marcará {selectedEntryIds.length} muestra(s) como <span className="text-amber-600 font-black">"Cerrada sin facturar"</span>. Se removerán de la lista de pendientes y contarán como resueltas en el Dashboard, <span className="underline font-black text-amber-700">sin generar valor facturado ni cuentas por cobrar</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="bg-muted/30 p-4 rounded-2xl border border-border space-y-1">
+              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Muestras Seleccionadas</p>
+              <p className="font-mono font-bold text-sm text-primary break-all">
+                {selectedEntryIds.join(", ")}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center justify-between">
+                <span>Motivo de Cierre <span className="text-red-500">*</span></span>
+                <span className="text-[9px] text-amber-600 font-bold">Obligatorio</span>
+              </label>
+              <Textarea 
+                placeholder="Ingrese detalladamente el motivo por el cual esta(s) muestra(s) no se facturan (ej. Muestra interna de desarrollo, cortesía comercial, prueba técnica, etc.)..."
+                value={closeReason}
+                onChange={(e) => setCloseReason(e.target.value)}
+                className="erp-input min-h-[110px] p-4 text-xs font-bold resize-none"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-3 sm:gap-0 pt-2 border-t border-border">
+            <Button 
+              type="button" 
+              variant="ghost" 
+              onClick={() => { setIsCloseModalOpen(false); setCloseReason(""); }}
+              disabled={isClosing}
+              className="h-12 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest text-muted-foreground"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmAdministrativeClose}
+              disabled={isClosing || !closeReason.trim()}
+              className="bg-amber-600 hover:bg-amber-700 text-white h-12 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest shadow-lg shadow-amber-600/20 disabled:opacity-40"
+            >
+              {isClosing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cerrando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Confirmar Cierre
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Form>
   );
 }

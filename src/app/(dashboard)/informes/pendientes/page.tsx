@@ -124,8 +124,9 @@ function PendientesContent() {
       const isHardcodedFix = hardcodedFixes.includes(entryNum) || hardcodedFixes.includes(entryId);
       
       const isBilled = !!invoice || String(entry.estadoFacturacion || "").toUpperCase() === "FACTURADO" || (entry.numeroFactura && entry.numeroFactura !== "-") || isHardcodedFix;
-      const invoiceNumberStr = invoice?.numeroFactura || entry.numeroFactura || "FACTURADO";
-      const invoiceValueNum = invoice ? Number(invoice.totalFactura || invoice.total || 0) : Number(entry.valorFactura || 0);
+      const isClosedUnbilled = entry.status === "closed_unbilled" || String(entry.estadoFacturacion || "").toUpperCase() === "CERRADA SIN FACTURAR" || entry.isClosedUnbilled === true;
+      const invoiceNumberStr = isClosedUnbilled ? "Cerrada sin facturar" : (invoice?.numeroFactura || entry.numeroFactura || "FACTURADO");
+      const invoiceValueNum = isBilled ? (invoice ? Number(invoice.totalFactura || invoice.total || 0) : Number(entry.valorFactura || 0)) : 0;
 
       const rawLots = entry.lotes || entry.lots || [];
       const quantity = rawLots.reduce((acc: number, l: any) => {
@@ -139,9 +140,9 @@ function PendientesContent() {
         ingreso: entry.entryNumber || entry.id,
         cliente: (entry.clientName || entry.clienteNombre || "Socio").toUpperCase(),
         cantidad: quantity,
-        estado: isBilled ? "FACTURADO" : "PENDIENTE",
-        factura: isBilled ? invoiceNumberStr : "-",
-        valorFactura: isBilled ? invoiceValueNum : 0,
+        estado: isClosedUnbilled ? "CERRADA SIN FACTURAR" : isBilled ? "FACTURADO" : "PENDIENTE",
+        factura: isBilled ? invoiceNumberStr : (isClosedUnbilled ? "Cierre Admin." : "-"),
+        valorFactura: invoiceValueNum,
         isSample: !!entry.isSample || String(entry.tipo_ingreso || entry.tipoIngreso || "").toUpperCase() === "MUEST" || String(entry.entryNumber || "").toUpperCase().startsWith("MUEST"),
         notes: entry.notes || entry.observaciones || ""
       };
