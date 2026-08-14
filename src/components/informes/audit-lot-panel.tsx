@@ -174,7 +174,7 @@ export function AuditLotPanel() {
               <div className="space-y-1">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Ingreso de Origen</p>
                 <div className="flex items-center gap-2">
-                  <Badge className="bg-primary text-white font-mono">{result.entry.number}</Badge>
+                  <Badge className="bg-primary text-white font-sans tabular-nums font-semibold">{result.entry.number}</Badge>
                   <span className="text-xs font-medium text-muted-foreground">{result.entry.date?.toLocaleDateString('es-EC')}</span>
                 </div>
               </div>

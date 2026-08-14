@@ -164,53 +164,56 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
   return (
     <div className="space-y-8 animate-in fade-in duration-500 bg-white p-6 rounded-xl border border-zinc-200 shadow-lg overflow-x-auto" style={{ isolation: 'isolate' }}>
       <style jsx global>{`
-        /* ESTILOS DE VISTA PREVIA (PANTALLA) */
+        /* ESTILOS DE VISTA PREVIA E IMPRESIÓN (INTER & TABULAR NUMS) */
         #statement-report {
-          color: #000000 !important;
+          font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+          color: #0f172a !important;
           background: #ffffff !important;
           opacity: 1 !important;
           filter: none !important;
         }
         #statement-report table {
-          border: 1pt solid #000000 !important;
+          border: 1pt solid #1e293b !important;
+          font-variant-numeric: tabular-nums !important;
         }
         #statement-report th, #statement-report td {
-          border: 0.5pt solid #000000 !important;
-          color: #000000 !important;
+          border: 0.5pt solid #334155 !important;
+          color: #0f172a !important;
           opacity: 1 !important;
+          font-variant-numeric: tabular-nums !important;
         }
         #statement-report .text-black-solid {
-          color: #000000 !important;
+          color: #0f172a !important;
           font-weight: 700;
         }
 
         @media print {
-          @page { size: A4 landscape; margin: 10mm 15mm 10mm 15mm; }
-          body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
+          @page { size: A4 landscape; margin: 10mm 12mm 10mm 12mm; }
+          body, #statement-report { font-family: 'Inter', system-ui, -apple-system, sans-serif !important; background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
           .print-hidden { display: none !important; }
           #statement-report { padding: 0 !important; width: 100% !important; max-width: 100% !important; border: none !important; box-shadow: none !important; }
-          table { width: 100% !important; max-width: 100% !important; border: 0.5pt solid black !important; border-collapse: collapse !important; }
+          table { width: 100% !important; max-width: 100% !important; border: 0.5pt solid black !important; border-collapse: collapse !important; font-variant-numeric: tabular-nums !important; }
           thead { display: table-header-group !important; }
           tfoot { display: table-footer-group !important; }
           tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-          th { border: 0.5pt solid black !important; font-size: 8pt !important; padding: 2px 4px !important; background: #eee !important; color: black !important; font-weight: bold !important; }
-          td { border: 0.5pt solid black !important; font-size: 8pt !important; padding: 2px 4px !important; color: black !important; }
-          .font-black { font-weight: 900 !important; }
+          th { border: 0.5pt solid black !important; font-size: 9pt !important; padding: 3px 5px !important; background: #f1f5f9 !important; color: black !important; font-weight: 600 !important; }
+          td { border: 0.5pt solid black !important; font-size: 9pt !important; padding: 3px 5px !important; color: black !important; font-variant-numeric: tabular-nums !important; }
+          .font-black { font-weight: 700 !important; }
         }
       `}</style>
 
       <div className="flex justify-between items-center print:hidden border-b border-zinc-200 pb-4">
-        <h3 className="text-lg font-black uppercase text-primary">Previsualización del Documento</h3>
-        <Button onClick={() => window.print()} className="bg-black text-white hover:bg-zinc-800 font-bold h-12 px-10 rounded-none gap-2 shadow-xl">
-          <Printer className="h-5 w-5" /> EJECUTAR IMPRESIÓN
+        <h3 className="text-lg font-bold uppercase text-primary tracking-tight">Previsualización del Documento</h3>
+        <Button onClick={() => window.print()} className="bg-slate-900 text-white hover:bg-slate-800 font-semibold h-11 px-8 rounded-xl gap-2 shadow-lg">
+          <Printer className="h-4 w-4" /> EJECUTAR IMPRESIÓN
         </Button>
       </div>
 
-      <div id="statement-report" className="font-mono text-black bg-white p-2 min-w-[800px]">
+      <div id="statement-report" className="font-sans text-slate-900 bg-white p-4 min-w-[800px] report-font tabular-nums">
         {/* 1. ENCABEZADO */}
-        <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
+        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
           <div className="space-y-1">
-            <h1 className="text-lg font-black leading-none text-black-solid">LABORATORIO DEL DENIM ECUADOR LDDEC CÍA LTDA</h1>
+            <h1 className="text-lg font-bold leading-none tracking-tight text-slate-900">LABORATORIO DEL DENIM ECUADOR LDDEC CÍA LTDA</h1>
             <h2 className="text-md font-bold uppercase text-black">Saldos Documentos Agrupados x Cliente</h2>
             <div className="text-[10px] font-bold flex gap-4 uppercase text-black">
               <span>DESDE: {dateFrom}</span>

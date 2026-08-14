@@ -217,12 +217,12 @@ export function BillingVsCollectionsReport({
           .header-title { font-size: 16pt; font-weight: 900; text-transform: uppercase; margin-bottom: 2px; }
           .header-subtitle { font-size: 13pt; font-weight: 700; color: #3b82f6 !important; text-transform: uppercase; margin-bottom: 10px; }
           .meta-info { font-size: 9pt; font-weight: 600; color: #64748b !important; text-transform: uppercase; margin-bottom: 15px; }
-          table { width: 100% !important; max-width: 100% !important; border: 1.5pt solid black !important; border-collapse: collapse !important; }
+          table { width: 100% !important; max-width: 100% !important; border: 1.5pt solid black !important; border-collapse: collapse !important; font-variant-numeric: tabular-nums !important; }
           thead { display: table-header-group !important; }
           tfoot { display: table-footer-group !important; }
           tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-          th { background: #f1f5f9 !important; border: 1pt solid black !important; color: black !important; font-weight: 900 !important; font-size: 8pt !important; padding: 4px 8px !important; }
-          td { border: 1pt solid black !important; color: black !important; font-size: 8pt !important; padding: 3px 8px !important; line-height: 1.1; }
+          th { background: #f1f5f9 !important; border: 1pt solid black !important; color: black !important; font-weight: 600 !important; font-size: 9pt !important; padding: 4px 8px !important; }
+          td { border: 1pt solid black !important; color: black !important; font-size: 9pt !important; padding: 4px 8px !important; line-height: 1.15; font-variant-numeric: tabular-nums !important; }
         }
       `}</style>
 
@@ -271,7 +271,7 @@ export function BillingVsCollectionsReport({
                     <TableCell className="py-4 pl-8 text-xs font-medium text-muted-foreground print:text-black">{row.fecha}</TableCell>
                     <TableCell className="font-bold text-xs">{row.ingreso}</TableCell>
                     <TableCell className="text-xs font-bold uppercase truncate max-w-[200px]">{row.cliente}</TableCell>
-                    <TableCell className="font-mono text-xs font-bold text-primary print:text-black">{row.factura}</TableCell>
+                    <TableCell className="font-sans tabular-nums text-xs font-semibold text-primary print:text-black">{row.factura}</TableCell>
                     <TableCell className="text-right text-xs font-bold">{row.total > 0 ? formatCurrency(row.total) : "---"}</TableCell>
                     <TableCell className="text-right text-xs font-black text-emerald-600">{row.cobrado > 0 ? formatCurrency(row.cobrado) : "---"}</TableCell>
                     <TableCell className="text-right text-xs font-black text-red-500">{row.saldo > 0 ? formatCurrency(row.saldo) : "---"}</TableCell>

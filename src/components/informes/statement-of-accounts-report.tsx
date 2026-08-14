@@ -143,30 +143,30 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                       <TableHead onClick={() => handleSort("saldoActual")} className="text-right text-[9px] font-black uppercase text-black dark:text-gray-200 pr-6">SALDO ACTUAL <SortIcon colKey="saldoActual" /></TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
+                  <TableBody className="tabular-nums">
                     {group.clients.map((client, idx) => (
                       <TableRow key={idx} className="border-b border-gray-100 dark:border-gray-800">
-                        <TableCell className="text-[10px] font-bold uppercase pl-6">{client.name}</TableCell>
-                        <TableCell className="text-[10px] text-right">{formatNum(client.saldoAnterior)}</TableCell>
-                        <TableCell className="text-[10px] text-right">{formatNum(client.facturacion)}</TableCell>
-                        <TableCell className="text-[10px] text-right">{formatNum(client.nd)}</TableCell>
-                        <TableCell className="text-[10px] text-right">{formatNum(client.nc)}</TableCell>
-                        <TableCell className="text-[10px] text-right">{formatNum(client.retencion)}</TableCell>
-                        <TableCell className="text-[10px] text-right">{formatNum(client.cobro)}</TableCell>
-                        <TableCell className="text-[10px] text-right font-black pr-6">{formatNum(client.saldoActual)}</TableCell>
+                        <TableCell className="text-xs font-semibold uppercase pl-6">{client.name}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{formatNum(client.saldoAnterior)}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{formatNum(client.facturacion)}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{formatNum(client.nd)}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{formatNum(client.nc)}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{formatNum(client.retencion)}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{formatNum(client.cobro)}</TableCell>
+                        <TableCell className="text-xs text-right font-bold text-slate-900 dark:text-white pr-6">{formatNum(client.saldoActual)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
-                  <TableFooter className="bg-gray-100 dark:bg-gray-800">
+                  <TableFooter className="bg-gray-100 dark:bg-gray-800 tabular-nums">
                     <TableRow>
-                      <TableCell className="text-[9px] font-black uppercase pl-6 py-4">TOTAL {group.label}</TableCell>
-                      <TableCell className="text-[10px] text-right font-black">{formatNum(group.totals.saldoAnterior)}</TableCell>
-                      <TableCell className="text-[10px] text-right font-black">{formatNum(group.totals.facturacion)}</TableCell>
-                      <TableCell className="text-[10px] text-right font-black">{formatNum(group.totals.nd)}</TableCell>
-                      <TableCell className="text-[10px] text-right font-black">{formatNum(group.totals.nc)}</TableCell>
-                      <TableCell className="text-[10px] text-right font-black">{formatNum(group.totals.retencion)}</TableCell>
-                      <TableCell className="text-[10px] text-right font-black">{formatNum(group.totals.cobro)}</TableCell>
-                      <TableCell className="text-[10px] text-right font-black pr-6">{formatNum(group.totals.saldoActual)}</TableCell>
+                      <TableCell className="text-[10px] font-bold uppercase pl-6 py-4">TOTAL {group.label}</TableCell>
+                      <TableCell className="text-xs text-right font-bold">{formatNum(group.totals.saldoAnterior)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold">{formatNum(group.totals.facturacion)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold">{formatNum(group.totals.nd)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold">{formatNum(group.totals.nc)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold">{formatNum(group.totals.retencion)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold">{formatNum(group.totals.cobro)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold pr-6">{formatNum(group.totals.saldoActual)}</TableCell>
                     </TableRow>
                   </TableFooter>
                 </Table>

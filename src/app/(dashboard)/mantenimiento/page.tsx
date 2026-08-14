@@ -505,17 +505,28 @@ export default function MantenimientoPage() {
       const { utils, writeFile } = await import("xlsx");
       const workbook = utils.book_new();
 
-      // 1. Obtener Datos de Firestore
-      const [snapInvoices, snapManualidades, snapSalidas, snapClients, snapQuimicos] = await Promise.all([
+      // 1. Obtener Datos Completos de Firestore
+      const [
+        snapInvoices,
+        snapEntries,
+        snapManualidades,
+        snapSalidas,
+        snapOutputs,
+        snapClients,
+        snapQuimicos,
+        snapKardex
+      ] = await Promise.all([
         getDocs(collection(db, "facturas")),
+        getDocs(collection(db, "entries")),
         getDocs(collection(db, "manualidades")),
         getDocs(collection(db, "agenda_pagos")),
+        getDocs(collection(db, "outputs")),
         getDocs(collection(db, "clients")),
-        getDocs(collection(db, "quimicos_stock"))
+        getDocs(collection(db, "quimicos_stock")),
+        getDocs(collection(db, "quimicos_kardex"))
       ]);
 
-      // 2. Mapear Datos para cada Hoja
-      // Hoja Ingresos: Fecha, Cliente, Concepto/Documento, Subtotal, IVA, Total, Estado
+      // 2. Mapear Datos para Hojas Existentes
       const dataIngresos = snapInvoices.docs.map(docSnap => {
         const inv = docSnap.data();
         const total = Number(inv.totalFactura || inv.total || 0);
@@ -536,7 +547,6 @@ export default function MantenimientoPage() {
         };
       });
 
-      // Hoja Manualidades: Fecha, Lote, Operario, Proceso/Manualidad, Cantidad, Tarifa Unit., Total a Pagar, Estado
       const dataManualidades = snapManualidades.docs.map(docSnap => {
         const m = docSnap.data();
         const cant = Number(m.cantidad || 0);
@@ -558,7 +568,6 @@ export default function MantenimientoPage() {
         };
       });
 
-      // Hoja Salidas (Egresos): Fecha, Categoría de Gasto, Descripción, Proveedor, Total Monto
       const dataSalidas = snapSalidas.docs.map(docSnap => {
         const s = docSnap.data();
         const monto = Number(s.monto || s.total || 0);
@@ -575,7 +584,6 @@ export default function MantenimientoPage() {
         };
       });
 
-      // Hoja Clientes: Código, Nombre del Cliente, Tipo, Teléfono, Saldo Inicial, Saldo Actual
       const dataClientes = snapClients.docs.map(docSnap => {
         const c = docSnap.data();
         return {
@@ -588,83 +596,19 @@ export default function MantenimientoPage() {
         };
       });
 
-      // Hoja Químicos: Código P., Nombre del Producto, Categoría, Stock, Unidad, Costo Unit., Valor Total
-      const dataQuimicos = snapQuimicos.docs.map(docSnap => {
-        const q = docSnap.data();
-        const stock = Number(q.stock || q.cantidad || 0);
-        const cost = Number(q.cost || q.costoUnitario || 0);
-        const total = Number(q.valorTotal || (stock * cost));
-
-        return {
-          "Código P.": q.code || docSnap.id,
-          "Nombre del Producto": (q.name || q.nombre || "").toUpperCase(),
-          "Categoría": q.category || q.categoria || "Químicos",
-          "Stock": stock,
-          "Unidad": q.unit || q.unidad || "kg",
-          "Costo Unit.": Number(cost.toFixed(4)),
-          "Valor Total": Number(total.toFixed(2))
-        };
+      // 3. Generar Excel Empresarial Estilizado con Sub-detalles y Kárdex Real
+      const { generateStyledConsolidadoExcel } = await import("@/lib/excel-export-service");
+      await generateStyledConsolidadoExcel({
+        invoices: dataIngresos,
+        entriesRaw: snapEntries.docs,
+        manualidades: dataManualidades,
+        salidas: dataSalidas,
+        outputsRaw: snapOutputs.docs,
+        clientes: dataClientes,
+        quimicosRaw: snapQuimicos.docs,
+        kardexRaw: snapKardex.docs
       });
 
-      // 3. Crear Hoja Resumen General con Fórmulas
-      const wsResumen = utils.aoa_to_sheet([
-        ["RESUMEN GENERAL CONSOLIDADO - LDDEC"],
-        [],
-        ["Indicador", "Valor Consolidado", "Fórmula"],
-        ["Total Ingresos (Facturación)", 0, "=SUM(Ingresos!F2:F100000)"],
-        ["Total Liquidación Manualidades", 0, "=SUM(Manualidades!G2:G100000)"],
-        ["Total Salidas (Egresos)", 0, "=SUM(Salidas!E2:E100000)"],
-        [],
-        ["Balance Operativo (Neto)", 0, "=B4-B5-B6"]
-      ]);
-
-      // Insertar fórmulas reales en SheetJS
-      wsResumen["B4"] = { t: "n", f: "SUM(Ingresos!F2:F100000)" };
-      wsResumen["B5"] = { t: "n", f: "SUM(Manualidades!G2:G100000)" };
-      wsResumen["B6"] = { t: "n", f: "SUM(Salidas!E2:E100000)" };
-      wsResumen["B8"] = { t: "n", f: "B4-B5-B6" };
-
-      // 4. Crear Hojas Normales
-      const wsIngresos = utils.json_to_sheet(dataIngresos.length > 0 ? dataIngresos : [{}]);
-      const wsManualidades = utils.json_to_sheet(dataManualidades.length > 0 ? dataManualidades : [{}]);
-      const wsSalidas = utils.json_to_sheet(dataSalidas.length > 0 ? dataSalidas : [{}]);
-      const wsClientes = utils.json_to_sheet(dataClientes.length > 0 ? dataClientes : [{}]);
-      const wsQuimicos = utils.json_to_sheet(dataQuimicos.length > 0 ? dataQuimicos : [{}]);
-
-      // 5. Autoajuste de Ancho de Columnas para Mejor Diseño
-      const applyColumnWidths = (ws: any, dataRows: any[]) => {
-        if (!ws || dataRows.length === 0) return;
-        const keys = Object.keys(dataRows[0]);
-        ws["!cols"] = keys.map(key => {
-          let maxLen = key.toString().length;
-          dataRows.forEach(row => {
-            const val = row[key];
-            if (val !== undefined && val !== null) {
-              maxLen = Math.max(maxLen, val.toString().length);
-            }
-          });
-          return { wch: maxLen + 4 };
-        });
-      };
-
-      applyColumnWidths(wsIngresos, dataIngresos);
-      applyColumnWidths(wsManualidades, dataManualidades);
-      applyColumnWidths(wsSalidas, dataSalidas);
-      applyColumnWidths(wsClientes, dataClientes);
-      applyColumnWidths(wsQuimicos, dataQuimicos);
-
-      // Ancho para Resumen General
-      wsResumen["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 30 }];
-
-      // 6. Ensamblar en el Workbook
-      utils.book_append_sheet(workbook, wsResumen, "Resumen General");
-      utils.book_append_sheet(workbook, wsIngresos, "Ingresos");
-      utils.book_append_sheet(workbook, wsManualidades, "Manualidades");
-      utils.book_append_sheet(workbook, wsSalidas, "Salidas");
-      utils.book_append_sheet(workbook, wsClientes, "Clientes");
-      utils.book_append_sheet(workbook, wsQuimicos, "Químicos");
-
-      writeFile(workbook, `LDDEC_EXPORT_CONSOLIDADO_${new Date().getFullYear()}.xlsx`);
       toast({ title: "Excel consolidado exportado exitosamente" });
     } catch (e) {
       console.error(e);

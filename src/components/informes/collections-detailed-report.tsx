@@ -133,45 +133,48 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
   return (
     <div className="space-y-10 animate-in fade-in duration-500 print:m-0 print:p-0">
       <style jsx global>{`
-        /* ESTILOS DE VISTA PREVIA (PANTALLA) */
+        /* ESTILOS DE VISTA PREVIA E IMPRESIÓN (INTER & TABULAR NUMS) */
         #statement-report {
-          color: #000000 !important;
+          font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
+          color: #0f172a !important;
           background: #ffffff !important;
           opacity: 1 !important;
           filter: none !important;
         }
         #statement-report table {
-          border: 1pt solid #000000 !important;
+          border: 1pt solid #1e293b !important;
+          font-variant-numeric: tabular-nums !important;
         }
         #statement-report th, #statement-report td {
-          border: 0.5pt solid #000000 !important;
-          color: #000000 !important;
+          border: 0.5pt solid #334155 !important;
+          color: #0f172a !important;
           opacity: 1 !important;
+          font-variant-numeric: tabular-nums !important;
         }
         #statement-report .text-black-solid {
-          color: #000000 !important;
+          color: #0f172a !important;
           font-weight: 700;
         }
 
         @media print {
-          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
-          body { background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
+          @page { size: A4 portrait; margin: 12mm 15mm 12mm 15mm; }
+          body, #statement-report { font-family: 'Inter', system-ui, -apple-system, sans-serif !important; background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
           .print-hidden { display: none !important; }
           #statement-report { padding: 0 !important; width: 100% !important; max-width: 100% !important; border: none !important; box-shadow: none !important; display: block !important; }
-          table { width: 100% !important; max-width: 100% !important; border: 0.5pt solid black !important; border-collapse: collapse !important; }
+          table { width: 100% !important; max-width: 100% !important; border: 0.5pt solid black !important; border-collapse: collapse !important; font-variant-numeric: tabular-nums !important; }
           thead { display: table-header-group !important; }
           tfoot { display: table-footer-group !important; }
           tr { page-break-inside: avoid !important; break-inside: avoid !important; }
-          th { border: 0.5pt solid black !important; font-size: 8pt !important; padding: 2px 4px !important; background: #eee !important; color: black !important; font-weight: bold !important; }
-          td { border: 0.5pt solid black !important; font-size: 8pt !important; padding: 2px 4px !important; color: black !important; }
-          .font-black { font-weight: 900 !important; }
+          th { border: 0.5pt solid black !important; font-size: 9pt !important; padding: 3px 5px !important; background: #f1f5f9 !important; color: black !important; font-weight: 600 !important; }
+          td { border: 0.5pt solid black !important; font-size: 9pt !important; padding: 3px 5px !important; color: black !important; font-variant-numeric: tabular-nums !important; }
+          .font-black { font-weight: 700 !important; }
         }
       `}</style>
 
       {/* --- BOTONES Y ENCABEZADO UI --- */}
       <div className="flex items-center justify-between border-b border-border pb-4 print-hidden">
-        <h2 className="text-xl font-black uppercase tracking-tight">Detalle de Cobranzas</h2>
-        <Button onClick={() => window.print()} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg">
+        <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900">Detalle de Cobranzas</h2>
+        <Button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-semibold h-11 px-8 rounded-xl gap-2 shadow-lg">
           <Printer className="h-4 w-4" /> EJECUTAR IMPRESIÓN
         </Button>
       </div>
@@ -181,14 +184,14 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
         <Table>
           <TableHeader className="bg-muted/50">
             <TableRow>
-              <TableHead className="text-[10px] font-black uppercase py-5 pl-8">Fecha</TableHead>
-              <TableHead className="text-[10px] font-black uppercase">Cliente</TableHead>
-              <TableHead className="text-[10px] font-black uppercase">Documento</TableHead>
-              <TableHead className="text-[10px] font-black uppercase">Tipo / Método</TableHead>
-              <TableHead className="text-[10px] font-black uppercase text-right pr-8">Monto</TableHead>
+              <TableHead className="text-[10px] font-bold uppercase py-5 pl-8">Fecha</TableHead>
+              <TableHead className="text-[10px] font-bold uppercase">Cliente</TableHead>
+              <TableHead className="text-[10px] font-bold uppercase">Documento</TableHead>
+              <TableHead className="text-[10px] font-bold uppercase">Tipo / Método</TableHead>
+              <TableHead className="text-[10px] font-bold uppercase text-right pr-8">Monto</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="tabular-nums">
             {reportLines.map((row, idx) => (
               <TableRow key={`ui-${idx}`}>
                 <TableCell className="py-4 pl-8 text-xs font-medium">{formatDateShort(row.fecha)}</TableCell>
@@ -196,11 +199,11 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
                 <TableCell className="text-xs font-medium uppercase">{row.documento}</TableCell>
                 <TableCell>
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase">{row.tipo}</span>
-                    <span className="text-[9px] font-medium text-muted-foreground">{row.metodo}</span>
+                    <span className="text-[10px] font-bold uppercase text-slate-900">{row.tipo}</span>
+                    <span className="text-[9px] font-medium text-slate-500">{row.metodo}</span>
                   </div>
                 </TableCell>
-                <TableCell className="text-right pr-8 font-black text-emerald-600">{formatCurrency(row.monto)}</TableCell>
+                <TableCell className="text-right pr-8 font-bold text-emerald-600 text-xs tabular-nums">{formatCurrency(row.monto)}</TableCell>
               </TableRow>
             ))}
             {reportLines.length === 0 && (
@@ -211,8 +214,8 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
           </TableBody>
           <TableFooter className="bg-muted/20">
             <TableRow>
-              <TableCell colSpan={4} className="text-[10px] font-black uppercase pl-8 py-4">TOTAL RECAUDACIÓN PERÍODO</TableCell>
-              <TableCell className="text-right pr-8 font-black text-foreground text-lg">{formatCurrency(metrics.totalTransaccionado)}</TableCell>
+              <TableCell colSpan={4} className="text-[10px] font-bold uppercase pl-8 py-4">TOTAL RECAUDACIÓN PERÍODO</TableCell>
+              <TableCell className="text-right pr-8 font-bold text-foreground text-lg tabular-nums">{formatCurrency(metrics.totalTransaccionado)}</TableCell>
             </TableRow>
           </TableFooter>
         </Table>
@@ -220,14 +223,14 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
 
       {/* --- PREVIEW IMPRIMIBLE (FORMATO CONTABLE) --- */}
       <div className="pt-10 print-hidden">
-        <h3 className="text-lg font-black uppercase text-primary mb-4">Previsualización del Documento</h3>
+        <h3 className="text-lg font-bold uppercase text-primary mb-4 tracking-tight">Previsualización del Documento</h3>
       </div>
 
-      <div id="statement-report" className="font-mono text-black bg-white p-2 min-w-[800px] border border-zinc-200 shadow-lg print:border-none print:shadow-none">
+      <div id="statement-report" className="font-sans text-slate-900 bg-white p-4 min-w-[800px] border border-zinc-200 shadow-lg print:border-none print:shadow-none report-font tabular-nums">
         {/* 1. ENCABEZADO */}
-        <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
+        <div className="flex justify-between items-start border-b-2 border-slate-900 pb-4 mb-6">
           <div className="space-y-1">
-            <h1 className="text-lg font-black leading-none text-black-solid">LABORATORIO DEL DENIM ECUADOR LDDEC CÍA LTDA</h1>
+            <h1 className="text-lg font-bold leading-none tracking-tight text-slate-900">LABORATORIO DEL DENIM ECUADOR LDDEC CÍA LTDA</h1>
             <h2 className="text-md font-bold uppercase text-black">Informe Detallado de Cobranzas</h2>
             <div className="text-[10px] font-bold flex gap-4 uppercase text-black">
               <span>DESDE: {dateFrom}</span>

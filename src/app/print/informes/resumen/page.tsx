@@ -142,7 +142,7 @@ function PrintContent() {
             line-height: 1.1;
           }
           .col-label { width: 75%; }
-          .col-value { width: 25%; text-align: right; font-family: monospace; font-weight: 700; }
+          .col-value { width: 25%; text-align: right; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; font-weight: 700; }
           .row-in { color: #059669; font-weight: 800; }
           .row-out { color: #dc2626; font-weight: 800; }
           .row-sub { color: #64748b; font-style: italic; font-size: 8pt; }
@@ -321,7 +321,7 @@ function PrintContent() {
           line-height: 1.1;
         }
         .col-label { width: 70%; }
-        .col-value { width: 30%; text-align: right; font-family: monospace; font-weight: 700; }
+        .col-value { width: 30%; text-align: right; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-variant-numeric: tabular-nums; font-weight: 700; }
         
         .row-in { color: #059669; font-weight: 800; }
         .row-out { color: #dc2626; font-weight: 800; }
