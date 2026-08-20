@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, List, Loader2, Edit3, X, Eye, Printer, Trash2, Calendar as CalendarIcon, DollarSign } from "lucide-react";
+import { Search, List, Loader2, Edit3, X, Eye, Printer, Trash2, Calendar as CalendarIcon, DollarSign, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -10,6 +10,7 @@ import { Invoice } from "@/types/invoice";
 import { InvoiceTable } from "@/components/facturacion/invoice-table";
 import { InvoiceForm } from "@/components/facturacion/invoice-form";
 import { GroupedSamplesForm } from "@/components/facturacion/grouped-samples-form";
+import { ReopenClosedEntryDialog } from "@/components/facturacion/reopen-closed-entry-dialog";
 import { useAuth } from "@/hooks/use-auth";
 import { db } from "@/lib/firebase";
 import { 
@@ -61,10 +62,13 @@ export default function FacturacionPage() {
 
   const [activeMode, setActiveMode] = useState("individual");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
   
   const { toast } = useToast();
   const { user } = useAuth();
   const isReadOnly = user?.role === "socio";
+  const userRole = (user?.role || "").toLowerCase();
+  const isAdmin = userRole === "admin" || userRole === "administrador" || userRole === "superadmin";
 
   useEffect(() => {
     console.log("[Facturacion] Inicializando MutationObserver para control de overlays del body.");
@@ -480,10 +484,24 @@ export default function FacturacionPage() {
       {!isReadOnly && (
         <div className="max-w-[1600px] mx-auto">
           <Tabs value={activeMode} onValueChange={setActiveMode} className="w-full">
-            <TabsList className="bg-muted/30 border border-border p-1 h-14 w-fit rounded-2xl gap-2 mb-10">
-              <TabsTrigger value="individual" className="px-10 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all">Facturar Individual</TabsTrigger>
-              <TabsTrigger value="muestras" className="px-10 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all">Facturar Muestras</TabsTrigger>
-            </TabsList>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-10">
+              <TabsList className="bg-muted/30 border border-border p-1 h-14 w-fit rounded-2xl gap-2">
+                <TabsTrigger value="individual" className="px-10 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all">Facturar Individual</TabsTrigger>
+                <TabsTrigger value="muestras" className="px-10 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all">Facturar Muestras</TabsTrigger>
+              </TabsList>
+
+              {isAdmin && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsReopenModalOpen(true)}
+                  className="h-14 px-6 rounded-2xl border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-black text-[10px] uppercase tracking-widest gap-2 shadow-sm"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reabrir Ingreso Cerrado
+                </Button>
+              )}
+            </div>
             <TabsContent value="individual" className="mt-0 outline-none"><InvoiceForm clients={clients} onSubmit={handleFormSubmit} onCancel={() => {}} isSubmitting={isSubmitting} /></TabsContent>
             <TabsContent value="muestras" className="mt-0 outline-none"><GroupedSamplesForm clients={clients} onSubmit={handleFormSubmit} onCancel={() => {}} isSubmitting={isSubmitting} /></TabsContent>
           </Tabs>
@@ -604,6 +622,13 @@ export default function FacturacionPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Modal Dialog para Reabrir Ingreso Cerrado Sin Factura */}
+      <ReopenClosedEntryDialog
+        isOpen={isReopenModalOpen}
+        onClose={() => setIsReopenModalOpen(false)}
+        user={user}
+      />
     </div>
   );
 }

@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Receipt, Boxes, X, Save, Loader2, Package, Calendar as CalendarIcon, FileX, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Receipt, Boxes, X, Save, Loader2, Package, Calendar as CalendarIcon, FileX, AlertTriangle, ShieldAlert, RotateCcw } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { ReopenClosedEntryDialog } from "@/components/facturacion/reopen-closed-entry-dialog";
 import {
   Dialog,
   DialogContent,
@@ -105,63 +106,67 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
   const total = Number((Number(subtotal || 0) + Number(iva || 0)).toFixed(2));
   const isNotaDeVenta = Number(iva) === 0;
 
-  useEffect(() => {
-    async function loadData() {
-      if (!db) return;
-      setLoading(true);
-      try {
-        const facturasSnap = await getDocs(collection(db, "facturas"));
-        const billedEntryIds = new Set<string>();
-        facturasSnap.docs.forEach(doc => {
+  const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
+
+  const loadData = React.useCallback(async () => {
+    if (!db) return;
+    setLoading(true);
+    try {
+      const facturasSnap = await getDocs(collection(db, "facturas"));
+      const billedEntryIds = new Set<string>();
+      facturasSnap.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.ingresoMaestroId) billedEntryIds.add(String(data.ingresoMaestroId).toUpperCase());
+        if (Array.isArray(data.ingresoMaestroIds)) {
+          data.ingresoMaestroIds.forEach((id: string) => billedEntryIds.add(String(id).toUpperCase()));
+        }
+      });
+
+      const q = query(collection(db, "entries"), where("isSample", "==", true));
+      const entriesSnap = await getDocs(q);
+      
+      const samples = entriesSnap.docs
+        .map(doc => {
           const data = doc.data();
-          if (data.ingresoMaestroId) billedEntryIds.add(data.ingresoMaestroId);
-          if (Array.isArray(data.ingresoMaestroIds)) {
-            data.ingresoMaestroIds.forEach((id: string) => billedEntryIds.add(id));
-          }
+          let dateStr = "S/F";
+          const date = data.date || data.entryDate;
+          if (date?.toDate) dateStr = date.toDate().toLocaleDateString('es-EC');
+          else if (date) dateStr = new Date(date).toLocaleDateString('es-EC');
+
+          return {
+            id: doc.id,
+            ...data,
+            displayDate: dateStr
+          } as any;
+        })
+        .filter(s => {
+          const visibleNum = String(s.entryNumber || s.numeroIngreso || s.id).toUpperCase();
+          const isNotBilled = !billedEntryIds.has(String(s.id).toUpperCase()) && !billedEntryIds.has(visibleNum) && s.estadoFacturacion !== "FACTURADO";
+          const isNotResolved = s.status !== "resolved"; 
+          const isNotClosedUnbilled = s.status !== "closed_unbilled" && s.estadoFacturacion !== "Cerrada sin facturar" && s.isClosedUnbilled !== true;
+          
+          // Muestras del 2026 en adelante o muestras reabiertas explícitamente para facturar
+          const rawDate = s.date || s.entryDate || s.createdAt || s.fecha;
+          let parsedDate: Date | null = null;
+          if (rawDate?.toDate) parsedDate = rawDate.toDate();
+          else if (rawDate) parsedDate = new Date(rawDate);
+          
+          const isCurrentYearOrNewer = parsedDate ? (parsedDate.getFullYear() >= 2026 || s.fueCerradoSinFactura === true) : true;
+          
+          return isNotBilled && isNotResolved && isNotClosedUnbilled && isCurrentYearOrNewer;
         });
 
-        const q = query(collection(db, "entries"), where("isSample", "==", true));
-        const entriesSnap = await getDocs(q);
-        
-        const samples = entriesSnap.docs
-          .map(doc => {
-            const data = doc.data();
-            let dateStr = "S/F";
-            const date = data.date || data.entryDate;
-            if (date?.toDate) dateStr = date.toDate().toLocaleDateString('es-EC');
-            else if (date) dateStr = new Date(date).toLocaleDateString('es-EC');
-
-            return {
-              id: doc.id,
-              ...data,
-              displayDate: dateStr
-            } as any;
-          })
-          .filter(s => {
-            const isNotBilled = !billedEntryIds.has(s.id);
-            const isNotResolved = s.status !== "resolved"; 
-            const isNotClosedUnbilled = s.status !== "closed_unbilled" && s.estadoFacturacion !== "Cerrada sin facturar" && s.isClosedUnbilled !== true;
-            
-            // Filtrar para mostrar solo muestras del 2026 en adelante (este año)
-            const rawDate = s.date || s.entryDate || s.createdAt || s.fecha;
-            let parsedDate: Date | null = null;
-            if (rawDate?.toDate) parsedDate = rawDate.toDate();
-            else if (rawDate) parsedDate = new Date(rawDate);
-            
-            const isCurrentYearOrNewer = parsedDate ? parsedDate.getFullYear() >= 2026 : false;
-            
-            return isNotBilled && isNotResolved && isNotClosedUnbilled && isCurrentYearOrNewer;
-          });
-
-        setUnbilledSamples(samples);
-      } catch (error) {
-        console.error("Error loading grouped billing data:", error);
-      } finally {
-        setLoading(false);
-      }
+      setUnbilledSamples(samples);
+    } catch (error) {
+      console.error("Error loading grouped billing data:", error);
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     form.setValue("iva", Number((subtotal * 0.15).toFixed(2)));
@@ -480,6 +485,19 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
               <X className="h-4 w-4 mr-2" /> Cancelar
             </Button>
 
+            {isAdmin && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsReopenModalOpen(true)}
+                disabled={isSubmitting || isClosing}
+                className="border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 h-14 px-6 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Reabrir Ingreso Cerrado
+              </Button>
+            )}
+
             {isAdmin && selectedEntryIds.length > 0 && (
               <Button
                 type="button"
@@ -581,6 +599,14 @@ export function GroupedSamplesForm({ clients, onSubmit, onCancel, isSubmitting =
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Dialog para Reabrir Ingreso Cerrado Sin Factura */}
+      <ReopenClosedEntryDialog
+        isOpen={isReopenModalOpen}
+        onClose={() => setIsReopenModalOpen(false)}
+        user={user}
+        onSuccess={() => loadData()}
+      />
     </Form>
   );
 }
