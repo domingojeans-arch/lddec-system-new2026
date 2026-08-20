@@ -168,11 +168,8 @@ export default function ManualidadesPage() {
       const procesoFormatted = formData.proceso.toUpperCase().trim();
       const cantidadNum = Number(formData.cantidad);
       
-      // 1. Backend Validation for Date Manipulation
-      let finalFecha = formData.fecha;
-      if (isOperarioRestrictionActive) {
-        finalFecha = getLocalDateString(); // Force today's date, ignoring frontend tampering
-      }
+      // 1. Conservar siempre la fecha real seleccionada para el trabajo
+      let finalFecha = formData.fecha || getLocalDateString();
 
       // 2. Validación estricta de duplicados en Firestore
       const qDup = query(

@@ -108,64 +108,96 @@ export default function ProduccionPage() {
     if (!db) return;
     if (!silent) setLoading(true);
     try {
-      let manualSnap;
-      if (busquedaGlobal) {
-        manualSnap = await getDocs(query(collection(db, "manualidades"), limit(500)));
-      } else {
-        const threeMonthsAgo = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - 2, 1, 0, 0, 0);
-        const endMonthDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0, 23, 59, 59);
-        const startTs = Timestamp.fromDate(threeMonthsAgo);
-        const endTs = Timestamp.fromDate(endMonthDate);
-        
-        try {
-          const qManual = query(
-            collection(db, "manualidades"),
-            where("createdAt", ">=", startTs),
-            where("createdAt", "<=", endTs)
-          );
-          manualSnap = await getDocs(qManual);
-        } catch (errQ) {
-          console.warn("[Producción] Fallback query manualidades por fecha:", errQ);
-          manualSnap = await getDocs(query(collection(db, "manualidades"), limit(500)));
-        }
-      }
-      const allManualList = manualSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-      // Extraer año y mes seleccionados en el control visual (ej: "05" y "2026")
-      const targetMonthStr = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const targetMonthNum = selectedDate.getMonth() + 1;
+      const targetMonthStr = String(targetMonthNum).padStart(2, "0");
       const targetYearStr = String(selectedDate.getFullYear());
 
-      // Filtrar y ordenar en memoria estrictamente por la fecha de origen real
+      // Construcción del rango de fechas de trabajo YYYY-MM-DD para el mes seleccionado
+      const lastDayOfMonth = new Date(selectedDate.getFullYear(), targetMonthNum, 0).getDate();
+      const startStr = `${targetYearStr}-${targetMonthStr}-01`;
+      const endStr = `${targetYearStr}-${targetMonthStr}-${String(lastDayOfMonth).padStart(2, "0")}`;
+
+      let allManualList: any[] = [];
+
+      if (busquedaGlobal) {
+        const manualSnap = await getDocs(query(collection(db, "manualidades"), limit(1000)));
+        allManualList = manualSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } else {
+        // Consultas en paralelo para garantizar:
+        // 1. Trabajos con fecha real ("fecha") dentro del rango del mes seleccionado.
+        // 2. Trabajos con fecha real ("fechaStr") dentro del rango del mes seleccionado.
+        // 3. TODOS los trabajos en estado "pendiente" para que NINGUNA aprobación pendiente quede oculta jamás.
+        const promises = [
+          getDocs(query(collection(db, "manualidades"), where("fecha", ">=", startStr), where("fecha", "<=", endStr))).catch(() => ({ docs: [] })),
+          getDocs(query(collection(db, "manualidades"), where("fechaStr", ">=", startStr), where("fechaStr", "<=", endStr))).catch(() => ({ docs: [] })),
+          getDocs(query(collection(db, "manualidades"), where("estado", "==", "pendiente"))).catch(() => ({ docs: [] }))
+        ];
+
+        const results = await Promise.all(promises);
+        const docsMap = new Map<string, any>();
+
+        results.forEach(snap => {
+          if (snap && snap.docs) {
+            snap.docs.forEach(docSnap => {
+              docsMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+            });
+          }
+        });
+
+        // Fallback preventivo si las consultas con where no traen docs por falta de índice
+        if (docsMap.size < 5) {
+          const fallbackSnap = await getDocs(query(collection(db, "manualidades"), limit(1000))).catch(() => ({ docs: [] }));
+          if (fallbackSnap && fallbackSnap.docs) {
+            fallbackSnap.docs.forEach(docSnap => {
+              docsMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
+            });
+          }
+        }
+
+        allManualList = Array.from(docsMap.values());
+      }
+
+      // Filtrar y ordenar en memoria estrictamente por la fecha de origen real (fecha / fechaStr)
       const manualList = allManualList
         .filter((work: any) => {
-          if (busquedaGlobal) return true; // Si Búsqueda Global está activa, omite los límites de fecha
+          if (busquedaGlobal) return true;
           
-          const fechaStr = work.fecha || work.fechaStr || "";
+          const fechaVal = work.fecha || work.fechaStr || "";
           
-          // Lógica del filtro split para texto "yyyy-MM-dd"
-          if (typeof fechaStr === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) {
-            const [year, month, day] = fechaStr.split("-");
+          // 1. Formato YYYY-MM-DD
+          if (typeof fechaVal === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fechaVal)) {
+            const [year, month] = fechaVal.split("-");
             return month === targetMonthStr && year === targetYearStr;
           }
 
-          // Lógica del filtro split para texto "DD/MM/YYYY"
-          if (typeof fechaStr === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(fechaStr)) {
-            const [day, month, year] = fechaStr.split("/");
+          // 2. Formato DD/MM/YYYY
+          if (typeof fechaVal === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(fechaVal)) {
+            const [day, month, year] = fechaVal.split("/");
             return month === targetMonthStr && year === targetYearStr;
           }
-          
-          // Fallback robusto a objeto Date / Timestamp
-          const d = toDate(work.fecha || work.fechaStr || work.workDate || work.createdAt);
-          if (!d) return false;
-          return (
-            String(d.getMonth() + 1).padStart(2, "0") === targetMonthStr &&
-            String(d.getFullYear()) === targetYearStr
-          );
+
+          // 3. Objeto Date o Timestamp en campo de fecha real
+          const d = toDate(work.fecha || work.fechaStr || work.workDate);
+          if (d) {
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const y = String(d.getFullYear());
+            return m === targetMonthStr && y === targetYearStr;
+          }
+
+          // 4. Último recurso (si el registro no tuviera ningún campo de fecha real)
+          const createdDate = toDate(work.createdAt);
+          if (createdDate) {
+            const m = String(createdDate.getMonth() + 1).padStart(2, "0");
+            const y = String(createdDate.getFullYear());
+            return m === targetMonthStr && y === targetYearStr;
+          }
+
+          return false;
         })
         .sort((a: any, b: any) => {
           const timeA = toDate(a.fecha || a.fechaStr || a.workDate || a.createdAt)?.getTime() || 0;
           const timeB = toDate(b.fecha || b.fechaStr || b.workDate || b.createdAt)?.getTime() || 0;
-          return timeB - timeA; // orden descendente
+          return timeB - timeA;
         });
 
       // 2. Cargar Entradas relacionadas para cruce (Ventana de 3 meses para asegurar match)
