@@ -28,6 +28,7 @@ import {
   ChevronUp,
   ChevronDown
 } from "lucide-react";
+import { printHtml } from '@/lib/printHtml';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -986,6 +987,350 @@ export default function HistorialPage() {
     toast({ title: "Exportación exitosa", description: "El archivo Excel se ha descargado." });
   };
 
+  const handleExportPDF = () => {
+    if (filteredEstadoCuentaItems.length === 0) {
+      toast({ variant: "destructive", title: "Sin datos", description: "No hay filas para exportar a PDF." });
+      return;
+    }
+
+    const clientNameStr = selectedClientId === "all"
+      ? "TODOS LOS SOCIOS INDUSTRIALES"
+      : (clients.find(c => c.id === selectedClientId)?.displayName || "SOCIO INDUSTRIAL").toUpperCase();
+
+    const fechaGenStr = new Date().toLocaleString('es-EC');
+    const dateFromStr = dateFrom ? format(parseISO(dateFrom), 'dd/MM/yyyy') : "INICIO HISTÓRICO";
+    const dateToStr = dateTo ? format(parseISO(dateTo), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy');
+
+    const rowsHtml = filteredEstadoCuentaItems.map((item: any) => {
+      const dateStr = item.fecha ? format(toDate(item.fecha)!, 'dd/MM/yyyy') : "---";
+      const valFact = Number(item.valorFacturado || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const abonos = Number(item.abonos || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const saldo = Number(item.saldoPendiente || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      
+      let badgeStyle = "background: #fef3c7; color: #b45309; border: 1px solid #fcd34d;";
+      if (item.estado === "Pagada") badgeStyle = "background: #dcfce7; color: #15803d; border: 1px solid #86efac;";
+      else if (item.estado === "Factura vencida") badgeStyle = "background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5;";
+
+      return `
+        <tr style="border-bottom: 1px solid #cbd5e1;">
+          <td style="padding: 5px 6px; text-align: center;">${dateStr}</td>
+          <td style="padding: 5px 6px; font-weight: 700; text-align: center;">${item.ingresoMaestro}</td>
+          <td style="padding: 5px 6px; text-align: center;">${item.numeroFactura}</td>
+          <td style="padding: 5px 6px; font-weight: 600;">${item.clienteNombre}</td>
+          <td style="padding: 5px 6px; text-align: center;">${item.lotes || 0}</td>
+          <td style="padding: 5px 6px; text-align: right; font-weight: 700;">$${valFact}</td>
+          <td style="padding: 5px 6px; text-align: right;">$${abonos}</td>
+          <td style="padding: 5px 6px; text-align: right; font-weight: 900; color: #0284c7;">$${saldo}</td>
+          <td style="padding: 5px 6px; text-align: center;">
+            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 7pt; font-weight: 800; text-transform: uppercase; ${badgeStyle}">
+              ${item.estado}
+            </span>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    const totalFactStr = Number(estadoCuentaSummary.totalFacturado || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const totalAbonStr = Number(estadoCuentaSummary.totalAbonado || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const totalSaldoStr = Number(estadoCuentaSummary.totalSaldoPendiente || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Estado de Cuenta - ${clientNameStr}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 10mm 12mm 12mm 12mm;
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #ffffff;
+            color: #0f172a;
+            margin: 0;
+            padding: 0;
+            font-size: 8.5pt;
+            line-height: 1.3;
+          }
+
+          .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+          }
+          .brand-title {
+            font-size: 14pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -0.5px;
+            color: #0f172a;
+            margin: 0;
+          }
+          .brand-sub {
+            font-size: 7.5pt;
+            font-weight: 800;
+            color: #0284c7;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 2px;
+          }
+          .doc-title-block {
+            text-align: right;
+          }
+          .doc-type {
+            font-size: 11pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #0f172a;
+            margin: 0;
+          }
+          .doc-meta {
+            font-size: 7.5pt;
+            color: #475569;
+            font-weight: 600;
+            margin-top: 2px;
+          }
+
+          .client-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .lbl {
+            font-size: 7pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #64748b;
+            display: block;
+          }
+          .val {
+            font-weight: 800;
+            color: #0f172a;
+          }
+
+          .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+          }
+          .kpi-card {
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+            background: #ffffff;
+          }
+          .kpi-card.highlight {
+            background: #f0f9ff;
+            border-color: #0284c7;
+          }
+          .kpi-card .kpi-lbl {
+            font-size: 7pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 2px;
+          }
+          .kpi-card.highlight .kpi-lbl {
+            color: #0369a1;
+          }
+          .kpi-card .kpi-val {
+            font-size: 11.5pt;
+            font-weight: 900;
+            color: #0f172a;
+            font-variant-numeric: tabular-nums;
+          }
+          .kpi-card.highlight .kpi-val {
+            color: #0284c7;
+          }
+
+          table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            font-size: 8pt;
+            font-variant-numeric: tabular-nums;
+          }
+          table.data-table th {
+            background: #0f172a;
+            color: #ffffff;
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 7pt;
+            letter-spacing: 0.5px;
+            padding: 6px 6px;
+            text-align: left;
+            border: 1px solid #0f172a;
+          }
+          table.data-table th.num, table.data-table td.num {
+            text-align: right;
+          }
+          table.data-table th.center, table.data-table td.center {
+            text-align: center;
+          }
+          table.data-table td {
+            padding: 5px 6px;
+            border: 1px solid #cbd5e1;
+            color: #0f172a;
+          }
+          table.data-table tr:nth-child(even) td {
+            background: #f8fafc;
+          }
+          table.data-table tr.total-row td {
+            background: #f1f5f9;
+            font-weight: 900;
+            font-size: 8.5pt;
+            border-top: 2px solid #0f172a;
+            border-bottom: 2px solid #0f172a;
+          }
+
+          .bank-info {
+            margin-top: 14px;
+            padding: 8px 12px;
+            background: #f8fafc;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            font-size: 7.5pt;
+            page-break-inside: avoid;
+          }
+          .bank-info h5 {
+            margin: 0 0 3px 0;
+            font-size: 8pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #0f172a;
+          }
+
+          .signatures {
+            margin-top: 35px;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            page-break-inside: avoid;
+          }
+          .sig-box {
+            width: 180px;
+            text-align: center;
+            border-top: 1px solid #0f172a;
+            padding-top: 4px;
+            font-size: 7.5pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #334155;
+          }
+        </style>
+      </head>
+      <body>
+        <!-- ENCABEZADO OFICIAL -->
+        <div class="header-container">
+          <div>
+            <h1 class="brand-title">LABORATORIO DEL DENIM ECUADOR</h1>
+            <p class="brand-sub">LDDEC CÍA LTDA – CONTROL Y AUDITORÍA INDUSTRIAL</p>
+          </div>
+          <div class="doc-title-block">
+            <p class="doc-type">ESTADO DE CUENTA INDUSTRIAL</p>
+            <p class="doc-meta">Emisión: ${fechaGenStr}</p>
+          </div>
+        </div>
+
+        <!-- METADATOS CLIENTE Y RANGO DE FECHAS -->
+        <div class="client-card">
+          <div>
+            <span class="lbl">Socio Industrial / Cliente:</span>
+            <span class="val" style="font-size: 9.5pt;">${clientNameStr}</span>
+          </div>
+          <div style="text-align: right;">
+            <span class="lbl">Período Auditado:</span>
+            <span class="val">${dateFromStr} AL ${dateToStr}</span>
+          </div>
+        </div>
+
+        <!-- RESUMEN DE SALDOS -->
+        <div class="summary-grid">
+          <div class="kpi-card">
+            <div class="kpi-lbl">Total Facturado</div>
+            <div class="kpi-val">$${totalFactStr}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-lbl">Total Abonado</div>
+            <div class="kpi-val" style="color: #16a34a;">$${totalAbonStr}</div>
+          </div>
+          <div class="kpi-card highlight">
+            <div class="kpi-lbl">Saldo Pendiente</div>
+            <div class="kpi-val">$${totalSaldoStr}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-lbl">Facturas / Vencidas</div>
+            <div class="kpi-val">${estadoCuentaSummary.numFacturas} / <span style="color: ${estadoCuentaSummary.numFacturasVencidas > 0 ? '#dc2626' : 'inherit'};">${estadoCuentaSummary.numFacturasVencidas}</span></div>
+          </div>
+        </div>
+
+        <!-- TABLA DETALLADA -->
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="center" style="width: 75px;">Fecha</th>
+              <th class="center" style="width: 85px;">Ing. Maestro</th>
+              <th class="center" style="width: 85px;">Nº Factura</th>
+              <th>Cliente / Socio</th>
+              <th class="center" style="width: 45px;">Lotes</th>
+              <th class="num" style="width: 95px;">Valor Fact.</th>
+              <th class="num" style="width: 90px;">Abonos</th>
+              <th class="num" style="width: 95px;">Saldo Pend.</th>
+              <th class="center" style="width: 95px;">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+            <tr class="total-row">
+              <td colspan="5" style="text-align: right; text-transform: uppercase;">Totales Período:</td>
+              <td class="num">$${totalFactStr}</td>
+              <td class="num">$${totalAbonStr}</td>
+              <td class="num" style="color: #0284c7;">$${totalSaldoStr}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- DATOS DE TRANSFERENCIA BANCARIA -->
+        <div class="bank-info">
+          <h5>Datos Bancarios para Depósitos / Transferencias</h5>
+          <div style="display: flex; justify-content: space-between; gap: 10px;">
+            <span><strong>Titular:</strong> LABORATORIO DEL DENIM ECUADOR LDDEC CÍA LTDA</span>
+            <span><strong>RUC:</strong> 1891795328001</span>
+            <span><strong>Banco:</strong> Banco Pichincha (Cta. Corriente)</span>
+          </div>
+        </div>
+
+        <!-- FIRMAS DE RESPONSABILIDAD -->
+        <div class="signatures">
+          <div class="sig-box">Elaborado Por<br><span style="font-weight: 500; font-size: 6.5pt; text-transform: none;">Contabilidad / Cobranzas LDDEC</span></div>
+          <div class="sig-box">Revisado Por<br><span style="font-weight: 500; font-size: 6.5pt; text-transform: none;">Dirección Financiera</span></div>
+          <div class="sig-box">Recibí Conforme<br><span style="font-weight: 500; font-size: 6.5pt; text-transform: none;">Firma del Cliente / Fecha</span></div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printHtml(html);
+  };
+
   const dateFromObj = dateFrom ? parseISO(dateFrom) : undefined;
   const dateToObj = dateTo ? parseISO(dateTo) : undefined;
 
@@ -1114,7 +1459,7 @@ export default function HistorialPage() {
         }
       `}</style>
       
-      <div className="space-y-1">
+      <div className="space-y-1 print:hidden">
         <h1 className="text-5xl font-black tracking-tighter uppercase">Historial de Auditoría</h1>
         <p className="text-primary text-xs font-black uppercase tracking-[0.3em]">Trazabilidad Cronológica Industrial 1.1</p>
         {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
@@ -1459,7 +1804,7 @@ export default function HistorialPage() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => window.print()} 
+                  onClick={handleExportPDF} 
                   className="rounded-xl font-bold uppercase text-[10px] gap-2 h-10 px-4"
                 >
                   <Printer className="h-4 w-4" /> Exportar PDF
