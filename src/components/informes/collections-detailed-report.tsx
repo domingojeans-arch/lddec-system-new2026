@@ -157,7 +157,7 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
         }
 
         @media print {
-          @page { size: A4 portrait; margin: 12mm 15mm 12mm 15mm; }
+          @page { size: A4 portrait; margin: 6mm 8mm 6mm 8mm; }
           body, #statement-report { font-family: 'Inter', system-ui, -apple-system, sans-serif !important; background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
           .print-hidden { display: none !important; }
           #statement-report { padding: 0 !important; width: 100% !important; max-width: 100% !important; border: none !important; box-shadow: none !important; display: block !important; }

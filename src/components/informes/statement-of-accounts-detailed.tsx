@@ -165,7 +165,7 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 bg-white p-6 rounded-xl border border-zinc-200 shadow-lg overflow-x-auto" style={{ isolation: 'isolate' }}>
+    <div className="space-y-8 animate-in fade-in duration-500 bg-white p-6 rounded-xl border border-zinc-200 shadow-lg overflow-x-auto print:p-0 print:m-0 print:border-none print:shadow-none print:space-y-0 print:bg-transparent print:overflow-visible" style={{ isolation: 'isolate' }}>
       <style jsx global>{`
         /* ESTILOS DE VISTA PREVIA E IMPRESIÓN (INTER & TABULAR NUMS) */
         #statement-report {
@@ -191,10 +191,10 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
         }
 
         @media print {
-          @page { size: A4 landscape; margin: 10mm 12mm 10mm 12mm; }
+          @page { size: A4 landscape; margin: 6mm 8mm 6mm 8mm; }
           body, #statement-report { font-family: 'Inter', system-ui, -apple-system, sans-serif !important; background: white !important; color: black !important; margin: 0 !important; padding: 0 !important; }
-          .print-hidden { display: none !important; }
-          #statement-report { padding: 0 !important; width: 100% !important; max-width: 100% !important; border: none !important; box-shadow: none !important; }
+          .print-hidden, .print\:hidden { display: none !important; }
+          #statement-report { padding: 0 !important; width: 100% !important; max-width: 100% !important; border: none !important; box-shadow: none !important; margin-top: 0 !important; }
           table { width: 100% !important; max-width: 100% !important; border: 0.5pt solid black !important; border-collapse: collapse !important; font-variant-numeric: tabular-nums !important; }
           thead { display: table-header-group !important; }
           tfoot { display: table-footer-group !important; }

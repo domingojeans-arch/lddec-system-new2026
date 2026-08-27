@@ -1340,7 +1340,7 @@ export default function HistorialPage() {
         @media print {
           @page {
             size: portrait;
-            margin: 15mm !important;
+            margin: 6mm 8mm 6mm 8mm !important;
           }
           
           * {

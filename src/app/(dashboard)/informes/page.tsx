@@ -74,7 +74,7 @@ export default function InformesPage() {
           </div>
         ) : (
           <Tabs defaultValue="reportes" className="w-full space-y-10">
-            <TabsList className="bg-muted/30 p-1.5 h-14 rounded-2xl w-fit gap-2 border border-border">
+            <TabsList className="bg-muted/30 p-1.5 h-14 rounded-2xl w-fit gap-2 border border-border print:hidden">
               <TabsTrigger value="reportes" className="px-8 h-full rounded-xl data-[state=active]:bg-card data-[state=active]:shadow-md font-bold text-xs uppercase tracking-widest flex items-center gap-2">
                 <FileText className="h-4 w-4" /> Generador de Informes
               </TabsTrigger>

@@ -120,7 +120,7 @@ export function OutputsDetailedReport({ prodOutputs, sampleOutputs, dateFrom, da
     <div className="space-y-10 print:m-0 print:p-0">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
+          @page { size: A4 portrait; margin: 6mm 8mm 6mm 8mm; }
           body { margin: 0; padding: 0; background: white !important; }
           #outputs-report-area {
             width: 100% !important;

@@ -158,68 +158,92 @@ select.rdp-dropdown:hover {
 @media print {
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-  /* Ocultar elementos de navegación y UI global */
+  /* 1. ELIMINACIÓN ABSOLUTA DE ELEMENTOS DE NAVEGACIÓN, OVERLAYS, ROUTE ANNOUNCERS, PORTALES Y STRAY TEXT NODES (EJ: "0") */
   header, 
   footer, 
   nav, 
   aside, 
   button, 
+  input,
+  select,
+  textarea,
+  form,
   .print-hidden,
   .print\:hidden,
   [data-radix-collection-item],
+  [data-radix-portal],
+  [data-radix-popper-content-wrapper],
+  [data-radix-focus-guard],
   [role="status"],
-  [aria-live="polite"] {
+  [role="alert"],
+  [role="tablist"],
+  [aria-live],
+  [aria-hidden="true"],
+  next-route-announcer,
+  #next-route-announcer__content,
+  iframe#lddec-print-iframe,
+  .toaster,
+  [data-sonner-toaster],
+  .no-print {
     display: none !important;
+    position: absolute !important;
+    top: -9999px !important;
+    left: -9999px !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    content: none !important;
   }
 
-  /* Resetear fondos y márgenes */
-  body, html, #statement-report, .report-font {
+  /* 2. RESETEAR CONTENEDORES PRINCIPALES DE PÁGINA PARA QUE EL INFORME COMIENCE EN LA PARTE SUPERIOR EXACTA SIN MÁRGENES HUÉRFANOS */
+  html, 
+  body, 
+  main, 
+  #__next, 
+  div[data-reactroot], 
+  .min-h-screen {
     font-family: 'Inter', system-ui, -apple-system, sans-serif !important;
     background: white !important;
     color: black !important;
     margin: 0 !important;
     padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    min-height: 0 !important;
+    height: auto !important;
     width: 100% !important;
+    float: none !important;
+    position: static !important;
   }
 
-  /* Forzar números tabulares en impresión */
+  /* 3. REGLA GENERAL DE MARGEN FÍSICO MÍNIMO DE IMPRESIÓN (MÁRGENES ESTÁNDAR A4) */
+  @page {
+    size: A4 portrait;
+    margin: 6mm 8mm 6mm 8mm;
+  }
+
+  /* FORZAR NÚMEROS TABULARES EN IMPRESIÓN */
   th, td, span, div, p {
     font-variant-numeric: tabular-nums !important;
   }
 
-  /* Asegurar que el contenido principal ocupe todo el espacio */
-  main {
-    padding: 0 !important;
-    margin: 0 !important;
-    display: block !important;
-    width: 100% !important;
-  }
-
-  /* Ocultar sombras y efectos innecesarios */
+  /* ELIMINAR SOMBRAS, BORDES REDONDEADOS E IMPUREZAS VISUALES EN IMPRESIÓN */
   .shadow-premium, .shadow-2xl, .shadow-xl, .shadow-sm, .shadow-md, .shadow-lg {
     box-shadow: none !important;
     border-color: #eee !important;
   }
 
-  /* Clase de utilidad para forzar ocultamiento */
-  .print-hidden {
-    display: none !important;
-  }
-
-  /* CONFIGURACIÓN DE HOJA A4 Y MÁRGENES ESTÁNDAR */
-  @page {
-    size: A4 portrait;
-    margin: 12mm 15mm 12mm 15mm;
-  }
-
-  /* AJUSTE DE ANCHO DE LA TABLA AL 100% DEL ESPACIO DE LA HOJA */
+  /* TABLAS EN IMPRESIÓN */
   table {
     width: 100% !important;
     max-width: 100% !important;
     border-collapse: collapse !important;
   }
 
-  /* REPETICIÓN DE ENCABEZADOS Y PIES DE TABLA AUTOMÁTICA EN NUEVAS PÁGINAS */
   thead {
     display: table-header-group !important;
   }
@@ -227,7 +251,6 @@ select.rdp-dropdown:hover {
     display: table-footer-group !important;
   }
 
-  /* PROTECCIÓN CONTRA CORTES EN FILAS */
   tr {
     page-break-inside: avoid !important;
     break-inside: avoid !important;

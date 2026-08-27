@@ -265,7 +265,7 @@ function PendientesContent() {
     <div className="space-y-10 animate-in fade-in duration-500 print:m-0 print:p-0">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 15mm 15mm 15mm 15mm; }
+          @page { size: A4 portrait; margin: 6mm 8mm 6mm 8mm; }
           body { margin: 0; padding: 0; background: white !important; }
           #main-content-layout { display: none !important; }
           #pending-billing-report {
