@@ -165,7 +165,7 @@ export default function AgendaPagosPage() {
     return invoices.map(inv => {
       const d = toDate(inv.fechaFactura || inv.createdAt || Date.now());
       const fechaVencimiento = new Date(d ? d.getTime() : Date.now());
-      const diasCredito = Number(inv.diasCredito || 0);
+      const diasCredito = Number(inv.diasCredito ?? 30);
       fechaVencimiento.setDate(fechaVencimiento.getDate() + diasCredito);
       
       const total = Number(inv.totalFactura || inv.total || 0);
@@ -966,7 +966,7 @@ export default function AgendaPagosPage() {
                               </td>
                               <td className="py-4 pr-4 text-center">
                                 <Badge variant="outline" className="text-[9px] font-bold border-muted text-muted-foreground px-2 py-0.5 rounded-md">
-                                  {inv.diasCredito || 0} días
+                                  {inv.diasCredito ?? 30} días
                                 </Badge>
                               </td>
                               <td className="py-4 pr-4">

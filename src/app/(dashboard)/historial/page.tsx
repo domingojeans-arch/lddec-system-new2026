@@ -105,7 +105,7 @@ function getInvoiceBadgeInfo(inv: any) {
   
   const d = toDate(inv.fechaFactura || inv.createdAt || inv.invoiceDate || Date.now());
   const fechaVencimiento = new Date(d ? d.getTime() : Date.now());
-  const diasCredito = Number(inv.diasCredito || 0);
+  const diasCredito = Number(inv.diasCredito ?? 30);
   fechaVencimiento.setDate(fechaVencimiento.getDate() + diasCredito);
   
   const isVencida = fechaVencimiento < new Date() && saldo > 0;

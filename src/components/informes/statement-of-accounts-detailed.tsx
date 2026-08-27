@@ -106,23 +106,26 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
 
         const saldo = Math.max(0, totalFactura - totalHaber);
         const emissionDate = toDate(inv.fechaFactura || inv.date) || new Date();
+        const diasCredito = Number(inv.diasCredito ?? 30);
+        const dueDate = new Date(emissionDate.getTime());
+        dueDate.setDate(dueDate.getDate() + diasCredito);
         
-        // Cálculo de Días Vencidos (Hoy - Fecha Emisión según requerimiento)
-        const diffTime = today.getTime() - emissionDate.getTime();
+        // Cálculo de Días Vencidos (Hoy - Fecha Vencimiento a 30 días)
+        const diffTime = today.getTime() - dueDate.getTime();
         const diasVencidos = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
         return {
           tipDoc: inv.tipoComprobante === "Nota de Venta" ? "NV" : "FC",
           documento: String(inv.numeroFactura || inv.numero || inv.id || ""),
           emision: emissionDate.toLocaleDateString('es-EC'),
-          vence: emissionDate.toLocaleDateString('es-EC'), // CAMPO PENDIENTE EN BD (Vencimiento específico)
-          vend: "00001", // CAMPO PENDIENTE EN BD (Código Vendedor)
+          vence: dueDate.toLocaleDateString('es-EC'), // Vencimiento a 30 días
+          vend: "00001",
           fac: "1",
           diasV: Math.max(0, diasVencidos),
           debe: totalFactura,
           haber: totalHaber,
           saldo: saldo,
-          retencion: "" // CAMPO PENDIENTE EN BD (Número de Retención asociado)
+          retencion: ""
         };
       })
       .filter((row): row is NonNullable<typeof row> => row !== null)
@@ -150,7 +153,7 @@ export function StatementOfAccountsDetailed({ client, invoices, dateFrom, dateTo
   }, [reportRows, saldoAnterior, client, from, to]);
 
   const portfolioSummary = useMemo(() => {
-    const vencido = reportRows.reduce((acc, curr) => (curr?.diasV || 0) > 30 ? acc + (curr?.saldo || 0) : acc, 0);
+    const vencido = reportRows.reduce((acc, curr) => (curr?.diasV || 0) > 0 ? acc + (curr?.saldo || 0) : acc, 0);
     const alDia = Math.max(0, totals.saldo - vencido);
     const pctVencido = totals.saldo > 0 ? (vencido / totals.saldo) * 100 : 0;
     

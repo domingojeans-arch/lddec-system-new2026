@@ -331,6 +331,7 @@ export default function FacturacionPage() {
           ...data,
           totalFactura: totalF,
           fechaFactura: fbTimestamp,
+          diasCredito: Number(data.diasCredito ?? 30),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
           estadoCobranza: data.estadoCobranza || "Por Cobrar",
