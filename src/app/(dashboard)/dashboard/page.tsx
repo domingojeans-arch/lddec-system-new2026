@@ -1395,67 +1395,6 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Fila 3: Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pb-10">
-            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden">
-              <CardHeader className="px-10 pt-10">
-                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
-                  <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary"><Users className="h-4 w-4" /></div>
-                  Top 5 Clientes por Volumen
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[350px] px-10 pb-10">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart layout="vertical" data={stats.charts.topClients} margin={{ left: 20, right: 40, top: 20, bottom: 0 }}>
-                    <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }} 
-                      width={140}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '16px', color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '12px' }}
-                    />
-                    <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} barSize={14} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden">
-              <CardHeader className="px-10 pt-10">
-                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
-                  <div className="h-8 w-8 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-600"><Shirt className="h-4 w-4" /></div>
-                  Concentración de Prendas por Tipo
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[350px] px-10 pb-10">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart layout="vertical" data={stats.charts.topGarments} margin={{ left: 20, right: 40, top: 20, bottom: 0 }}>
-                    <XAxis type="number" hide />
-                    <YAxis 
-                      dataKey="name" 
-                      type="category" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }} 
-                      width={140}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '16px', color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '12px' }}
-                    />
-                    <Bar dataKey="value" fill="#f59e0b" radius={[0, 6, 6, 0]} barSize={14} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
         </div>
       )}
     </div>
