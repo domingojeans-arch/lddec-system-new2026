@@ -511,7 +511,8 @@ export default function BancosPage() {
                     <TableRow>
                       <TableHead className="text-[10px] font-black uppercase py-4 pl-6">Fecha</TableHead>
                       <TableHead className="text-[10px] font-black uppercase">Concepto / Referencia</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-right">Monto</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-right text-red-600">Debe</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-right text-emerald-600">Haber</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-right pr-6">Saldo</TableHead>
                       {isAdmin && <TableHead className="w-10 pr-6"></TableHead>}
                     </TableRow>
@@ -531,13 +532,24 @@ export default function BancosPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className={cn(
-                            "flex items-center justify-end gap-1.5 font-black text-sm",
-                            tx.tipo === 'Deposito' ? "text-emerald-600" : "text-red-500"
-                          )}>
-                            {tx.tipo === 'Deposito' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownLeft className="h-3.5 w-3.5" />}
-                            ${tx.monto.toFixed(2)}
-                          </div>
+                          {tx.tipo !== 'Deposito' ? (
+                            <span className="flex items-center justify-end gap-1 font-black text-sm text-red-500">
+                              <ArrowDownLeft className="h-3.5 w-3.5" />
+                              ${tx.monto.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/30">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {tx.tipo === 'Deposito' ? (
+                            <span className="flex items-center justify-end gap-1 font-black text-sm text-emerald-600">
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                              ${tx.monto.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/30">—</span>
+                          )}
                         </TableCell>
                         <TableCell className={cn("text-right font-bold text-xs text-foreground", !isAdmin && "pr-6")}>
                           ${tx.saldoPosterior?.toFixed(2)}
@@ -557,7 +569,7 @@ export default function BancosPage() {
                       </TableRow>
                     ))}
                     {history.length === 0 && !historyLoading && (
-                      <TableRow><TableCell colSpan={isAdmin ? 5 : 4} className="h-32 text-center text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest italic">Sin movimientos registrados</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="h-32 text-center text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest italic">Sin movimientos registrados</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>

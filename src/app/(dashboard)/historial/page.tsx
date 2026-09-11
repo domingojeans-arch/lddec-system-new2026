@@ -553,11 +553,11 @@ export default function HistorialPage() {
             item.invoices.forEach((inv: any) => {
               const badge = getInvoiceBadgeInfo(inv);
               const totalVal = Number(inv.totalFactura || inv.total || 0);
-              const payments = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : [];
+              const payments = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
               const abonosVal = payments.reduce((acc: number, p: any) => p.anulado ? acc : (p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0)), 0);
               const saldoVal = Math.max(0, totalVal - abonosVal);
 
-              let statusStr = "Pago parcial";
+              let statusStr = abonosVal > 0.01 ? "Pago parcial" : "Pendiente";
               if (inv.status === "Anulada" || inv.anulada) statusStr = "Anulada";
               else if (saldoVal <= 0.01) statusStr = "Pagada";
               else if (badge.isVencida) statusStr = "Factura vencida";
@@ -605,7 +605,7 @@ export default function HistorialPage() {
           const saldoVal = Math.max(0, totalVal - abonosVal);
           const clienteNombre = item.data.clienteNombre || item.data.clientName || getClientName(item.data.clientId || item.data.clienteId);
 
-          let statusStr = "Pago parcial";
+          let statusStr = abonosVal > 0.01 ? "Pago parcial" : "Pendiente";
           if (item.data.status === "Anulada" || item.data.anulada) statusStr = "Anulada";
           else if (saldoVal <= 0.01) statusStr = "Pagada";
           else if (badge.isVencida) statusStr = "Factura vencida";
