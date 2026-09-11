@@ -29,6 +29,7 @@ export function PrintSheetsTab() {
   const [nPrendas1, setNPrendas1] = useState("");
   const [nPrendas2, setNPrendas2] = useState("");
   const [peso, setPeso] = useState("");
+  const [observacion, setObservacion] = useState("");
 
   // Opciones de Impresión (Azul Oscuro profundo es #001133)
   const [printColor, setPrintColor] = useState("#001133");
@@ -75,6 +76,7 @@ export function PrintSheetsTab() {
         setNPrendas1(String(lot.cantidad || lot.quantity || 0));
         setNPrendas2("");
         setPeso(lot.weight || lot.peso || "");
+        setObservacion(lot.observations || lot.observaciones || lot.observacion || entryData.observations || entryData.observaciones || "");
         toast({ title: "Datos cargados", description: `Campos completados desde el Lote ${term}.` });
       }
     } catch (e) {
@@ -276,6 +278,16 @@ export function PrintSheetsTab() {
               className="erp-input h-11"
             />
           </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Observación</Label>
+            <Input
+              value={observacion}
+              onChange={(e) => setObservacion(e.target.value)}
+              className="erp-input h-11"
+              placeholder="Opcional..."
+            />
+          </div>
         </div>
 
         <div className="flex justify-end pt-4">
@@ -310,6 +322,7 @@ export function PrintSheetsTab() {
                 nPrendas1={nPrendas1}
                 nPrendas2={nPrendas2}
                 peso={peso}
+                observacion={observacion}
                 printColor={printColor}
               />
             </div>
@@ -382,6 +395,7 @@ export function PrintSheetsTab() {
                 nPrendas1={nPrendas1}
                 nPrendas2={nPrendas2}
                 peso={peso}
+                observacion={observacion}
                 printColor={printColor}
               />
             </div>
@@ -406,6 +420,7 @@ interface SingleSheetViewProps {
   nPrendas1: string;
   nPrendas2: string;
   peso: string;
+  observacion?: string;
   printColor: string;
 }
 
@@ -421,6 +436,7 @@ function SingleSheetView({
   nPrendas1,
   nPrendas2,
   peso,
+  observacion = "",
   printColor,
 }: SingleSheetViewProps) {
   const cellStyle = {
@@ -471,11 +487,11 @@ function SingleSheetView({
                   }} 
                 />
               </td>
-              <td colSpan={3} style={{ ...cellStyle, padding: "0", verticalAlign: "top", width: "30%", borderTop: "none", borderRight: "none" }}>
-                <div style={{ borderBottom: `1.2px solid ${printColor}`, background: printColor, color: "white", textAlign: "center", fontSize: "8px", fontWeight: "bold", padding: "1.5px 0" }}>
-                  CONFIRMADO
+              <td colSpan={3} style={{ ...cellStyle, width: "30%", padding: "4px 6px", borderTop: "none", borderRight: "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <span>OBSERVACION:</span>
+                  <span style={{ color: printColor, fontSize: "10px", fontWeight: "bold", textTransform: "uppercase" }}>{observacion || ""}</span>
                 </div>
-                <div style={{ height: "10px" }}></div>
               </td>
             </tr>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   Building, 
   Plus, 
@@ -140,6 +140,56 @@ export default function BancosPage() {
     );
     return () => unsub();
   }, [selectedAccount]);
+
+  // Cuenta activa reactiva sincronizada
+  const activeAccount = useMemo(() => {
+    if (!selectedAccount) return null;
+    return accounts.find(a => a.id === selectedAccount.id) || selectedAccount;
+  }, [selectedAccount, accounts]);
+
+  // Cálculo dinámico cronológico del historial y saldos correlativos matemáticos
+  const processedHistory = useMemo(() => {
+    if (!history || history.length === 0) return [];
+
+    const getMs = (val: any) => {
+      if (!val) return 0;
+      if (typeof val.toDate === "function") return val.toDate().getTime();
+      if (val instanceof Date) return val.getTime();
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? 0 : d.getTime();
+    };
+
+    // 1. Ordenar cronológicamente (ascendente: más antigua primero)
+    const sortedAsc = [...history].sort((a, b) => {
+      const timeA = getMs(a.fecha);
+      const timeB = getMs(b.fecha);
+      if (timeA !== timeB) return timeA - timeB;
+
+      const regA = getMs(a.fechaRegistro);
+      const regB = getMs(b.fechaRegistro);
+      if (regA !== regB) return regA - regB;
+
+      return String(a.id || "").localeCompare(String(b.id || ""));
+    });
+
+    // 2. Acumular saldo desde el saldo inicial de la cuenta
+    const saldoInicial = Number(activeAccount?.saldoInicial || 0);
+    let runningBalance = saldoInicial;
+
+    const withBalances = sortedAsc.map((tx) => {
+      const isDeposito = tx.tipo === "Deposito";
+      const montoNum = Number(tx.monto || 0);
+      runningBalance = isDeposito ? runningBalance + montoNum : runningBalance - montoNum;
+
+      return {
+        ...tx,
+        saldoCalculado: runningBalance
+      };
+    });
+
+    // 3. Devolver orden descendente (más reciente arriba) para la vista del Estado de Cuenta
+    return withBalances.reverse();
+  }, [history, activeAccount]);
 
   const handleCreateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -498,7 +548,10 @@ export default function BancosPage() {
             <div className="text-right">
               <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Saldo Disponible</p>
               <p className="text-4xl font-black text-emerald-600 tracking-tighter">
-                ${(selectedAccount?.saldoActual || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                ${(processedHistory.length > 0 
+                    ? processedHistory[0].saldoCalculado 
+                    : Number(activeAccount?.saldoActual || activeAccount?.saldoInicial || 0)
+                  ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
@@ -519,8 +572,8 @@ export default function BancosPage() {
                   </TableHeader>
                   <TableBody>
                     {historyLoading ? (
-                      <TableRow><TableCell colSpan={4} className="h-40 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary/30" /></TableCell></TableRow>
-                    ) : history.map((tx) => (
+                      <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="h-40 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-primary/30" /></TableCell></TableRow>
+                    ) : processedHistory.map((tx) => (
                       <TableRow key={tx.id} className="border-b border-border hover:bg-muted/5 transition-colors">
                         <TableCell className="pl-6 py-4 text-xs font-medium text-muted-foreground">
                           {tx.fecha?.toDate ? format(tx.fecha.toDate(), "dd/MM/yy HH:mm") : "---"}
@@ -552,7 +605,7 @@ export default function BancosPage() {
                           )}
                         </TableCell>
                         <TableCell className={cn("text-right font-bold text-xs text-foreground", !isAdmin && "pr-6")}>
-                          ${tx.saldoPosterior?.toFixed(2)}
+                          ${(tx.saldoCalculado !== undefined ? tx.saldoCalculado : (tx.saldoPosterior || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </TableCell>
                         {isAdmin && (
                           <TableCell className="pr-4 py-2">
@@ -568,7 +621,7 @@ export default function BancosPage() {
                         )}
                       </TableRow>
                     ))}
-                    {history.length === 0 && !historyLoading && (
+                    {processedHistory.length === 0 && !historyLoading && (
                       <TableRow><TableCell colSpan={isAdmin ? 6 : 5} className="h-32 text-center text-[10px] font-bold text-muted-foreground/30 uppercase tracking-widest italic">Sin movimientos registrados</TableCell></TableRow>
                     )}
                   </TableBody>

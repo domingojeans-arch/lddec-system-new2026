@@ -44,6 +44,7 @@ const MONTH_NAMES = [
 
 // Resúmenes históricos anuales de 2025 (Datos congelados del año cerrado)
 const PRODUCTION_2025 = [0, 0, 0, 0, 8816, 26435, 32510, 35551, 30322, 39278, 38521, 36543];
+const PRENDAS_INGRESADAS_2025 = [0, 0, 0, 0, 8816, 26435, 32510, 35551, 30322, 39278, 38521, 36543];
 const DISPATCHES_2025 = [0, 0, 0, 0, 1338, 6340, 3807, 19292, 33299, 35130, 37983, 46371];
 const BILLING_2025 = [0, 0, 0, 0, 610.56, 44861.27, 44945.98, 43005.19, 62531.70, 55965.07, 63056.00, 87224.98];
 
@@ -61,6 +62,8 @@ interface CachedDashboardStats {
     collectionStats: any[];
     production2026?: number[];
     production2025?: number[];
+    prendasIngresadas2026?: number[];
+    prendasIngresadas2025?: number[];
     dispatches2026?: number[];
     dispatches2025?: number[];
     billing2026?: number[];
@@ -83,6 +86,8 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<CachedDashboardStats | null>(null);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(new Date().getMonth());
+  const [selectedIngresoMonthIdx, setSelectedIngresoMonthIdx] = useState<number>(new Date().getMonth());
+  const [ingresosPrendas2026, setIngresosPrendas2026] = useState<number[]>(() => Array(12).fill(0));
   const currentYear = new Date().getFullYear();
 
   const handlePrevMonth = () => {
@@ -90,6 +95,13 @@ export default function DashboardPage() {
   };
   const handleNextMonth = () => {
     setSelectedMonthIdx((prev) => (prev === 11 ? 0 : prev + 1));
+  };
+
+  const handlePrevIngresoMonth = () => {
+    setSelectedIngresoMonthIdx((prev) => (prev === 0 ? 11 : prev - 1));
+  };
+  const handleNextIngresoMonth = () => {
+    setSelectedIngresoMonthIdx((prev) => (prev === 11 ? 0 : prev + 1));
   };
 
   const isReadOnly = user?.role === "socio";
@@ -133,6 +145,68 @@ export default function DashboardPage() {
   useEffect(() => {
     loadCachedStats();
   }, []);
+
+  // CARGA ÚNICA DE PRENDAS FÍSICAS INGRESADAS (2026)
+  // El año anterior (2025) usa la constante congelada PRENDAS_INGRESADAS_2025 (0 consultas).
+  // 2026 se carga una única vez aquí si la caché no lo tiene.
+  useEffect(() => {
+    if (!db) return;
+
+    if (stats?.metrics?.prendasIngresadas2026 && stats.metrics.prendasIngresadas2026.some(v => v > 0)) {
+      setIngresosPrendas2026(stats.metrics.prendasIngresadas2026);
+      return;
+    }
+
+    const loadIngresos2026Once = async () => {
+      try {
+        const startOfYearTs = Timestamp.fromDate(new Date(currentYear, 0, 1));
+        let snap;
+        try {
+          snap = await getDocs(query(collection(db, "entries"), where("date", ">=", startOfYearTs)));
+        } catch {
+          snap = await getDocs(collection(db, "entries"));
+        }
+
+        const totals = Array(12).fill(0);
+        snap.docs.forEach(docSnap => {
+          const e = docSnap.data();
+          const d = toDate(e.date || e.entryDate || e.fecha || e.createdAt);
+          if (d && d.getFullYear() === currentYear) {
+            const monthIdx = d.getMonth();
+            const lotes = e.lotes || e.lots || [];
+            const qty = lotes.reduce((acc: number, l: any) => {
+              const val = l.quantityToDispatch ??
+                          l.cantidadConfirmada ??
+                          l.quantity ??
+                          l.cantidad ??
+                          l.totalPrendas ??
+                          l.total ?? null;
+
+              if (val == null || Number(val) === 0) {
+                if (Array.isArray(l.garments) && l.garments.length > 0) {
+                  const garmentSum = l.garments.reduce((gAcc: number, g: any) => {
+                    const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
+                    return gAcc + (isNaN(gVal) ? 0 : gVal);
+                  }, 0);
+                  if (garmentSum > 0) return acc + garmentSum;
+                }
+              }
+              const num = Number(val);
+              return acc + (isNaN(num) || !isFinite(num) ? 0 : num);
+            }, 0);
+
+            totals[monthIdx] += qty;
+          }
+        });
+
+        setIngresosPrendas2026(totals);
+      } catch (err) {
+        console.warn("Error al cargar prendas ingresadas de 2026:", err);
+      }
+    };
+
+    loadIngresos2026Once();
+  }, [db, currentYear, stats?.metrics?.prendasIngresadas2026]);
 
   /**
    * MOTOR DE PROCESAMIENTO MANUAL (CONTROLADO)
@@ -544,6 +618,39 @@ export default function DashboardPage() {
         }
       });
 
+      // 5.1b Cálculo de Prendas Físicas Ingresadas (Exacto a Resumen de Inventario)
+      const prendasIngresadas2026Calculated = Array(12).fill(0);
+      entriesRaw.forEach(e => {
+        const d = toDate(e.date || e.entryDate || e.fecha || e.createdAt);
+        if (d && d.getFullYear() === currentYear) {
+          const monthIdx = d.getMonth();
+          const lotes = e.lotes || e.lots || [];
+          const qty = lotes.reduce((acc: number, l: any) => {
+            const val = l.quantityToDispatch ??
+                        l.cantidadConfirmada ??
+                        l.quantity ??
+                        l.cantidad ??
+                        l.totalPrendas ??
+                        l.total ?? null;
+
+            if (val == null || Number(val) === 0) {
+              if (Array.isArray(l.garments) && l.garments.length > 0) {
+                const garmentSum = l.garments.reduce((gAcc: number, g: any) => {
+                  const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
+                  return gAcc + (isNaN(gVal) ? 0 : gVal);
+                }, 0);
+                if (garmentSum > 0) return acc + garmentSum;
+              }
+            }
+            const num = Number(val);
+            return acc + (isNaN(num) || !isFinite(num) ? 0 : num);
+          }, 0);
+
+          prendasIngresadas2026Calculated[monthIdx] += qty;
+        }
+      });
+      setIngresosPrendas2026(prendasIngresadas2026Calculated);
+
       // 6. Consolidación de Cache
       const newStats: CachedDashboardStats = {
         metrics: {
@@ -555,6 +662,8 @@ export default function DashboardPage() {
           collectionStats: getCollectionMonthlyStats(),
           production2026: production2026Calculated,
           production2025: PRODUCTION_2025,
+          prendasIngresadas2026: prendasIngresadas2026Calculated,
+          prendasIngresadas2025: PRENDAS_INGRESADAS_2025,
           dispatches2026: dispatches2026Calculated,
           dispatches2025: DISPATCHES_2025,
           billing2026: billing2026Calculated,
@@ -607,6 +716,29 @@ export default function DashboardPage() {
     [String(currentYear - 1)]: production2025[idx],
     [String(currentYear)]: production2026[idx],
   }));
+
+  // 7b. Cálculos para comparativa anual de PRENDAS FÍSICAS INGRESADAS (2025 vs 2026)
+  const currentIngresoMonthName = MONTH_NAMES[selectedIngresoMonthIdx];
+  const currentIngresoPrendas2026 = (stats?.metrics?.prendasIngresadas2026 && stats.metrics.prendasIngresadas2026[selectedIngresoMonthIdx] > 0)
+    ? stats.metrics.prendasIngresadas2026[selectedIngresoMonthIdx]
+    : (ingresosPrendas2026[selectedIngresoMonthIdx] || 0);
+  const currentIngresoPrendas2025 = PRENDAS_INGRESADAS_2025[selectedIngresoMonthIdx] || 0;
+  
+  const diffIngresoPrendas = currentIngresoPrendas2026 - currentIngresoPrendas2025;
+  const ingresoPrendasGrowthPct = currentIngresoPrendas2025 > 0
+    ? (diffIngresoPrendas / currentIngresoPrendas2025) * 100
+    : 0;
+
+  const comparisonPrendasIngresadasChartData = MONTH_NAMES.map((name, idx) => {
+    const val2026 = (stats?.metrics?.prendasIngresadas2026 && stats.metrics.prendasIngresadas2026[idx] > 0)
+      ? stats.metrics.prendasIngresadas2026[idx]
+      : (ingresosPrendas2026[idx] || 0);
+    return {
+      name: name.substring(0, 3).toUpperCase(),
+      [String(currentYear - 1)]: PRENDAS_INGRESADAS_2025[idx],
+      [String(currentYear)]: val2026,
+    };
+  });
 
   // Métricas comparativas de Salidas
   const dispatches2026 = stats?.metrics?.dispatches2026 || Array(12).fill(0);
@@ -786,6 +918,138 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* TARJETA NUEVA EXCLUSIVA: COMPARATIVO DE PRENDAS FÍSICAS INGRESADAS (2025 vs 2026) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-1 flex flex-col justify-between group hover:border-cyan-500/40 transition-all">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-cyan-500/10 rounded-xl flex items-center justify-center text-cyan-500">
+                      <Shirt className="h-4 w-4" />
+                    </div>
+                    <span>Prendas Ingresadas</span>
+                  </div>
+                  
+                  {/* Controles de Mes Interactivo */}
+                  <div className="flex items-center gap-1.5">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handlePrevIngresoMonth}
+                      className="h-8 w-8 rounded-lg border-border hover:bg-muted text-foreground transition-all flex items-center justify-center font-bold"
+                      title="Mes anterior"
+                    >
+                      ←
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handleNextIngresoMonth}
+                      className="h-8 w-8 rounded-lg border-border hover:bg-muted text-foreground transition-all flex items-center justify-center font-bold"
+                      title="Mes siguiente"
+                    >
+                      →
+                    </Button>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-10 pb-10 flex-1 flex flex-col justify-between space-y-6">
+                <div className="space-y-4">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    Mes Equivalente (Físico)
+                  </div>
+                  <h4 className="text-xl font-bold uppercase text-foreground">
+                    {currentIngresoMonthName} {currentYear} vs {currentYear - 1}
+                  </h4>
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-2">
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Ingresadas {currentYear}</span>
+                      <p className="text-2xl font-black text-cyan-500 tracking-tight">
+                        {currentIngresoPrendas2026.toLocaleString('es-EC')} <span className="text-sm font-normal text-muted-foreground">unds</span>
+                      </p>
+                    </div>
+                    <div className="space-y-1 border-l border-border pl-4">
+                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Ingresadas {currentYear - 1}</span>
+                      <p className="text-2xl font-black text-muted-foreground/80 tracking-tight">
+                        {currentIngresoPrendas2025.toLocaleString('es-EC')} <span className="text-sm font-normal text-muted-foreground">unds</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Variación Neta</span>
+                    <span className={`text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1 ${ingresoPrendasGrowthPct >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
+                      {ingresoPrendasGrowthPct >= 0 ? "+" : ""}{ingresoPrendasGrowthPct.toFixed(1)}% ({diffIngresoPrendas >= 0 ? `+${diffIngresoPrendas.toLocaleString('es-EC')}` : diffIngresoPrendas.toLocaleString('es-EC')})
+                    </span>
+                  </div>
+                  <div className="relative pt-1">
+                    <div className="overflow-hidden h-3 text-xs flex rounded-full bg-muted">
+                      {ingresoPrendasGrowthPct >= 0 ? (
+                        <>
+                          <div style={{ width: '50%' }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted-foreground/10"></div>
+                          <div style={{ width: `${Math.min(50, ingresoPrendasGrowthPct)}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-cyan-500 transition-all"></div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ width: `${Math.max(0, 50 - Math.abs(ingresoPrendasGrowthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted"></div>
+                          <div style={{ width: `${Math.min(50, Math.abs(ingresoPrendasGrowthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-rose-500 transition-all"></div>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground mt-1 tracking-widest">
+                      <span>-50%</span>
+                      <span>0% (Paridad)</span>
+                      <span>+50%</span>
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-muted-foreground/60 italic mt-2">
+                    * Métrica exclusiva de prendas físicas ingresadas (independiente de facturación o despacho).
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Gráfico de Comparación Anual de Prendas Ingresadas */}
+            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-2 group hover:border-cyan-500/40 transition-all">
+              <CardHeader className="px-10 pt-10 pb-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
+                  <div className="h-8 w-8 bg-cyan-500/10 rounded-xl flex items-center justify-center text-cyan-500">
+                    <TrendingUp className="h-4 w-4" />
+                  </div>
+                  Comparativo de Ingreso Real de Prendas (2025 vs 2026)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="h-[300px] px-10 pb-10">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparisonPrendasIngresadasChartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }} 
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }}
+                      tickFormatter={(val) => val >= 1000 ? `${(val / 1000)}k` : val}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '16px', color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '12px' }}
+                      formatter={(value: any) => [`${Number(value).toLocaleString('es-EC')} prendas`, '']}
+                    />
+                    <Bar dataKey={String(currentYear - 1)} fill="hsl(var(--muted-foreground)/0.4)" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear - 1} (Fijo)`} />
+                    <Bar dataKey={String(currentYear)} fill="#06b6d4" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear} (Real)`} />
+                  </BarChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
           </div>
