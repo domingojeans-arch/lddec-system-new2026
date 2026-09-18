@@ -491,10 +491,15 @@ export default function BancosPage() {
                   <div className="space-y-1.5">
                     <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Nombre de Entidad</Label>
                     <Input 
+                      type="text"
+                      autoComplete="on"
+                      autoCorrect="on"
+                      spellCheck={true}
+                      autoCapitalize="words"
                       placeholder="EJ: BCO. PICHINCHA - CORRIENTE" 
                       value={accForm.nombre} 
                       onChange={e => setAccForm({...accForm, nombre: e.target.value})} 
-                      className="erp-input h-11 font-bold uppercase" 
+                      className="erp-input h-11 font-bold" 
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -699,10 +704,13 @@ export default function BancosPage() {
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Número de Documento</Label>
                   <Input 
+                    type="text"
+                    autoComplete="off"
+                    autoCapitalize="characters"
                     placeholder="CHQ-1234 / REF-..."
                     value={txForm.numeroDocumento}
                     onChange={e => setTxForm({...txForm, numeroDocumento: e.target.value})}
-                    className="erp-input h-14 font-black text-center uppercase" 
+                    className="erp-input h-14 font-black text-center" 
                   />
                 </div>
               </div>
@@ -710,10 +718,15 @@ export default function BancosPage() {
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Concepto / Glosa</Label>
                 <Input 
+                  type="text"
+                  autoComplete="on"
+                  autoCorrect="on"
+                  spellCheck={true}
+                  autoCapitalize="sentences"
                   placeholder="MOTIVO DEL MOVIMIENTO BANCARIO..."
                   value={txForm.concepto}
                   onChange={e => setTxForm({...txForm, concepto: e.target.value})}
-                  className="erp-input h-12 font-bold uppercase" 
+                  className="erp-input h-12 font-bold" 
                 />
               </div>
 

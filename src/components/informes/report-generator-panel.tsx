@@ -54,8 +54,8 @@ const ALL_REPORT_TYPES = [
   "Informe de Ingresos vs. Facturación",
   "Informe de Facturación vs. Cobranzas",
   "Informe Detallado de Ventas (Libro de Ventas)",
+  "Estado de Cuenta Semanal por Cliente",
   "Estado de Cuentas por Cliente a Fecha de Corte",
-  "Estado de Cuenta Detallado (Formato Contable)",
   "Informe Detallado de Cobranzas",
   "Informe de Movimientos Bancarios",
   "Informe Detallado de Manualidades",
@@ -135,7 +135,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
   }, []);
 
   const handleGenerate = async () => {
-    if (filters.type === "Estado de Cuenta Detallado (Formato Contable)" && filters.clientId === "all") {
+    if ((filters.type === "Estado de Cuenta Semanal por Cliente" || filters.type === "Estado de Cuenta Detallado (Formato Contable)") && filters.clientId === "all") {
       toast({ variant: "destructive", title: "Seleccione un socio industrial para generar el estado de cuenta." });
       return;
     }
@@ -231,7 +231,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           let parsedDate = d.fechaFactura?.toDate ? d.fechaFactura.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.invoiceDate ? new Date(d.invoiceDate) : d.date ? new Date(d.date) : d.timestamp ? new Date(d.timestamp) : null;
           return parsedDate && parsedDate >= fromDate && parsedDate <= toDateObj;
         });
-        // Fetch payments dynamically from facturas and clients
+        // Fetch payments dynamically from facturas and payments collection
         const allFacturaPayments = raw.flatMap((inv: any) => {
            const pagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
            return pagos.map((p: any) => ({
@@ -243,13 +243,33 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
            }));
         });
 
-        const clientsSnap = await getDocs(collection(db, "clients"));
-        let rawClients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (hasClientFilter && filters.clientId !== "all") {
-            rawClients = rawClients.filter((c: any) => c.id === filters.clientId);
+        let paymentsDocs: any[] = [];
+        try {
+          const pSnap = await getDocs(collection(db, "payments"));
+          paymentsDocs = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          if (hasClientFilter && filters.clientId !== "all") {
+            paymentsDocs = paymentsDocs.filter((p: any) => p.clientId === filters.clientId || p.clienteId === filters.clientId);
+          }
+        } catch (e) {
+          console.warn("Could not fetch payments collection:", e);
         }
-        let filteredPayments = [...allFacturaPayments];
-        data.payments = filterPaymentsByDate(filteredPayments, new Date("2026-01-01T00:00:00"), toDateObj);
+
+        const uniquePaymentsMap = new Map<string, any>();
+        allFacturaPayments.forEach((p: any) => {
+          const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
+          const key = p.id || `${pDate?.getTime() || 0}_${p.monto}_${p.tipoTransaccion || p.tipo}_${p.facturaId || ''}`;
+          uniquePaymentsMap.set(key, p);
+        });
+        paymentsDocs.forEach((p: any) => {
+          const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
+          const key = p.id || `${pDate?.getTime() || 0}_${p.monto}_${p.tipoTransaccion || p.tipo}_${p.numeroFactura || p.facturaId || ''}`;
+          if (!uniquePaymentsMap.has(key)) {
+            uniquePaymentsMap.set(key, p);
+          }
+        });
+
+        const allPayments = Array.from(uniquePaymentsMap.values());
+        data.payments = filterPaymentsByDate(allPayments, new Date("2026-01-01T00:00:00"), toDateObj);
 
       }
 
@@ -433,7 +453,17 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
               dateTo={filters.dateTo} 
             />
           )}
-          {filters.type === "Estado de Cuenta Detallado (Formato Contable)" && <StatementOfAccountsDetailed client={clients.find(c => c.id === filters.clientId) || {}} invoices={reportData.allInvoices || reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
+          {(filters.type === "Estado de Cuenta Semanal por Cliente" || filters.type === "Estado de Cuenta Detallado (Formato Contable)") && (
+            <StatementOfAccountsDetailed 
+              client={clients.find(c => c.id === filters.clientId) || {}} 
+              clients={clients}
+              invoices={reportData.allInvoices || reportData.invoices} 
+              payments={reportData.payments}
+              dateFrom={filters.dateFrom} 
+              dateTo={filters.dateTo} 
+              onSelectClient={(cId) => setFilters(prev => ({ ...prev, clientId: cId }))}
+            />
+          )}
           {filters.type === "Informe Detallado de Cobranzas" && <CollectionsDetailedReport collections={[...(reportData.payments || []), ...(reportData.allInvoices || reportData.invoices || [])]} dateFrom={filters.dateFrom} dateTo={filters.dateTo} client={filters.clientId === "all" ? null : clients.find(c => c.id === filters.clientId)} />}
         </div>
       )}
