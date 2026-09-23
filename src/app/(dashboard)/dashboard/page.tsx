@@ -159,14 +159,7 @@ export default function DashboardPage() {
 
     const loadIngresos2026Once = async () => {
       try {
-        const startOfYearTs = Timestamp.fromDate(new Date(currentYear, 0, 1));
-        let snap;
-        try {
-          snap = await getDocs(query(collection(db, "entries"), where("date", ">=", startOfYearTs)));
-        } catch {
-          snap = await getDocs(collection(db, "entries"));
-        }
-
+        const snap = await getDocs(collection(db, "entries"));
         const totals = Array(12).fill(0);
         snap.docs.forEach(docSnap => {
           const e = docSnap.data();
@@ -174,26 +167,31 @@ export default function DashboardPage() {
           if (d && d.getFullYear() === currentYear) {
             const monthIdx = d.getMonth();
             const lotes = e.lotes || e.lots || [];
-            const qty = lotes.reduce((acc: number, l: any) => {
-              const val = l.quantityToDispatch ??
-                          l.cantidadConfirmada ??
-                          l.quantity ??
-                          l.cantidad ??
-                          l.totalPrendas ??
-                          l.total ?? null;
+            let qty = 0;
+            if (lotes.length > 0) {
+              qty = lotes.reduce((acc: number, l: any) => {
+                const val = l.quantityToDispatch ??
+                            l.cantidadConfirmada ??
+                            l.quantity ??
+                            l.cantidad ??
+                            l.totalPrendas ??
+                            l.total ?? null;
 
-              if (val == null || Number(val) === 0) {
-                if (Array.isArray(l.garments) && l.garments.length > 0) {
-                  const garmentSum = l.garments.reduce((gAcc: number, g: any) => {
-                    const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
-                    return gAcc + (isNaN(gVal) ? 0 : gVal);
-                  }, 0);
-                  if (garmentSum > 0) return acc + garmentSum;
+                if (val == null || Number(val) === 0) {
+                  if (Array.isArray(l.garments) && l.garments.length > 0) {
+                    const garmentSum = l.garments.reduce((gAcc: number, g: any) => {
+                      const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
+                      return gAcc + (isNaN(gVal) ? 0 : gVal);
+                    }, 0);
+                    if (garmentSum > 0) return acc + garmentSum;
+                  }
                 }
-              }
-              const num = Number(val);
-              return acc + (isNaN(num) || !isFinite(num) ? 0 : num);
-            }, 0);
+                const num = Number(val);
+                return acc + (isNaN(num) || !isFinite(num) ? 0 : num);
+              }, 0);
+            } else {
+              qty = Number(e.totalPrendas || e.cantidad || e.total || 0);
+            }
 
             totals[monthIdx] += qty;
           }
@@ -231,7 +229,7 @@ export default function DashboardPage() {
       }
 
       const [entriesSnap, outputsSnap, legacySalidasSnap, legacyMuestrasSnap, invoicesSnap, paymentsSnap] = await Promise.all([
-        getDocs(query(collection(db, "entries"), where("date", ">=", startOfYearTs))),
+        getDocs(collection(db, "entries")),
         getDocs(query(collection(db, "outputs"), where("date", ">=", startOfYearTs))),
         getDocs(query(collection(db, "salidas"), where("fechaSalida", ">=", startOfYearTs))),
         getDocs(query(collection(db, "muestras"), where("fecha", ">=", startOfYearTs))),
@@ -248,15 +246,43 @@ export default function DashboardPage() {
       const invoicesRaw = invoicesSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
       const paymentsRaw = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
+      // Helper de cálculo de prendas físicas normalizadas (Idéntico a Resumen de Inventario)
+      const getEntryNormalizedQty = (e: any) => {
+        const lotes = e.lotes || e.lots || [];
+        if (lotes.length > 0) {
+          return lotes.reduce((acc: number, l: any) => {
+            const val = l.quantityToDispatch ??
+                        l.cantidadConfirmada ??
+                        l.quantity ??
+                        l.cantidad ??
+                        l.totalPrendas ??
+                        l.total ?? null;
+
+            if (val == null || Number(val) === 0) {
+              if (Array.isArray(l.garments) && l.garments.length > 0) {
+                const garmentSum = l.garments.reduce((gAcc: number, g: any) => {
+                  const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
+                  return gAcc + (isNaN(gVal) ? 0 : gVal);
+                }, 0);
+                if (garmentSum > 0) return acc + garmentSum;
+              }
+            }
+            const num = Number(val);
+            return acc + (isNaN(num) || !isFinite(num) ? 0 : num);
+          }, 0);
+        }
+        return Number(e.totalPrendas || e.cantidad || e.total || 0);
+      };
+
       // 2. Cálculos de KPIs
       const today = new Date();
       const currentMonth = today.getMonth();
       const currentMonthYear = today.getFullYear();
 
       const ingresadasMes = entriesRaw.filter(e => {
-        const d = toDate(e.date || e.entryDate);
-        return d && d.getMonth() === currentMonth && d.getFullYear() === currentMonthYear && e.isSample !== true;
-      }).reduce((acc, e) => acc + (e.lotes || []).reduce((lAcc: number, l: any) => lAcc + (Number(l.cantidadConfirmada || l.quantity || l.cantidad || 0)), 0), 0);
+        const d = toDate(e.date || e.entryDate || e.fecha || e.createdAt);
+        return d && d.getMonth() === currentMonth && d.getFullYear() === currentMonthYear;
+      }).reduce((acc, e) => acc + getEntryNormalizedQty(e), 0);
 
       const despachadasMes = outputsRaw.filter(o => {
         const d = toDate(o.date || o.fechaSalida || o.createdAt);
@@ -624,29 +650,7 @@ export default function DashboardPage() {
         const d = toDate(e.date || e.entryDate || e.fecha || e.createdAt);
         if (d && d.getFullYear() === currentYear) {
           const monthIdx = d.getMonth();
-          const lotes = e.lotes || e.lots || [];
-          const qty = lotes.reduce((acc: number, l: any) => {
-            const val = l.quantityToDispatch ??
-                        l.cantidadConfirmada ??
-                        l.quantity ??
-                        l.cantidad ??
-                        l.totalPrendas ??
-                        l.total ?? null;
-
-            if (val == null || Number(val) === 0) {
-              if (Array.isArray(l.garments) && l.garments.length > 0) {
-                const garmentSum = l.garments.reduce((gAcc: number, g: any) => {
-                  const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
-                  return gAcc + (isNaN(gVal) ? 0 : gVal);
-                }, 0);
-                if (garmentSum > 0) return acc + garmentSum;
-              }
-            }
-            const num = Number(val);
-            return acc + (isNaN(num) || !isFinite(num) ? 0 : num);
-          }, 0);
-
-          prendasIngresadas2026Calculated[monthIdx] += qty;
+          prendasIngresadas2026Calculated[monthIdx] += getEntryNormalizedQty(e);
         }
       });
       setIngresosPrendas2026(prendasIngresadas2026Calculated);
@@ -654,7 +658,7 @@ export default function DashboardPage() {
       // 6. Consolidación de Cache
       const newStats: CachedDashboardStats = {
         metrics: {
-          ingresadasMes,
+          ingresadasMes: prendasIngresadas2026Calculated[currentMonth] || ingresadasMes,
           despachadasMes,
           avgDelivery: avgDeliveryCalculated, 
           billingStats: getMonthlyStats(false),
@@ -823,7 +827,10 @@ export default function DashboardPage() {
               <CardContent className="p-10 space-y-2">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] group-hover:text-primary transition-colors">INGRESADAS (MES)</p>
                 <h3 className="text-5xl font-black text-foreground tracking-tighter">
-                  {stats.metrics.ingresadasMes.toLocaleString('es-ES')}
+                  {((ingresosPrendas2026[currentMonth] > 0 
+                    ? ingresosPrendas2026[currentMonth] 
+                    : (stats.metrics.prendasIngresadas2026?.[currentMonth] || stats.metrics.ingresadasMes || 0)
+                  )).toLocaleString('es-ES')}
                 </h3>
               </CardContent>
             </Card>
