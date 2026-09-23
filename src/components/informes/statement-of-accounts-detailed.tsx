@@ -108,7 +108,9 @@ export function StatementOfAccountsDetailed({
         : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
       
       movs.forEach((m: any) => {
-        if (!m || m.anulado) return;
+        if (!m) return;
+        const isAnulado = Boolean(m.anulado) || m.estado === "anulado" || m.estado === "Anulado" || m.status === "anulado";
+        if (isAnulado) return;
         const pDate = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
         const key = m.id || `${pDate?.getTime() || 0}_${m.monto}_${m.tipoTransaccion || m.tipo}_${inv.numeroFactura || inv.id}`;
         uniqueMap.set(key, {
@@ -119,9 +121,18 @@ export function StatementOfAccountsDetailed({
       });
     });
 
-    // Pagos globales
+    // Pagos globales (excluyendo saldoInicial, ya que se toma exclusivamente de client.pagosSaldoInicial)
     (payments || []).forEach((p: any) => {
-      if (!p || p.anulado) return;
+      if (!p) return;
+      const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
+      if (isAnulado) return;
+
+      const isSI = p.origen === "saldoInicial" || 
+                   p.facturaId === "INITIAL_BALANCE_2026" || 
+                   p.numeroFactura === "SALDO INICIAL 2026" || 
+                   p.tipoTransaccion === "PAGO_INICIAL";
+      if (isSI) return;
+
       if (p.clienteId === client.id || p.clientId === client.id) {
         const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
         const key = p.id || `${pDate?.getTime() || 0}_${p.monto}_${p.tipoTransaccion || p.tipo}_${p.numeroFactura || p.facturaId || ""}`;
@@ -131,10 +142,12 @@ export function StatementOfAccountsDetailed({
       }
     });
 
-    // Pagos de saldo inicial registrados en el cliente
+    // Pagos de saldo inicial registrados en el cliente (Única fuente de verdad para Saldo Inicial)
     const pagosSI = Array.isArray(client.pagosSaldoInicial) ? client.pagosSaldoInicial : [];
     pagosSI.forEach((p: any) => {
-      if (!p || p.anulado) return;
+      if (!p) return;
+      const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
+      if (isAnulado) return;
       const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
       const key = p.id || `SI_${pDate?.getTime() || 0}_${p.monto}`;
       if (!uniqueMap.has(key)) {
@@ -217,7 +230,9 @@ export function StatementOfAccountsDetailed({
 
     // Pagos, abonos y notas en el período
     clientPayments.forEach(p => {
-      if (!p || p.anulado) return;
+      if (!p) return;
+      const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
+      if (isAnulado) return;
       const d = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
       if (!d || d < from || d > to) return;
 

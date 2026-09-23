@@ -58,6 +58,14 @@ export function calculateClientAccountingMetrics(
   // Use helper to filter payments within the period
   const filteredPayments = filterPaymentsByDate(payments, FECHA_BASE_2026, to);
   filteredPayments.forEach(p => {
+    // IMPORTANTE: Los pagos a saldo inicial se procesan de forma exclusiva y autoritativa en el paso 3
+    // a través de clientData.pagosSaldoInicial para evitar duplicaciones y respetar anulaciones.
+    const isSI = p.origen === 'saldoInicial' || 
+                 p.facturaId === 'INITIAL_BALANCE_2026' || 
+                 p.numeroFactura === 'SALDO INICIAL 2026' || 
+                 p.tipoTransaccion === 'PAGO_INICIAL';
+    if (isSI) return;
+
     const monto = Number(p.monto || 0);
     const tipo = (p.tipoTransaccion || "").toString();
     let impact = 0;
@@ -131,8 +139,10 @@ export function calculateClientAccountingMetrics(
 export function filterPaymentsByDate(payments: any[], fromDate: Date, toDateVal: Date): any[] {
   const from = fromDate instanceof Date ? fromDate : new Date(fromDate);
   const to = toDateVal instanceof Date ? toDateVal : new Date(toDateVal);
-  return payments.filter(p => {
-    if (p.anulado) return false;
+  return (payments || []).filter(p => {
+    if (!p) return false;
+    const isAnulado = Boolean(p.anulado) || p.estado === 'anulado' || p.estado === 'Anulado' || p.status === 'anulado';
+    if (isAnulado) return false;
     const d = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
     if (!d) return false;
     return d >= from && d <= to;

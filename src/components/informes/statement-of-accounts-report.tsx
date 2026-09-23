@@ -53,9 +53,12 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         // 1. Filtrar los pagos globales correspondientes a este cliente
         // No necesitamos procesar clientInvoices porque 'payments' ya incluye 
         // todos los pagos de facturas y los pagos de saldo inicial.
-        const clientPayments = (payments || []).filter((p: any) => 
-          p && !p.anulado && (p.clienteId === client.id || p.clientId === client.id)
-        );
+        const clientPayments = (payments || []).filter((p: any) => {
+          if (!p) return false;
+          const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
+          if (isAnulado) return false;
+          return p.clienteId === client.id || p.clientId === client.id;
+        });
 
         const metrics = calculateClientAccountingMetrics(
           Number(client.baseDebt || client.saldoInicial || 0),

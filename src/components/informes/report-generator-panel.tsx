@@ -256,11 +256,22 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
 
         const uniquePaymentsMap = new Map<string, any>();
         allFacturaPayments.forEach((p: any) => {
+          const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
+          if (isAnulado) return;
           const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
           const key = p.id || `${pDate?.getTime() || 0}_${p.monto}_${p.tipoTransaccion || p.tipo}_${p.facturaId || ''}`;
           uniquePaymentsMap.set(key, p);
         });
         paymentsDocs.forEach((p: any) => {
+          const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
+          if (isAnulado) return;
+          // Excluir pagos de saldo inicial porque su única fuente autoritativa es client.pagosSaldoInicial
+          const isSI = p.origen === "saldoInicial" || 
+                       p.facturaId === "INITIAL_BALANCE_2026" || 
+                       p.numeroFactura === "SALDO INICIAL 2026" || 
+                       p.tipoTransaccion === "PAGO_INICIAL";
+          if (isSI) return;
+
           const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
           const key = p.id || `${pDate?.getTime() || 0}_${p.monto}_${p.tipoTransaccion || p.tipo}_${p.numeroFactura || p.facturaId || ''}`;
           if (!uniquePaymentsMap.has(key)) {

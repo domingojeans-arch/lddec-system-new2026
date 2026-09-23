@@ -61,14 +61,18 @@ function PrintContent() {
                 : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
               
               invoiceMovs.forEach((m: any) => {
-                if (!m || m.anulado) return;
+                if (!m) return;
+                const isAnulado = Boolean(m.anulado) || m.estado === "anulado" || m.estado === "Anulado" || m.status === "anulado";
+                if (isAnulado) return;
                 const pDate = toDate(m.fechaTransaccion || m.fecha || m.createdAt);
                 const key = `${m.tipoTransaccion || m.tipo || 'PAGO'}-${Number(m.monto || 0)}-${pDate?.getTime() || 0}`;
                 uniqueMvs.set(key, m);
               });
 
               const globalPayDocs = payments.filter((p: any) => {
-                if (!p || p.anulado) return false;
+                if (!p) return false;
+                const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
+                if (isAnulado) return false;
                 const matchFacturaId = p.facturaId && inv.id && String(p.facturaId).trim().toUpperCase() === String(inv.id).trim().toUpperCase();
                 const matchNumeroFactura = p.numeroFactura && inv.numeroFactura && String(p.numeroFactura).trim().toUpperCase() === String(inv.numeroFactura).trim().toUpperCase();
                 return matchFacturaId || matchNumeroFactura;
@@ -76,6 +80,8 @@ function PrintContent() {
 
               globalPayDocs.forEach((p: any) => {
                 if (!p) return;
+                const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
+                if (isAnulado) return;
                 const pDate = toDate(p.fechaTransaccion || p.fecha || p.createdAt);
                 const key = `${p.tipoTransaccion || 'PAGO'}-${Number(p.monto || 0)}-${pDate?.getTime() || 0}`;
                 if (!uniqueMvs.has(key)) {

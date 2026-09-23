@@ -685,6 +685,26 @@ export default function HistorialPage() {
         );
         await updateDoc(clientRef, { pagosSaldoInicial: updatedPagos, updatedAt: serverTimestamp() });
 
+        // Sincronizar anulación en la colección global payments si existiese el documento espejo
+        try {
+          const pSnap = await getDocs(query(
+            collection(db, "payments"),
+            where("clienteId", "==", docId)
+          ));
+          pSnap.docs.forEach(async (dSnap) => {
+            const data = dSnap.data();
+            if (data.id === paymentId || dSnap.id === paymentId) {
+              await updateDoc(doc(db, "payments", dSnap.id), {
+                anulado: true,
+                anuladoAt: new Date().toISOString(),
+                anuladoPor: authUser?.displayName || "Admin"
+              });
+            }
+          });
+        } catch (e) {
+          console.warn("[handleAnnullPayment] Error sync payments collection:", e);
+        }
+
       } else {
         // ── PAGO VINCULADO A FACTURA ─────────────────────────────
         const invRef = doc(db, "facturas", docId);
@@ -751,6 +771,26 @@ export default function HistorialPage() {
           estadoCobranza: nuevoEstado,
           updatedAt: serverTimestamp()
         });
+
+        // Sincronizar anulación en payments global si existiese documento espejo
+        try {
+          const pSnap = await getDocs(query(
+            collection(db, "payments"),
+            where("facturaId", "==", docId)
+          ));
+          pSnap.docs.forEach(async (dSnap) => {
+            const data = dSnap.data();
+            if (data.id === paymentId || dSnap.id === paymentId) {
+              await updateDoc(doc(db, "payments", dSnap.id), {
+                anulado: true,
+                anuladoAt: new Date().toISOString(),
+                anuladoPor: authUser?.displayName || "Admin"
+              });
+            }
+          });
+        } catch (e) {
+          console.warn("[handleAnnullPayment] Error sync payments collection for invoice:", e);
+        }
       }
 
       toast({
