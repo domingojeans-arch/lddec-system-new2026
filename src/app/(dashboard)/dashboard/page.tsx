@@ -89,6 +89,7 @@ export default function DashboardPage() {
   const [selectedIngresoMonthIdx, setSelectedIngresoMonthIdx] = useState<number>(new Date().getMonth());
   const [ingresosPrendas2026, setIngresosPrendas2026] = useState<number[]>(() => Array(12).fill(0));
   const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
 
   const handlePrevMonth = () => {
     setSelectedMonthIdx((prev) => (prev === 0 ? 11 : prev - 1));
@@ -702,24 +703,8 @@ export default function DashboardPage() {
     );
   }
 
-  // 7. Cálculos para comparativa anual de producción
+  // 7. Cálculos para comparativa anual (Despachos y Facturación)
   const currentMonthName = MONTH_NAMES[selectedMonthIdx];
-  
-  const production2026 = stats?.metrics?.production2026 || Array(12).fill(0);
-  const production2025 = stats?.metrics?.production2025 || PRODUCTION_2025;
-  
-  const currentProduction2026 = production2026[selectedMonthIdx] || 0;
-  const currentProduction2025 = production2025[selectedMonthIdx] || 0;
-  
-  const growthPct = currentProduction2025 > 0 
-    ? ((currentProduction2026 - currentProduction2025) / currentProduction2025) * 100 
-    : 0;
-
-  const comparisonChartData = MONTH_NAMES.map((name, idx) => ({
-    name: name.substring(0, 3).toUpperCase(),
-    [String(currentYear - 1)]: production2025[idx],
-    [String(currentYear)]: production2026[idx],
-  }));
 
   // 7b. Cálculos para comparativa anual de PRENDAS FÍSICAS INGRESADAS (2025 vs 2026)
   const currentIngresoMonthName = MONTH_NAMES[selectedIngresoMonthIdx];
@@ -1061,134 +1046,6 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* NUEVO COMPARATIVO DE INGRESOS ANUALES (2025 vs 2026) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Indicador Visual / Barra de Estado Limpia */}
-            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-1 flex flex-col justify-between group hover:border-primary/30 transition-all">
-              <CardHeader className="px-10 pt-10 pb-4">
-                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                      {growthPct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    </div>
-                    <span>Crecimiento de Producción</span>
-                  </div>
-                  
-                  {/* Controles de Mes Interactivo */}
-                  <div className="flex items-center gap-1.5">
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={handlePrevMonth}
-                      className="h-8 w-8 rounded-lg border-border hover:bg-muted text-foreground transition-all flex items-center justify-center font-bold"
-                    >
-                      ←
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon" 
-                      onClick={handleNextMonth}
-                      className="h-8 w-8 rounded-lg border-border hover:bg-muted text-foreground transition-all flex items-center justify-center font-bold"
-                    >
-                      →
-                    </Button>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-10 pb-10 flex-1 flex flex-col justify-between space-y-6">
-                <div className="space-y-4">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                    Mes Equivalente
-                  </div>
-                  <h4 className="text-xl font-bold uppercase text-foreground">
-                    {currentMonthName} {currentYear} vs {currentYear - 1}
-                  </h4>
-                  
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div className="space-y-1">
-                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Ingresos {currentYear}</span>
-                      <p className="text-2xl font-black text-primary tracking-tight">
-                        {currentProduction2026.toLocaleString('es-EC')} <span className="text-sm font-normal text-muted-foreground">unds</span>
-                      </p>
-                    </div>
-                    <div className="space-y-1 border-l border-border pl-4">
-                      <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Ingresos {currentYear - 1}</span>
-                      <p className="text-2xl font-black text-muted-foreground/80 tracking-tight">
-                        {currentProduction2025.toLocaleString('es-EC')} <span className="text-sm font-normal text-muted-foreground">unds</span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 pt-4 border-t border-border">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tasa de Crecimiento</span>
-                    <span className={`text-xs font-black px-2.5 py-1 rounded-full flex items-center gap-1 ${growthPct >= 0 ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}`}>
-                      {growthPct >= 0 ? "+" : ""}{growthPct.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="relative pt-1">
-                    <div className="overflow-hidden h-3 text-xs flex rounded-full bg-muted">
-                      {growthPct >= 0 ? (
-                        <>
-                          <div style={{ width: '50%' }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted-foreground/10"></div>
-                          <div style={{ width: `${Math.min(50, growthPct)}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-emerald-500 transition-all"></div>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{ width: `${Math.max(0, 50 - Math.abs(growthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-muted"></div>
-                          <div style={{ width: `${Math.min(50, Math.abs(growthPct))}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-rose-500 transition-all"></div>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex justify-between text-[8px] font-black uppercase text-muted-foreground mt-1 tracking-widest">
-                      <span>-50%</span>
-                      <span>0% (Paridad)</span>
-                      <span>+50%</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Gráfico de Comparación Anual */}
-            <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-2 group hover:border-primary/30 transition-all">
-              <CardHeader className="px-10 pt-10 pb-4">
-                <CardTitle className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-3">
-                  <div className="h-8 w-8 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                    <TrendingUp className="h-4 w-4" />
-                  </div>
-                  Comparativo de Ingreso de Prendas Mensual
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[300px] px-10 pb-10">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={comparisonChartData} margin={{ top: 20, right: 10, left: 10, bottom: 0 }}>
-                    <XAxis 
-                      dataKey="name" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }} 
-                    />
-                    <YAxis 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: 'currentColor', opacity: 0.5, fontSize: 10, fontWeight: '900' }}
-                      tickFormatter={(val) => val >= 1000 ? `${(val / 1000)}k` : val}
-                    />
-                    <Tooltip 
-                      cursor={{ fill: 'hsl(var(--muted)/0.3)' }}
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '16px', color: 'hsl(var(--foreground))', fontWeight: 'bold', fontSize: '12px' }}
-                      formatter={(value: any) => [`${Number(value).toLocaleString('es-EC')} prendas`, '']}
-                    />
-                    <Bar dataKey={String(currentYear - 1)} fill="hsl(var(--muted-foreground)/0.4)" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear - 1} (Fijo)`} />
-                    <Bar dataKey={String(currentYear)} fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={12} name={`${currentYear} (Real)`} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* NUEVO COMPARATIVO DE SALIDAS ANUALES (2025 vs 2026) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <Card className="bg-card border-border shadow-premium rounded-[2.5rem] overflow-hidden lg:col-span-1 flex flex-col justify-between group hover:border-primary/30 transition-all">
@@ -1199,6 +1056,28 @@ export default function DashboardPage() {
                       {dispatchesGrowthPct >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
                     </div>
                     <span>Crecimiento de Despachos</span>
+                  </div>
+
+                  {/* Controles de Mes Interactivo */}
+                  <div className="flex items-center gap-1.5">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handlePrevMonth}
+                      className="h-8 w-8 rounded-lg border-border hover:bg-muted text-foreground transition-all flex items-center justify-center font-bold"
+                      title="Mes anterior"
+                    >
+                      ←
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={handleNextMonth}
+                      className="h-8 w-8 rounded-lg border-border hover:bg-muted text-foreground transition-all flex items-center justify-center font-bold"
+                      title="Mes siguiente"
+                    >
+                      →
+                    </Button>
                   </div>
                 </CardTitle>
               </CardHeader>

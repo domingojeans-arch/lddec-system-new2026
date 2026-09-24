@@ -174,6 +174,27 @@ export default function RevisionLotePage() {
   
   const [processCatalog, setProcessCatalog] = useState<LaundryProcess[]>([]);
 
+  // Agrupación alfabética con separadores
+  const groupedProcesses = useMemo(() => {
+    const sorted = [...processCatalog].sort((a, b) => 
+      a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+    );
+
+    const map = new Map<string, LaundryProcess[]>();
+    for (const proc of sorted) {
+      const firstChar = proc.name?.trim().charAt(0).toUpperCase() || '#';
+      const letter = /^[A-ZÑ]$/.test(firstChar) 
+        ? firstChar 
+        : (firstChar.normalize('NFD').replace(/[\u0300-\u036f]/g, '') || '#');
+      if (!map.has(letter)) {
+        map.set(letter, []);
+      }
+      map.get(letter)!.push(proc);
+    }
+
+    return Array.from(map.entries()).map(([letter, items]) => ({ letter, items }));
+  }, [processCatalog]);
+
   // Estados para el nuevo proceso rápido
   const [isNewProcessDialogOpen, setIsNewProcessDialogOpen] = useState(false);
   const [newProcessName, setNewProcessName] = useState("");
@@ -649,30 +670,42 @@ export default function RevisionLotePage() {
                     </Button>
                   )}
                 </h4>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-3">
-                  {processCatalog.map((process) => {
-                    const isSelected = isProcessSelected(process.id);
-                    const colorStyles = getProcessColor(process.name, isSelected);
-                    
-                    return (
-                      <button 
-                        key={process.id} 
-                        onClick={() => toggleProcess(process)} 
-                        className={cn(
-                          "flex items-center gap-2 h-10 px-3 rounded-xl border text-left transition-all group shrink-0", 
-                          colorStyles.button
-                        )}
-                      >
-                        <div className={cn(
-                          "h-4 w-4 rounded-full border flex items-center justify-center shrink-0", 
-                          colorStyles.circle
-                        )}>
-                          {isSelected && <Check className="h-2.5 w-2.5 text-primary" />}
-                        </div>
-                        <span className="text-[9px] font-black uppercase tracking-tighter leading-none">{process.name}</span>
-                      </button>
-                    );
-                  })}
+                <div className="space-y-6">
+                  {groupedProcesses.map(({ letter, items }) => (
+                    <div key={letter} className="space-y-2.5">
+                      <div className="flex items-center gap-3 pt-1">
+                        <span className="text-xs font-black text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-lg tracking-wider">
+                          {letter}
+                        </span>
+                        <div className="h-px bg-border flex-1" />
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-3">
+                        {items.map((process) => {
+                          const isSelected = isProcessSelected(process.id);
+                          const colorStyles = getProcessColor(process.name, isSelected);
+                          
+                          return (
+                            <button 
+                              key={process.id} 
+                              onClick={() => toggleProcess(process)} 
+                              className={cn(
+                                "flex items-center gap-2 h-10 px-3 rounded-xl border text-left transition-all group shrink-0", 
+                                colorStyles.button
+                              )}
+                            >
+                              <div className={cn(
+                                "h-4 w-4 rounded-full border flex items-center justify-center shrink-0", 
+                                colorStyles.circle
+                              )}>
+                                {isSelected && <Check className="h-2.5 w-2.5 text-primary" />}
+                              </div>
+                              <span className="text-[9px] font-black uppercase tracking-tighter leading-none">{process.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
