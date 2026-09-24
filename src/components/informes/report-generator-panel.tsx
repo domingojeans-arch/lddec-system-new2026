@@ -150,6 +150,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
       const data: any = {
         entries: [],
         outputs: [],
+        sampleOutputs: [],
         invoices: [],
         payments: [],
         manualidades: [],
@@ -177,17 +178,63 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
 
       const hasClientFilter = !typeLower.includes("operario") && !isQuimicos;
 
+      const selectedClientObj = clients.find(c => c.id === filters.clientId);
+      const normalizeStr = (s: any) => String(s ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+      const targetClientId = filters.clientId && filters.clientId !== "all" ? normalizeStr(filters.clientId) : "";
+      const targetClientName = selectedClientObj ? normalizeStr(selectedClientObj.name || selectedClientObj.nombre) : "";
+
+      const matchesClientFilter = (docItem: any): boolean => {
+        if (!targetClientId && !targetClientName) return true;
+
+        // 1. Coincidencia por ID directo
+        const docClientId = normalizeStr(docItem.clientId || docItem.clienteId);
+        if (docClientId && (docClientId === targetClientId || (targetClientName && docClientId === targetClientName))) return true;
+
+        // 2. Coincidencia por nombres a nivel de documento
+        const clientNames = [
+          docItem.clienteNombre,
+          docItem.cliente,
+          docItem.clientName,
+          docItem.socio,
+          docItem.customer
+        ].filter(Boolean).map(normalizeStr);
+
+        if (targetClientName && clientNames.some(cn => cn.includes(targetClientName) || targetClientName.includes(cn))) return true;
+
+        // 3. Arreglo de clientes contenidos (containedClientNames)
+        if (Array.isArray(docItem.containedClientNames)) {
+          if (docItem.containedClientNames.some((cn: any) => {
+            const norm = normalizeStr(cn);
+            return (targetClientName && (norm.includes(targetClientName) || targetClientName.includes(norm))) || (targetClientId && norm === targetClientId);
+          })) return true;
+        }
+
+        // 4. Lotes o ítems despachados individuales
+        const subItems = Array.isArray(docItem.itemsDispatched) 
+          ? docItem.itemsDispatched 
+          : (Array.isArray(docItem.lotes) ? docItem.lotes : (Array.isArray(docItem.items) ? docItem.items : []));
+
+        if (subItems.some((it: any) => {
+          const itId = normalizeStr(it.clientId || it.clienteId);
+          if (itId && (itId === targetClientId || (targetClientName && itId === targetClientName))) return true;
+          const itNames = [it.clientName, it.clienteNombre, it.cliente].filter(Boolean).map(normalizeStr);
+          return targetClientName && itNames.some(cn => cn.includes(targetClientName) || targetClientName.includes(cn));
+        })) return true;
+
+        return false;
+      };
+
       if (isIngresos || isFacturacion) {
         const snap = await getDocs(collection(db, "entries"));
         let raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         if (hasClientFilter && filters.clientId !== "all") {
-          raw = raw.filter((d: any) => d.clientId === filters.clientId || d.clienteId === filters.clientId);
+          raw = raw.filter((d: any) => matchesClientFilter(d));
         }
 
         data.allEntries = raw;
         data.entries = raw.filter((d: any) => {
-          let parsedDate = d.date?.toDate ? d.date.toDate() : d.entryDate?.toDate ? d.entryDate.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.fecha ? new Date(d.fecha) : null;
+          const parsedDate = toDate(d.date || d.entryDate || d.createdAt || d.fecha);
           return parsedDate && parsedDate >= fromDate && parsedDate <= toDateObj;
         });
       }
@@ -199,23 +246,53 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           getDocs(collection(db, "muestras"))
         ]);
 
-        let rawOutputs = [
-          ...snapOutputs.docs.map(d => ({ id: d.id, ...d.data() })),
-          ...snapSalidas.docs.map(d => ({ id: d.id, ...d.data() })),
-          ...snapMuestras.docs.map(d => ({ id: d.id, ...d.data() }))
+        let rawOutputs: any[] = [
+          ...snapOutputs.docs.map(d => ({ id: d.id, ...d.data(), _sourceCollection: "outputs" })),
+          ...snapSalidas.docs.map(d => ({ id: d.id, ...d.data(), _sourceCollection: "salidas" })),
+          ...snapMuestras.docs.map(d => ({ id: d.id, ...d.data(), _sourceCollection: "muestras", isSample: true }))
         ];
 
+        // De-duplicación limpia
+        const seenOutputIds = new Set<string>();
+        const uniqueOutputs = rawOutputs.filter(d => {
+          const key = d.id || d.numeroSalida || d.numeroGuia;
+          if (!key || seenOutputIds.has(key)) return false;
+          seenOutputIds.add(key);
+          return true;
+        });
+
+        // Exclusión estricta de documentos anulados
+        const validOutputs = uniqueOutputs.filter(d => {
+          const status = String(d.status || d.estado || "").toUpperCase();
+          return status !== "ANULADO" && status !== "VOID";
+        });
+
+        // Filtrado por socio industrial si aplica
+        let clientFilteredOutputs = validOutputs;
         if (hasClientFilter && filters.clientId !== "all") {
-          rawOutputs = rawOutputs.filter((d: any) => d.clientId === filters.clientId || d.clienteId === filters.clientId);
+          clientFilteredOutputs = validOutputs.filter(d => matchesClientFilter(d));
         }
 
-        data.allOutputs = rawOutputs;
+        data.allOutputs = clientFilteredOutputs;
 
-        data.outputs = rawOutputs.filter((d: any) => {
-          let parsedDate = d.date?.toDate ? d.date.toDate() : d.fechaSalida?.toDate ? d.fechaSalida.toDate() : d.fecha?.toDate ? d.fecha.toDate() : d.createdAt?.toDate ? d.createdAt.toDate() : d.timestamp ? new Date(d.timestamp) : null;
-          if (!parsedDate && (d.date || d.fechaSalida || d.fecha)) parsedDate = new Date(d.date || d.fechaSalida || d.fecha);
+        // Filtrado por rango de fechas
+        const periodOutputs = clientFilteredOutputs.filter((d: any) => {
+          const parsedDate = toDate(d.date || d.fechaSalida || d.fecha || d.createdAt || d.timestamp);
           return parsedDate && parsedDate >= fromDate && parsedDate <= toDateObj;
         });
+
+        // Clasificación Producción vs Muestras
+        const isSampleOutput = (d: any) => {
+          if (d._sourceCollection === "muestras" || d.isSample === true) return true;
+          const tipo = String(d.tipo || d.type || d.tipoSalida || "").toUpperCase();
+          if (tipo.includes("MUESTRA") || tipo.includes("SAMPLE")) return true;
+          const guia = String(d.numeroSalida || d.numeroGuia || d.numero || "").toUpperCase();
+          if (guia.startsWith("MUE")) return true;
+          return false;
+        };
+
+        data.outputs = periodOutputs.filter(d => !isSampleOutput(d));
+        data.sampleOutputs = periodOutputs.filter(d => isSampleOutput(d));
       }
 
       if (isFacturacion) {
@@ -447,7 +524,15 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
             />
           )}
           {filters.type === "Informe de Ingresos Detallado" && <EntriesDetailedReport entries={reportData.entries} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
-          {filters.type === "Informe de Salidas Detallado" && <OutputsDetailedReport prodOutputs={reportData.outputs} sampleOutputs={[]} totals={{ prodPrendas: 0, samplePrendas: 0, totalGeneral: 0 }} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
+          {filters.type === "Informe de Salidas Detallado" && (
+            <OutputsDetailedReport 
+              prodOutputs={reportData.outputs || []} 
+              sampleOutputs={reportData.sampleOutputs || []} 
+              totals={{ prodPrendas: 0, samplePrendas: 0, totalGeneral: 0 }} 
+              dateFrom={filters.dateFrom} 
+              dateTo={filters.dateTo} 
+            />
+          )}
           {filters.type === "Informe Detallado de Ventas (Libro de Ventas)" && <SalesDetailedReport invoices={reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Informe de Ingresos vs. Facturación" && <EntriesVsBillingReport entries={reportData.entries} invoices={reportData.allInvoices || reportData.invoices} dateFrom={filters.dateFrom} dateTo={filters.dateTo} clientId={filters.clientId} />}
           {filters.type === "Informe de Facturación vs. Cobranzas" && <BillingVsCollectionsReport entries={reportData.allEntries || reportData.entries} invoices={reportData.allInvoices || reportData.invoices} payments={reportData.payments} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}

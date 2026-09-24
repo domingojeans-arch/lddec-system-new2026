@@ -6,11 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Printer, TrendingUp, ArrowUpCircle, Package } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toDate } from "@/lib/toDate";
 
 interface OutputsDetailedReportProps {
   prodOutputs: any[];
   sampleOutputs: any[];
-  totals: {
+  totals?: {
     prodPrendas: number;
     samplePrendas: number;
     totalGeneral: number;
@@ -70,21 +71,24 @@ export function cleanClientNames(nameStr: string): string {
 }
 
 function getClientVisible(item: any): string {
-  let rawClient = item?.clienteNombre || item?.cliente || item?.clientName || "";
-  if (!rawClient) {
-    const clientNamesArray = Array.isArray(item?.containedClientNames) ? item.containedClientNames : [];
-    rawClient = clientNamesArray.length > 0 ? clientNamesArray.join(", ") : "S/D";
+  let rawClient = item?.clienteNombre || item?.cliente || item?.clientName || item?.socio || "";
+  if (!rawClient && Array.isArray(item?.containedClientNames) && item.containedClientNames.length > 0) {
+    rawClient = item.containedClientNames.join(", ");
   }
+  if (!rawClient) {
+    const items = Array.isArray(item?.itemsDispatched) ? item.itemsDispatched : (Array.isArray(item?.lotes) ? item.lotes : (Array.isArray(item?.items) ? item.items : []));
+    const itemClients = items.map((it: any) => it.clientName || it.clienteNombre || it.cliente).filter(Boolean);
+    if (itemClients.length > 0) {
+      rawClient = Array.from(new Set(itemClients)).join(", ");
+    }
+  }
+  if (!rawClient) rawClient = "S/D";
   return cleanClientNames(rawClient.toString().toUpperCase());
 }
 
 function getFechaVisible(item: any): string {
-  const raw = item?.date || item?.fechaSalida || item?.createdAt;
-  if (!raw) return "---";
-  let d: Date;
-  if (typeof raw.toDate === "function") d = raw.toDate();
-  else d = new Date(raw);
-  if (isNaN(d.getTime())) return "---";
+  const d = toDate(item?.date || item?.fechaSalida || item?.fecha || item?.createdAt || item?.timestamp);
+  if (!d || isNaN(d.getTime())) return "---";
   return d.toLocaleDateString('es-EC');
 }
 
@@ -97,15 +101,16 @@ export function OutputsDetailedReport({ prodOutputs, sampleOutputs, dateFrom, da
 
   // RECALCULAR TOTALES DINÁMICOS BASADOS EN EL FILTRO RECIBIDO
   const calculatedTotals = useMemo(() => {
-    const prodPrendas = prodOutputs.reduce((acc, out) => {
-      const items = Array.isArray(out.itemsDispatched) ? out.itemsDispatched : (Array.isArray(out.lotes) ? out.lotes : []);
-      return acc + items.reduce((itAcc: number, it: any) => itAcc + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
-    }, 0);
+    const getQty = (out: any) => {
+      const items = Array.isArray(out.itemsDispatched) ? out.itemsDispatched : (Array.isArray(out.lotes) ? out.lotes : (Array.isArray(out.items) ? out.items : []));
+      if (items.length > 0) {
+        return items.reduce((itAcc: number, it: any) => itAcc + (Number(it.quantityToDispatch ?? it.cantidad ?? it.quantity ?? it.total ?? 0)), 0);
+      }
+      return Number(out.totalPrendas || out.cantidad || out.total || out.prendas || 0);
+    };
 
-    const samplePrendas = sampleOutputs.reduce((acc, out) => {
-      const items = Array.isArray(out.itemsDispatched) ? out.itemsDispatched : (Array.isArray(out.lotes) ? out.lotes : []);
-      return acc + items.reduce((itAcc: number, it: any) => itAcc + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
-    }, 0);
+    const prodPrendas = prodOutputs.reduce((acc, out) => acc + getQty(out), 0);
+    const samplePrendas = sampleOutputs.reduce((acc, out) => acc + getQty(out), 0);
 
     return {
       prodPrendas,
@@ -206,14 +211,17 @@ export function OutputsDetailedReport({ prodOutputs, sampleOutputs, dateFrom, da
                 </TableHeader>
                 <TableBody>
                   {prodOutputs.length > 0 ? prodOutputs.map((out) => {
-                    const items = Array.isArray(out.itemsDispatched) ? out.itemsDispatched : (Array.isArray(out.lotes) ? out.lotes : []);
-                    const prendas = items.reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
+                    const items = Array.isArray(out.itemsDispatched) ? out.itemsDispatched : (Array.isArray(out.lotes) ? out.lotes : (Array.isArray(out.items) ? out.items : []));
+                    const prendas = items.length > 0
+                      ? items.reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch ?? it.cantidad ?? it.quantity ?? it.total ?? 0)), 0)
+                      : Number(out.totalPrendas || out.cantidad || out.total || out.prendas || 0);
+                    const lotesCount = items.length > 0 ? items.length : (out.totalLotes || out.lotesCount || (prendas > 0 ? 1 : 0));
                     return (
                       <TableRow key={out.id}>
                         <TableCell className="py-4 pl-8 text-xs font-medium">{getFechaVisible(out)}</TableCell>
                         <TableCell className="font-bold text-blue-600 text-xs">{getGuiaVisible(out)}</TableCell>
                         <TableCell className="text-xs font-medium uppercase truncate max-w-[250px]">{getClientVisible(out)}</TableCell>
-                        <TableCell className="text-center text-xs">{items.length}</TableCell>
+                        <TableCell className="text-center text-xs">{lotesCount}</TableCell>
                         <TableCell className="text-right pr-8 font-black text-foreground">{formatNum(prendas)}</TableCell>
                       </TableRow>
                     );
@@ -240,14 +248,17 @@ export function OutputsDetailedReport({ prodOutputs, sampleOutputs, dateFrom, da
                 </TableHeader>
                 <TableBody>
                   {sampleOutputs.length > 0 ? sampleOutputs.map((out) => {
-                    const items = Array.isArray(out.itemsDispatched) ? out.itemsDispatched : (Array.isArray(out.lotes) ? out.lotes : []);
-                    const prendas = items.reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
+                    const items = Array.isArray(out.itemsDispatched) ? out.itemsDispatched : (Array.isArray(out.lotes) ? out.lotes : (Array.isArray(out.items) ? out.items : []));
+                    const prendas = items.length > 0
+                      ? items.reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch ?? it.cantidad ?? it.quantity ?? it.total ?? 0)), 0)
+                      : Number(out.totalPrendas || out.cantidad || out.total || out.prendas || 0);
+                    const lotesCount = items.length > 0 ? items.length : (out.totalLotes || out.lotesCount || (prendas > 0 ? 1 : 0));
                     return (
                       <TableRow key={out.id}>
                         <TableCell className="py-4 pl-8 text-xs font-medium">{getFechaVisible(out)}</TableCell>
                         <TableCell className="font-bold text-blue-600 text-xs">{getGuiaVisible(out)}</TableCell>
                         <TableCell className="text-xs font-medium uppercase truncate max-w-[250px]">{getClientVisible(out)}</TableCell>
-                        <TableCell className="text-center text-xs">{items.length}</TableCell>
+                        <TableCell className="text-center text-xs">{lotesCount}</TableCell>
                         <TableCell className="text-right pr-8 font-black text-primary">{formatNum(prendas)}</TableCell>
                       </TableRow>
                     );
