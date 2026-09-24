@@ -205,43 +205,47 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
-              control={form.control}
-              name="entryDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Fecha de Ingreso</FormLabel>
-                  <FormControl>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input type="date" className="pl-10 erp-input h-11" value={field.value || ""} onChange={field.onChange} />
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+            <div className="md:col-span-4">
+              <FormField
+                control={form.control}
+                name="entryDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Fecha de Ingreso</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input type="date" className="pl-10 erp-input h-11 text-xs" value={field.value || ""} onChange={field.onChange} />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             
-            <FormField
-              control={form.control}
-              name="clientId"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-2">Cliente / Socio</FormLabel>
-                  <FormControl>
-                    <Combobox
-                      options={clientOptions}
-                      value={field.value || ""}
-                      onSelect={field.onChange}
-                      placeholder="Seleccione un cliente"
-                      searchPlaceholder="Escriba para filtrar..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="md:col-span-8">
+              <FormField
+                control={form.control}
+                name="clientId"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-2">Cliente / Socio</FormLabel>
+                    <FormControl>
+                      <Combobox
+                        options={clientOptions}
+                        value={field.value || ""}
+                        onSelect={field.onChange}
+                        placeholder="Seleccione un cliente"
+                        searchPlaceholder="Escriba para filtrar..."
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </div>
 
           <FormField

@@ -70,6 +70,7 @@ export function Combobox({
         <Input
           type="text"
           value={search}
+          title={search}
           onChange={handleInputChange}
           onClick={() => {
             if (value) {
@@ -88,9 +89,8 @@ export function Combobox({
           <ChevronsUpDown className="h-4 w-4 opacity-50" />
         </div>
       </div>
-
       {open && (
-        <div className="absolute top-[calc(100%+4px)] left-0 w-full z-[100] max-h-[350px] overflow-y-auto rounded-[24px] shadow-premium-lg border border-border bg-card p-2 scroll-smooth scrollbar-thin scrollbar-thumb-muted-foreground/20">
+        <div className="absolute top-[calc(100%+4px)] left-0 w-full min-w-full z-[100] max-h-[350px] overflow-y-auto rounded-[24px] shadow-premium-lg border border-border bg-card p-2 scroll-smooth scrollbar-thin scrollbar-thumb-muted-foreground/20">
           {filteredOptions.length === 0 ? (
             <div className="py-10 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
               No se encontraron resultados
@@ -101,7 +101,7 @@ export function Combobox({
                 key={option.value}
                 onClick={() => handleSelect(option.value, option.label)}
                 className={cn(
-                  "rounded-2xl my-1 text-[11px] font-black uppercase flex items-center gap-3 py-4 px-5 cursor-pointer transition-all duration-200 pointer-events-auto",
+                  "rounded-2xl my-1 text-[11px] font-black uppercase flex items-center gap-3 py-3 px-4 cursor-pointer transition-all duration-200 pointer-events-auto",
                   value === option.value ? "bg-primary text-white" : "hover:bg-muted/50 text-foreground"
                 )}
               >
@@ -111,7 +111,7 @@ export function Combobox({
                     value === option.value ? "scale-110 opacity-100" : "scale-50 opacity-0"
                   )}
                 />
-                <span className="truncate flex-1 tracking-wider">{option.label}</span>
+                <span className="flex-1 tracking-wider whitespace-normal break-words leading-snug">{option.label}</span>
               </div>
             ))
           )}

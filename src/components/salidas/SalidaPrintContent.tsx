@@ -170,12 +170,30 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
       cant: muestras,
       desc: "MUESTRAS FISICAS ADICIONALES",
       lote: "---",
-      ingreso: "---"
+      ingreso: "---",
+      isSample: true
     });
   }
 
   const emptyPrefix = new Array(Math.max(0, startAtLine - 1)).fill(null);
-  const totalGeneral = lines.reduce((acc, curr) => acc + curr.cant, 0);
+  
+  // Separación de producción vs muestras para el formato del total
+  let totalProduccion = 0;
+  let totalMuestras = 0;
+
+  lines.forEach(row => {
+    const isSampleRow = !!row.isSample || (typeof row.desc === "string" && row.desc.includes("MUESTRA"));
+    if (isSampleRow) {
+      totalMuestras += row.cant;
+    } else {
+      totalProduccion += row.cant;
+    }
+  });
+
+  const totalGeneral = totalProduccion + totalMuestras;
+  const totalDisplay = totalMuestras > 0 
+    ? `${totalProduccion} (${totalMuestras}M)` 
+    : `${totalGeneral}`;
 
   return (
     <div 
@@ -215,8 +233,8 @@ export function SalidaPrintContent({ salida, startAtLine = 1, colorImpresion = "
           <div style={{ position: 'absolute', fontWeight: 'bold', textTransform: 'uppercase', top: '3.76cm', left: '12.53cm' }}>
             {mainGarmentType}
           </div>
-          <div style={{ position: 'absolute', fontWeight: 'bold', textTransform: 'uppercase', top: '4.90cm', left: '13.70cm', fontSize: '12pt' }}>
-            {totalGeneral}
+          <div style={{ position: 'absolute', fontWeight: 'bold', textTransform: 'uppercase', top: '4.90cm', left: '13.70cm', fontSize: '11pt', whiteSpace: 'nowrap' }}>
+            {totalDisplay}
           </div>
         </>
       )}

@@ -190,7 +190,9 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
           <div className="flex-1 flex justify-center">
             <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 min-w-[140px] text-center shadow-sm">
               <p className="text-[8px] font-black text-primary uppercase tracking-widest mb-0.5">Total Prendas</p>
-              <p className="text-3xl font-black text-primary tracking-tighter">{totalGeneral}</p>
+              <p className="text-3xl font-black text-primary tracking-tighter">
+                {totalMuestras > 0 ? `${totalDespachado} (${totalMuestras}M)` : totalGeneral}
+              </p>
             </div>
           </div>
 

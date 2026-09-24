@@ -93,6 +93,7 @@ export function SalidaPrintContent({ salida, startAtLine = 1 }: SalidaPrintConte
   );
   const muestras = Number(salida.numeroMuestras || 0);
   const totalGeneral = totalDespachado + muestras;
+  const totalDisplay = muestras > 0 ? `${totalDespachado} (${muestras}M)` : `${totalGeneral}`;
 
   // 5. Lógica de 21 renglones preimpresos
   const startIndex = Math.max(0, startAtLine - 1);
@@ -142,7 +143,7 @@ export function SalidaPrintContent({ salida, startAtLine = 1 }: SalidaPrintConte
         .f-fecha { top: 4.29cm; left: 5.61cm; }
         .f-cliente { top: 4.99cm; left: 5.61cm; width: 7.5cm; white-space: nowrap; overflow: hidden; }
         .f-resumen { top: 3.76cm; left: 12.83cm; }
-        .f-total { top: 4.90cm; left: 14.00cm; font-size: 12pt; font-weight: 900; }
+        .f-total { top: 4.90cm; left: 14.00cm; font-size: 11pt; font-weight: 900; white-space: nowrap; }
         
         .area-tabla {
           position: absolute;
@@ -167,7 +168,7 @@ export function SalidaPrintContent({ salida, startAtLine = 1 }: SalidaPrintConte
           <div className="dato-fijo f-fecha">{fechaStr}</div>
           <div className="dato-fijo f-cliente" title={clienteStr}>{clienteStr}</div>
           <div className="dato-fijo f-resumen">SERVICIO DE LAVANDERIA</div>
-          <div className="dato-fijo f-total">{totalGeneral}</div>
+          <div className="dato-fijo f-total">{totalDisplay}</div>
         </>
       )}
 
