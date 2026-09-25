@@ -200,7 +200,10 @@ const normalizarSalida = (item: any, origen: string) => {
 export default function SalidasPage() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const isReadOnly = user?.role === "socio";
+  const isChofer = user?.role === "chofer";
+  const isSocio = user?.role === "socio";
+  const isReadOnly = isSocio || isChofer;
+  const canPrint = !isChofer;
 
   const [guideInfo, setGuideInfo] = useState({ numeroSalida: "", fecha: new Date().toISOString().split('T')[0], responsiblePerson: "", notes: "", isSample: false });
   const [itemsToDispatch, setItemsToDispatch] = useState<any[]>([]);
@@ -944,7 +947,11 @@ export default function SalidasPage() {
       <div className="space-y-1">
         <h1 className="text-3xl font-black uppercase tracking-tighter text-foreground">Salidas Industriales</h1>
         <p className="text-primary text-[10px] font-black uppercase tracking-[0.3em]">Gestión de Despachos LDDEC 1.1</p>
-        {isReadOnly && <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">Modo Solo Lectura</Badge>}
+        {isReadOnly && (
+          <Badge className="bg-amber-500 text-white border-none font-bold uppercase text-[10px] px-3 mt-2">
+            {isChofer ? "Modo Chofer (Solo Consulta)" : "Modo Solo Lectura"}
+          </Badge>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1244,9 +1251,37 @@ export default function SalidasPage() {
                     <TableCell className="text-center font-black text-primary text-base">{out.prendas}</TableCell>
                     <TableCell className="text-right pr-5">
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => { setViewingOutput(out.raw); setIsViewOpen(true); }} className="h-8 w-8 rounded-full hover:text-primary"><Eye className="h-4 w-4" /></Button>
-                        {!isReadOnly && <Button variant="ghost" size="icon" onClick={() => handleEditOutput(out)} className="h-8 w-8 rounded-full hover:text-amber-600"><Edit3 className="h-4 w-4" /></Button>}
-                        <Button variant="ghost" size="icon" onClick={() => { setViewingOutput(out.raw); setIsViewOpen(true); }} className="h-8 w-8 rounded-full hover:text-emerald-600"><Printer className="h-4 w-4"/></Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => { setViewingOutput(out.raw); setIsViewOpen(true); }} 
+                          className="h-8 w-8 rounded-full hover:text-primary"
+                          title="Ver Detalle de Salida"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        {!isReadOnly && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleEditOutput(out)} 
+                            className="h-8 w-8 rounded-full hover:text-amber-600"
+                            title="Editar Salida"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {canPrint && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => { setViewingOutput(out.raw); setIsViewOpen(true); }} 
+                            className="h-8 w-8 rounded-full hover:text-emerald-600"
+                            title="Imprimir Guía"
+                          >
+                            <Printer className="h-4 w-4"/>
+                          </Button>
+                        )}
                         {!isReadOnly && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
@@ -1384,7 +1419,7 @@ export default function SalidasPage() {
             <DialogTitle>Detalle Guía</DialogTitle>
             <DialogDescription>Visualización compacta de despacho</DialogDescription>
           </DialogHeader>
-          {viewingOutput && <OutputDetail output={viewingOutput} onClose={() => setIsViewOpen(false)} />}
+          {viewingOutput && <OutputDetail output={viewingOutput} onClose={() => setIsViewOpen(false)} canPrint={canPrint} />}
         </DialogContent>
       </Dialog>
     </div>

@@ -28,10 +28,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { printHtml } from '@/lib/printHtml';
 import { SalidaPrintContent } from './SalidaPrintContent';
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 interface OutputDetailProps {
   output: any;
   onClose: () => void;
+  canPrint?: boolean;
 }
 
 function getGuiaVisible(item: any): string {
@@ -105,7 +107,11 @@ export function cleanClientNames(nameStr: string): string {
   return finalStr;
 }
 
-export function OutputDetail({ output, onClose }: OutputDetailProps) {
+export function OutputDetail({ output, onClose, canPrint }: OutputDetailProps) {
+  const { user } = useAuth();
+  const isChofer = user?.role === "chofer";
+  const canUserPrint = canPrint !== undefined ? canPrint : !isChofer;
+
   const [startLine, setStartLine] = useState("1");
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [colorImpresion, setColorImpresion] = useState<"negro" | "azul">("negro");
@@ -122,6 +128,7 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
   const items = Array.isArray(output?.itemsDispatched) ? output.itemsDispatched : [];
 
   const toggleIndex = (idx: number) => {
+    if (!canUserPrint) return;
     setSelectedIndices(prev =>
       prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
     );
@@ -139,7 +146,7 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
   const clientName = cleanClientNames(rawClientName.toString().toUpperCase());
 
   const handlePrint = () => {
-    if (!output) return;
+    if (!output || !canUserPrint) return;
     const itemsToPrint = selectedIndices.length > 0
       ? items.filter((_: any, idx: number) => selectedIndices.includes(idx))
       : items;
@@ -221,14 +228,21 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
               return (
                 <div
                   key={idx}
-                  onClick={() => toggleIndex(idx)}
+                  onClick={() => canUserPrint && toggleIndex(idx)}
                   className={cn(
-                    "p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between group",
-                    isSelected ? "bg-primary/5 border-primary shadow-sm" : "bg-card border-border hover:bg-muted/5"
+                    "p-4 rounded-xl border transition-all flex items-center justify-between group",
+                    canUserPrint && "cursor-pointer",
+                    canUserPrint && isSelected ? "bg-primary/5 border-primary shadow-sm" : "bg-card border-border hover:bg-muted/5"
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Checkbox checked={isSelected} onCheckedChange={() => toggleIndex(idx)} onClick={(e) => e.stopPropagation()} className="h-4 w-4 rounded" />
+                    {canUserPrint ? (
+                      <Checkbox checked={isSelected} onCheckedChange={() => toggleIndex(idx)} onClick={(e) => e.stopPropagation()} className="h-4 w-4 rounded" />
+                    ) : (
+                      <div className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                        <Shirt className="h-3.5 w-3.5" />
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-black text-sm uppercase">{getVisibleLotName(line)}</span>
@@ -247,53 +261,62 @@ export function OutputDetail({ output, onClose }: OutputDetailProps) {
         </ScrollArea>
       </div>
 
-      {/* SECTION 3: PRINT CONTROL COMPACT */}
+      {/* SECTION 3: CONTROLES / IMPRESIÓN */}
       <div className="p-4 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4 bg-muted/5 mt-4 rounded-b-2xl">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="space-y-1">
-            <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Renglón Inicial</p>
-            <Select value={startLine} onValueChange={setStartLine}>
-              <SelectTrigger className="w-24 h-8 text-[10px] font-bold bg-background rounded-lg border-border"><SelectValue /></SelectTrigger>
-              <SelectContent className="max-h-48 rounded-xl shadow-xl">{Array.from({ length: 21 }, (_, i) => (<SelectItem key={i + 1} value={(i + 1).toString()} className="text-[10px] font-bold">Línea {i + 1}</SelectItem>))}</SelectContent>
-            </Select>
-          </div>
+        {canUserPrint ? (
+          <>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="space-y-1">
+                <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Renglón Inicial</p>
+                <Select value={startLine} onValueChange={setStartLine}>
+                  <SelectTrigger className="w-24 h-8 text-[10px] font-bold bg-background rounded-lg border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent className="max-h-48 rounded-xl shadow-xl">{Array.from({ length: 21 }, (_, i) => (<SelectItem key={i + 1} value={(i + 1).toString()} className="text-[10px] font-bold">Línea {i + 1}</SelectItem>))}</SelectContent>
+                </Select>
+              </div>
 
-          <div className="space-y-1">
-            <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Color de Impresión</p>
-            <div className="flex bg-background border border-border rounded-lg p-0.5 h-8">
-              <button
-                type="button"
-                onClick={() => setColorImpresion("negro")}
-                className={cn(
-                  "px-3 text-[9px] font-bold uppercase rounded-md transition-all",
-                  colorImpresion === "negro"
-                    ? "bg-foreground text-background shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Negro
-              </button>
-              <button
-                type="button"
-                onClick={() => setColorImpresion("azul")}
-                className={cn(
-                  "px-3 text-[9px] font-bold uppercase rounded-md transition-all",
-                  colorImpresion === "azul"
-                    ? "bg-[#0f172a] text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Azul
-              </button>
+              <div className="space-y-1">
+                <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Color de Impresión</p>
+                <div className="flex bg-background border border-border rounded-lg p-0.5 h-8">
+                  <button
+                    type="button"
+                    onClick={() => setColorImpresion("negro")}
+                    className={cn(
+                      "px-3 text-[9px] font-bold uppercase rounded-md transition-all",
+                      colorImpresion === "negro"
+                        ? "bg-foreground text-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Negro
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setColorImpresion("azul")}
+                    className={cn(
+                      "px-3 text-[9px] font-bold uppercase rounded-md transition-all",
+                      colorImpresion === "azul"
+                        ? "bg-[#0f172a] text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Azul
+                  </button>
+                </div>
+              </div>
+
+              {selectedIndices.length > 0 && <p className="text-[9px] font-black text-primary uppercase">Parcial ({selectedIndices.length} lotes)</p>}
             </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <Button onClick={onClose} variant="ghost" className="flex-1 sm:flex-none h-10 px-4 text-[10px] font-bold uppercase">Cerrar</Button>
+              <Button onClick={handlePrint} className="flex-1 sm:flex-none h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] tracking-widest gap-2 shadow-lg"><Printer className="h-3.5 w-3.5" /> Imprimir</Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-between items-center w-full">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase">Modo Solo Visualización</span>
+            <Button onClick={onClose} variant="outline" className="h-10 px-6 text-xs font-bold uppercase rounded-xl">Cerrar</Button>
           </div>
-
-          {selectedIndices.length > 0 && <p className="text-[9px] font-black text-primary uppercase">Parcial ({selectedIndices.length} lotes)</p>}
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <Button onClick={onClose} variant="ghost" className="flex-1 sm:flex-none h-10 px-4 text-[10px] font-bold uppercase">Cerrar</Button>
-          <Button onClick={handlePrint} className="flex-1 sm:flex-none h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] tracking-widest gap-2 shadow-lg"><Printer className="h-3.5 w-3.5" /> Imprimir</Button>
-        </div>
+        )}
       </div>
     </div>
   );
