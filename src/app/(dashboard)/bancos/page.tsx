@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Undo2
 } from "lucide-react";
+import { printHtml } from "@/lib/printHtml";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -342,6 +343,301 @@ export default function BancosPage() {
     }
   };
 
+  const handleExportPDF = () => {
+    if (!selectedAccount) return;
+
+    const fechaGenStr = format(new Date(), "dd/MM/yyyy HH:mm");
+    const accountName = selectedAccount.nombre || "CUENTA BANCARIA";
+    const accountBank = selectedAccount.banco || selectedAccount.tipo || "BANCO";
+    const currentSaldo = (processedHistory.length > 0 
+      ? processedHistory[0].saldoCalculado 
+      : Number(selectedAccount.saldoActual || selectedAccount.saldoInicial || 0)
+    ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    let totalDebe = 0;
+    let totalHaber = 0;
+    processedHistory.forEach(tx => {
+      if (tx.tipo === 'Deposito') {
+        totalHaber += tx.monto || 0;
+      } else {
+        totalDebe += tx.monto || 0;
+      }
+    });
+
+    // Incluir todos los movimientos con soporte multipágina A4
+    const historyToPrint = processedHistory;
+
+    const rowsHtml = historyToPrint.map(tx => {
+      let fechaStr = "---";
+      if (tx.fecha?.toDate) {
+        fechaStr = format(tx.fecha.toDate(), "dd/MM/yy HH:mm");
+      } else if (tx.fecha) {
+        try {
+          fechaStr = format(new Date(tx.fecha), "dd/MM/yy HH:mm");
+        } catch {
+          fechaStr = String(tx.fecha);
+        }
+      }
+
+      const debeStr = tx.tipo !== 'Deposito' ? `$${(tx.monto || 0).toFixed(2)}` : '—';
+      const haberStr = tx.tipo === 'Deposito' ? `$${(tx.monto || 0).toFixed(2)}` : '—';
+      const saldoVal = tx.saldoCalculado !== undefined ? tx.saldoCalculado : (tx.saldoPosterior || 0);
+      const saldoStr = `$${Number(saldoVal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      return `
+        <tr>
+          <td style="padding: 3.5px 6px; border-bottom: 1px solid #e2e8f0; font-size: 7.5pt; color: #475569; white-space: nowrap;">${fechaStr}</td>
+          <td style="padding: 3.5px 6px; border-bottom: 1px solid #e2e8f0; font-size: 7.5pt;">
+            <div style="font-weight: 700; text-transform: uppercase; color: #0f172a; line-height: 1.1;">${tx.concepto || 'MOVIMIENTO'}</div>
+            <div style="font-size: 6.5pt; color: #64748b; font-weight: 600;">Doc: ${tx.numeroDocumento || 'S/N'}</div>
+          </td>
+          <td style="padding: 3.5px 6px; border-bottom: 1px solid #e2e8f0; font-size: 7.5pt; text-align: right; font-weight: 700; color: #dc2626;">${debeStr}</td>
+          <td style="padding: 3.5px 6px; border-bottom: 1px solid #e2e8f0; font-size: 7.5pt; text-align: right; font-weight: 700; color: #16a34a;">${haberStr}</td>
+          <td style="padding: 3.5px 6px; border-bottom: 1px solid #e2e8f0; font-size: 7.5pt; text-align: right; font-weight: 800; color: #0f172a;">${saldoStr}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>ESTADO DE CUENTA - ${accountName}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 6mm 8mm 6mm 8mm !important;
+          }
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          html, body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            color: #0f172a;
+            background: #fff;
+          }
+          .page-box {
+            width: 100%;
+            max-width: 194mm;
+            margin: 0 auto;
+          }
+          .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 6px;
+            margin-bottom: 8px;
+          }
+          .brand-title {
+            font-size: 13pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -0.3px;
+            margin: 0;
+            color: #0f172a;
+          }
+          .brand-sub {
+            font-size: 7pt;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin: 1px 0 0 0;
+          }
+          .doc-title-block {
+            text-align: right;
+          }
+          .doc-type {
+            font-size: 11pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            color: #0284c7;
+            margin: 0;
+          }
+          .doc-meta {
+            font-size: 7pt;
+            color: #64748b;
+            font-weight: 600;
+            margin: 1px 0 0 0;
+          }
+          .account-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 6px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+          }
+          .account-card h3 {
+            margin: 0 0 1px 0;
+            font-size: 10pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #0f172a;
+          }
+          .account-card p {
+            margin: 0;
+            font-size: 7pt;
+            color: #64748b;
+            font-weight: 600;
+          }
+          .balance-box {
+            text-align: right;
+          }
+          .balance-label {
+            font-size: 6.5pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 1px;
+          }
+          .balance-value {
+            font-size: 13pt;
+            font-weight: 900;
+            color: #16a34a;
+            line-height: 1;
+          }
+          .summary-kpi {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-bottom: 8px;
+          }
+          .kpi-card {
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            padding: 4px 8px;
+            text-align: center;
+          }
+          .kpi-lbl {
+            font-size: 6.5pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 1px;
+          }
+          .kpi-val {
+            font-size: 9.5pt;
+            font-weight: 800;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tbody {
+            display: table-row-group;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 2px;
+            page-break-inside: auto;
+          }
+          th {
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 7pt;
+            font-weight: 800;
+            text-transform: uppercase;
+            padding: 5px 6px;
+            border-bottom: 1.5px solid #cbd5e1;
+            text-align: left;
+          }
+          th.right {
+            text-align: right;
+          }
+          tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .footer-note {
+            margin-top: 8px;
+            padding-top: 4px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 6.5pt;
+            color: #94a3b8;
+            font-weight: 600;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page-box">
+          <div class="header-container">
+            <div>
+              <h1 class="brand-title">LABORATORIO DEL DENIM ECUADOR</h1>
+              <p class="brand-sub">LDDEC CÍA LTDA – GESTIÓN DE DISPONIBILIDADES Y BANCOS</p>
+            </div>
+            <div class="doc-title-block">
+              <p class="doc-type">ESTADO DE CUENTA</p>
+              <p class="doc-meta">Emisión: ${fechaGenStr}</p>
+            </div>
+          </div>
+
+          <div class="account-card">
+            <div>
+              <h3>${accountName}</h3>
+              <p><strong>Tipo / Entidad:</strong> ${accountBank} ${selectedAccount.numeroCuenta ? `&nbsp;|&nbsp; <strong>Cta:</strong> ${selectedAccount.numeroCuenta}` : ''}</p>
+            </div>
+            <div class="balance-box">
+              <div class="balance-label">Saldo Disponible Actual</div>
+              <div class="balance-value">$${currentSaldo}</div>
+            </div>
+          </div>
+
+          <div class="summary-kpi">
+            <div class="kpi-card">
+              <div class="kpi-lbl">Total Egresos (Debe)</div>
+              <div class="kpi-val" style="color: #dc2626;">$${totalDebe.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-lbl">Total Ingresos (Haber)</div>
+              <div class="kpi-val" style="color: #16a34a;">$${totalHaber.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-lbl">Movimientos Registrados</div>
+              <div class="kpi-val" style="color: #0284c7;">${processedHistory.length}</div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 100px;">Fecha</th>
+                <th>Concepto / Referencia</th>
+                <th class="right" style="width: 85px; color: #dc2626;">Debe (-)</th>
+                <th class="right" style="width: 85px; color: #16a34a;">Haber (+)</th>
+                <th class="right" style="width: 90px;">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml || '<tr><td colspan="5" style="text-align: center; padding: 20px; color: #94a3b8; font-style: italic;">Sin movimientos registrados</td></tr>'}
+            </tbody>
+          </table>
+
+          <div class="footer-note">
+            <span>LDDEC Sistema Financiero – Documento Oficial A4</span>
+            <span>Página 1 de 1</span>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printHtml(html);
+  };
+
   if (loading) {
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
@@ -636,8 +932,12 @@ export default function BancosPage() {
           </div>
 
           <div className="p-8 pt-0 flex justify-end gap-3">
-             <Button variant="outline" className="rounded-xl font-bold uppercase text-[10px] h-10 px-6 gap-2 border-border text-muted-foreground">
-                <Printer className="h-4 w-4" /> Exportar PDF
+             <Button 
+               variant="outline" 
+               onClick={handleExportPDF} 
+               className="rounded-xl font-bold uppercase text-[10px] h-10 px-6 gap-2 border-border text-foreground hover:bg-muted active:scale-95 transition-all shadow-sm"
+             >
+                <Printer className="h-4 w-4 text-primary" /> Exportar PDF
              </Button>
              <Button variant="secondary" onClick={() => setIsModalOpen(false)} className="rounded-xl font-bold uppercase text-[10px] h-10 px-6">
                 Cerrar

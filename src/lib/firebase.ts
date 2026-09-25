@@ -1,6 +1,12 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
-import { getFirestore, Firestore } from "firebase/firestore";
+import { 
+  getFirestore, 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager, 
+  Firestore 
+} from "firebase/firestore";
 import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 // Configuración oficial LDDEC Manager
@@ -21,7 +27,20 @@ try {
   // Inicialización limpia y segura
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
-  db = getFirestore(app);
+
+  if (typeof window !== "undefined") {
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      });
+    } catch {
+      db = getFirestore(app);
+    }
+  } else {
+    db = getFirestore(app);
+  }
   
   if (typeof window !== "undefined") {
     // Inicialización de App Check comentada para desarrollo local (Evita error "client is offline")

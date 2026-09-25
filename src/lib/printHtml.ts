@@ -1,12 +1,13 @@
 /**
  * INDUSTRIAL PRINTING ENGINE LDDEC
- * Exact replica of the previous system: creates an isolated iframe,
- * injects raw HTML with hardcoded resets, and triggers printing.
+ * Creates an isolated iframe, injects print HTML, and triggers printing.
  */
 export function printHtml(html: string) {
   // 1. Clean up existing iframes
   const oldIframe = document.getElementById('lddec-print-iframe');
-  if (oldIframe) document.body.removeChild(oldIframe);
+  if (oldIframe && oldIframe.parentNode) {
+    oldIframe.parentNode.removeChild(oldIframe);
+  }
 
   // 2. Create invisible iframe
   const iframe = document.createElement('iframe');
@@ -26,38 +27,43 @@ export function printHtml(html: string) {
     return;
   }
 
-  // 3. Inyect pure HTML with hard resets for pre-printed forms
+  const isFullHtml = html.trim().toLowerCase().startsWith("<!doctype") || html.trim().toLowerCase().startsWith("<html");
+
+  // 3. Inject HTML
   doc.open();
-  doc.write(`
-    <!DOCTYPE html>
-    <html lang="es">
-      <head>
-        <title>LDDEC PRINT</title>
-        <style>
-          @page {
-            size: A4;
-            margin: 0 !important;
-          }
-          html, body {
-            margin: 0;
-            padding: 0;
-            width: 21cm;
-            height: 29.7cm;
-            background: white;
-            color: black;
-            font-family: Arial, Helvetica, sans-serif;
-            -webkit-print-color-adjust: exact;
-          }
-          * {
-            box-sizing: border-box;
-          }
-        </style>
-      </head>
-      <body>
-        ${html}
-      </body>
-    </html>
-  `);
+  if (isFullHtml) {
+    doc.write(html);
+  } else {
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <title>LDDEC PRINT</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm !important;
+            }
+            html, body {
+              margin: 0;
+              padding: 0;
+              background: white;
+              color: black;
+              font-family: Arial, Helvetica, sans-serif;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            * {
+              box-sizing: border-box;
+            }
+          </style>
+        </head>
+        <body>
+          ${html}
+        </body>
+      </html>
+    `);
+  }
   doc.close();
 
   // 4. Trigger print after short delay
@@ -66,5 +72,5 @@ export function printHtml(html: string) {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     }
-  }, 500);
+  }, 350);
 }
