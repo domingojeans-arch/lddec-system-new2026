@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { 
   Search, 
   Truck, 
@@ -52,7 +52,9 @@ import {
   doc, 
   serverTimestamp,
   writeBatch,
-  getDoc
+  getDoc,
+  getDocs,
+  limit
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -202,6 +204,11 @@ export default function EntregasPage() {
   const [simulateOffline, setSimulateOffline] = useState<boolean>(false);
   const [pendingItems, setPendingItems] = useState<PendingDeliveryItem[]>([]);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+
+  const isSyncingRef = useRef<boolean>(false);
+  const simulateOfflineRef = useRef<boolean>(false);
+  simulateOfflineRef.current = simulateOffline;
 
   // Estados de paginación por mes
   const now = new Date();
@@ -209,13 +216,84 @@ export default function EntregasPage() {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear().toString());
 
   const canEdit = user?.role !== "socio";
+  const effectiveOnline = isOnline && !simulateOffline;
 
-  // Cargar caché local y detectar estado de red al iniciar
+  // Motor central de sincronización bidireccional (Cargar entregas pendientes y Descargar nuevas guías/productos)
+  const syncBidirectional = useCallback(async (isManual: boolean = false) => {
+    if (!db || isSyncingRef.current) return;
+    const isActuallyOffline = simulateOfflineRef.current || (typeof navigator !== "undefined" && !navigator.onLine);
+    if (isActuallyOffline) {
+      if (isManual) {
+        toast({
+          title: "Modo Sin Conexión",
+          description: "No se detecta conexión a internet en este momento.",
+          className: "bg-amber-600 text-white font-bold"
+        });
+      }
+      return;
+    }
+
+    isSyncingRef.current = true;
+    setIsSyncing(true);
+
+    try {
+      // 1. CARGAR (Push): Subir a Firebase entregas offline pendientes
+      const currentPending = getPendingDeliveries();
+      let uploadedCount = 0;
+      if (currentPending.length > 0) {
+        try {
+          const pushResult = await withTimeout(
+            syncDeliveriesToFirestore(db, currentPending, getVisibleLotName),
+            6000
+          );
+          uploadedCount = pushResult.syncedCount;
+          setPendingItems(getPendingDeliveries());
+        } catch (pushErr) {
+          console.warn("Auto-sync: Subida de entregas pospuesta:", pushErr);
+        }
+      }
+
+      // 2. DESCARGAR (Pull): Descargar salidas y productos actualizados de Firestore
+      try {
+        const q = query(collection(db, "outputs"), orderBy("date", "desc"), limit(200));
+        const snap = await withTimeout(getDocs(q), 6000);
+        if (snap && !snap.empty) {
+          const freshOutputs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setOutputs(freshOutputs);
+          await setCachedOutputsAsync(freshOutputs);
+          setLastSyncTime(new Date());
+        }
+      } catch (pullErr) {
+        console.warn("Auto-sync: Descarga de productos pospuesta:", pullErr);
+      }
+
+      if (isManual) {
+        if (uploadedCount > 0) {
+          toast({
+            title: "Sincronización Exitosa ✅",
+            description: `Se subieron ${uploadedCount} entrega(s) y se actualizaron las guías y productos.`,
+            className: "bg-emerald-600 text-white font-bold"
+          });
+        } else {
+          toast({
+            title: "Sistema Actualizado 🔄",
+            description: "Las guías y productos están sincronizados con la nube.",
+            className: "bg-emerald-600 text-white font-bold"
+          });
+        }
+      }
+    } catch (err: any) {
+      console.warn("Error en auto-sincronización bidireccional:", err);
+    } finally {
+      isSyncingRef.current = false;
+      setIsSyncing(false);
+    }
+  }, [toast]);
+
+  // 1. Cargar caché local de inmediato para que cargue en 0ms
   useEffect(() => {
-    // 1. Cargar cola de entregas offline existentes
     setPendingItems(getPendingDeliveries());
 
-    // 2. Cargar caché de salidas si existe (para renderizar de inmediato aunque no haya internet)
     getCachedOutputsAsync().then((cached) => {
       if (cached && cached.length > 0) {
         setOutputs(prev => prev.length === 0 ? cached : prev);
@@ -223,34 +301,19 @@ export default function EntregasPage() {
       }
     }).catch(() => {});
 
-    // 3. Timeout de seguridad: si la señal en el celular es nula, nunca dejar al chofer bloqueado en cargando
+    // Timeout de seguridad para remover spinner
     const safetyTimer = setTimeout(() => {
       setLoading(false);
     }, 2500);
 
-    // 4. Detectar conexión de red
-    if (typeof window !== "undefined") {
-      setIsOnline(navigator.onLine);
-
-      const handleOnline = () => setIsOnline(true);
-      const handleOffline = () => setIsOnline(false);
-
-      window.addEventListener("online", handleOnline);
-      window.addEventListener("offline", handleOffline);
-
-      return () => {
-        clearTimeout(safetyTimer);
-        window.removeEventListener("online", handleOnline);
-        window.removeEventListener("offline", handleOffline);
-      };
-    }
+    return () => clearTimeout(safetyTimer);
   }, []);
 
-  // Suscripción a Firestore (cuando hay conexión)
+  // 2. Suscripción en tiempo real con onSnapshot
   useEffect(() => {
     if (!db) return;
     try {
-      const q = query(collection(db, "outputs"), orderBy("date", "desc"));
+      const q = query(collection(db, "outputs"), orderBy("date", "desc"), limit(200));
       const unsubscribe = onSnapshot(
         q, 
         (snapshot) => {
@@ -258,10 +321,10 @@ export default function EntregasPage() {
           setOutputs(loadedOutputs);
           setCachedOutputsAsync(loadedOutputs);
           setLoading(false);
+          setLastSyncTime(new Date());
         },
         (error) => {
           console.warn("Firestore snapshot offline o no disponible:", error);
-          // Si falla por estar offline, mantenemos la caché cargada
           setLoading(false);
         }
       );
@@ -272,19 +335,61 @@ export default function EntregasPage() {
     }
   }, []);
 
-  // Conexión efectiva (considera el toggle de simulación para pruebas locales)
-  const effectiveOnline = isOnline && !simulateOffline;
-
-  // Auto-sincronización cuando se recupera internet y hay items pendientes
+  // 3. Event listeners de red y reactivación en móviles (online, focus, visibilitychange)
   useEffect(() => {
-    if (!effectiveOnline || isSyncing || pendingItems.length === 0 || !db) return;
+    if (typeof window === "undefined") return;
 
-    const timer = setTimeout(() => {
-      handleSyncNow();
-    }, 1200);
+    setIsOnline(navigator.onLine);
 
-    return () => clearTimeout(timer);
-  }, [effectiveOnline, pendingItems.length]);
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncBidirectional(false);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        setIsOnline(navigator.onLine);
+        syncBidirectional(false);
+      }
+    };
+
+    const handleFocus = () => {
+      setIsOnline(navigator.onLine);
+      syncBidirectional(false);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    // Intento inicial si hay internet
+    if (navigator.onLine) {
+      syncBidirectional(false);
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [syncBidirectional]);
+
+  // 4. Latido continuo de sincronización automática (Heartbeat cada 10 segundos)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (effectiveOnline && !isSyncingRef.current) {
+        syncBidirectional(false);
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [effectiveOnline, syncBidirectional]);
 
   // Mezclar salidas con las entregas offline que están en la cola local
   const liveOutputs = useMemo(() => {
@@ -334,35 +439,7 @@ export default function EntregasPage() {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  // Acción manual de sincronización
-  const handleSyncNow = async () => {
-    if (!db || isSyncing || pendingItems.length === 0) return;
-    setIsSyncing(true);
-    try {
-      const result = await syncDeliveriesToFirestore(db, pendingItems, getVisibleLotName);
-      const remaining = getPendingDeliveries();
-      setPendingItems(remaining);
-
-      if (result.syncedCount > 0) {
-        toast({
-          title: "Sincronización Exitosa ✅",
-          description: `Se subieron ${result.syncedCount} entrega(s) pendientes a la nube.`,
-          className: "bg-emerald-600 text-white font-bold"
-        });
-      }
-    } catch (err: any) {
-      console.error("Error al sincronizar entregas:", err);
-      toast({
-        variant: "destructive",
-        title: "Error al Sincronizar",
-        description: "No se pudo conectar con el servidor. Se reintentará automáticamente."
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // Entregar un lote individual (Optimistic UI + background sync con timeout)
+  // Entregar un lote individual (Optimistic UI + auto-sincronización)
   const handleDeliverLot = async (outputId: string, lotNumber: string) => {
     if (!canEdit) return;
     const output = liveOutputs.find(o => o.id === outputId);
@@ -396,18 +473,13 @@ export default function EntregasPage() {
       className: effectiveOnline ? "bg-emerald-600 text-white font-bold" : "bg-amber-600 text-white font-bold"
     });
 
-    // 3. Intento de sincronización en segundo plano si parece haber conexión
-    if (effectiveOnline && db) {
-      try {
-        await withTimeout(syncDeliveriesToFirestore(db, [pendingItem], getVisibleLotName), 3500);
-        setPendingItems(getPendingDeliveries());
-      } catch (err) {
-        console.warn("Sincronización en segundo plano pospuesta (sin señal o timeout):", err);
-      }
+    // 3. Auto-sincronización inmediata si hay señal
+    if (effectiveOnline) {
+      syncBidirectional(false);
     }
   };
 
-  // Entregar selección masiva (Optimistic UI + background sync con timeout)
+  // Entregar selección masiva (Optimistic UI + auto-sincronización)
   const handleDeliverSelected = async () => {
     if (!canEdit || selectedIds.length === 0) return;
     setProcessingBulk(true);
@@ -450,14 +522,9 @@ export default function EntregasPage() {
       className: effectiveOnline ? "bg-emerald-600 text-white font-bold" : "bg-amber-600 text-white font-bold"
     });
 
-    // 3. Intento de subida en segundo plano
-    if (effectiveOnline && db) {
-      try {
-        await withTimeout(syncDeliveriesToFirestore(db, itemsToAdd, getVisibleLotName), 5000);
-        setPendingItems(getPendingDeliveries());
-      } catch (err) {
-        console.warn("Sincronización masiva en segundo plano pospuesta:", err);
-      }
+    // 3. Auto-sincronización inmediata si hay señal
+    if (effectiveOnline) {
+      syncBidirectional(false);
     }
   };
 
@@ -470,18 +537,28 @@ export default function EntregasPage() {
             <h1 className="text-2xl sm:text-4xl font-black text-foreground tracking-tighter uppercase">Confirmación de Entregas</h1>
             
             {/* DISTINTIVO DE CONEXIÓN OFFLINE / ONLINE */}
-            {!effectiveOnline ? (
+            {isSyncing ? (
+              <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 gap-1.5 px-3 py-1 text-xs font-black uppercase rounded-xl">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Sincronizando...
+              </Badge>
+            ) : !effectiveOnline ? (
               <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 gap-1.5 px-3 py-1 text-xs font-black uppercase rounded-xl">
                 <WifiOff className="h-3.5 w-3.5" /> Modo Ruta (Sin Conexión)
               </Badge>
             ) : pendingItems.length > 0 ? (
-              <Badge className="bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 gap-1.5 px-3 py-1 text-xs font-black uppercase rounded-xl animate-pulse">
-                <Cloud className="h-3.5 w-3.5" /> Conectado ({pendingItems.length} pendiente{pendingItems.length > 1 ? "s" : ""})
+              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 gap-1.5 px-3 py-1 text-xs font-black uppercase rounded-xl animate-pulse">
+                <Cloud className="h-3.5 w-3.5" /> {pendingItems.length} entrega{pendingItems.length > 1 ? "s" : ""} por subir
               </Badge>
             ) : (
               <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 gap-1.5 px-3 py-1 text-xs font-black uppercase rounded-xl">
-                <Wifi className="h-3.5 w-3.5" /> En Línea (Sincronizado)
+                <Wifi className="h-3.5 w-3.5" /> En Línea (Auto-sincronizado)
               </Badge>
+            )}
+
+            {lastSyncTime && (
+              <span className="text-[11px] text-muted-foreground font-medium hidden sm:inline-block">
+                Auto-actualizado: {lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
             )}
           </div>
 
@@ -491,18 +568,27 @@ export default function EntregasPage() {
 
         {/* CONTROLES DE SINCRONIZACIÓN Y PRUEBAS LOCALES */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* BOTÓN MANUAL DE SINCRONIZACIÓN (Si hay items pendientes) */}
-          {pendingItems.length > 0 && (
-            <Button
-              onClick={handleSyncNow}
-              disabled={isSyncing || !effectiveOnline}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-xs h-11 px-5 rounded-xl shadow-lg gap-2"
-              title="Subir entregas pendientes guardadas localmente a la nube"
-            >
-              <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
-              {isSyncing ? "Sincronizando..." : `Sincronizar (${pendingItems.length})`}
-            </Button>
-          )}
+          {/* BOTÓN DE SINCRONIZACIÓN / ACTUALIZACIÓN */}
+          <Button
+            onClick={() => syncBidirectional(true)}
+            disabled={isSyncing || !effectiveOnline}
+            className={cn(
+              "font-black uppercase text-xs h-11 px-4 sm:px-5 rounded-xl shadow-lg gap-2 transition-all",
+              pendingItems.length > 0 
+                ? "bg-amber-600 hover:bg-amber-700 text-white" 
+                : "bg-blue-600 hover:bg-blue-700 text-white"
+            )}
+            title="Sincronizar entregas pendientes y descargar nuevas guías o productos"
+          >
+            <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+            <span>
+              {isSyncing 
+                ? "Sincronizando..." 
+                : pendingItems.length > 0 
+                  ? `Subir Entregas (${pendingItems.length})` 
+                  : "Actualizar"}
+            </span>
+          </Button>
 
           {/* TOGGLE PARA PROBAR LOCALMENTE MODO SIN CONEXIÓN */}
           <div className="flex items-center gap-2.5 bg-muted/40 hover:bg-muted/60 transition-colors px-3.5 py-2 rounded-xl border border-border">
