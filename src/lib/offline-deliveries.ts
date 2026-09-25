@@ -229,16 +229,28 @@ export async function syncDeliveriesToFirestore(
 
   for (const [outputId, items] of outputGroups.entries()) {
     try {
-      const outputRef = doc(db, "outputs", outputId);
-      const outputSnap = await withTimeout(getDoc(outputRef), 3000);
+      let outputRef = doc(db, "outputs", outputId);
+      let outputSnap = await withTimeout(getDoc(outputRef), 3000);
       if (!outputSnap.exists()) {
-        // Si la salida ya no existe, descartamos los items de la cola
+        outputRef = doc(db, "salidas", outputId);
+        outputSnap = await withTimeout(getDoc(outputRef), 3000);
+      }
+      if (!outputSnap.exists()) {
+        outputRef = doc(db, "muestras", outputId);
+        outputSnap = await withTimeout(getDoc(outputRef), 3000);
+      }
+      if (!outputSnap.exists()) {
+        // Si la salida ya no existe en ninguna colección, descartamos los items de la cola
         items.forEach(i => syncedIds.push(i.id));
         continue;
       }
 
-      const outputData = outputSnap.data();
-      const currentItems = outputData.itemsDispatched || [];
+      const outputData = outputSnap.data() || {};
+      const currentItems = Array.isArray(outputData.itemsDispatched) && outputData.itemsDispatched.length > 0
+        ? outputData.itemsDispatched
+        : (Array.isArray(outputData.items) && outputData.items.length > 0
+          ? outputData.items
+          : (Array.isArray(outputData.lotes) ? outputData.lotes : []));
 
       const batch = writeBatch(db);
       const lotNamesToDeliver = new Set(items.map(i => i.lotNumber.toUpperCase()));

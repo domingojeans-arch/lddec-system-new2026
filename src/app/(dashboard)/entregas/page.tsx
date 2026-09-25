@@ -71,13 +71,43 @@ import {
 } from "@/lib/offline-deliveries";
 
 /**
- * MOTOR DE RESOLUCIÓN DE IDENTIDAD PARA SALIDAS (LDDEC 1.1)
+ * MOTOR DE RESOLUCIÓN DE IDENTIDAD Y FECHAS PARA SALIDAS (LDDEC 1.1)
  */
+function toDateSafe(value: any): Date | null {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value && typeof value === 'object' && 'seconds' in value) {
+    return new Date(value.seconds * 1000);
+  }
+  if (value instanceof Date) return value;
+  const parsed = new Date(value);
+  if (!isNaN(parsed.getTime())) return parsed;
+  return null;
+}
+
 function isVisibleGuide(value: any): boolean {
   const v = String(value ?? "").trim();
-  if (!v || v === "undefined" || v === "[object Object]") return false;
-  if (v.length > 18) return false;
-  return /^[0-9]+$/.test(v) || /^[A-Z0-9\-]+$/.test(v);
+  if (!v || v === "undefined" || v === "null" || v === "[object Object]") return false;
+  return true;
+}
+
+function normalizeOutputItem(d: any, collectionName: string = "outputs") {
+  const data = d.data ? d.data() : d;
+  const id = d.id || data.id || data.numeroSalida || data.numeroGuia;
+  const rawDate = data.date || data.fechaSalida || data.fecha || data.createdAt;
+  const items = Array.isArray(data.itemsDispatched) && data.itemsDispatched.length > 0
+    ? data.itemsDispatched
+    : (Array.isArray(data.items) && data.items.length > 0
+      ? data.items
+      : (Array.isArray(data.lotes) ? data.lotes : []));
+
+  return {
+    ...data,
+    id,
+    _collection: collectionName,
+    date: rawDate,
+    itemsDispatched: items,
+  };
 }
 
 function getGuiaRaw(item: any): string {
@@ -85,7 +115,7 @@ function getGuiaRaw(item: any): string {
   for (const val of candidates) {
     if (isVisibleGuide(val)) return String(val).toUpperCase();
   }
-  return "GUÍA SIN NÚMERO";
+  return "GUÍA S/N";
 }
 
 function getVisibleLotName(lote: any): string {
@@ -249,29 +279,87 @@ export default function EntregasPage() {
     }
   }, []);
 
-  // Suscripción a Firestore (cuando hay conexión)
+  // Suscripción en tiempo real a Firestore (escucha tanto 'outputs' como 'salidas')
   useEffect(() => {
     if (!db) return;
+
+    const outputsMap = new Map<string, any>();
+    const salidasMap = new Map<string, any>();
+
+    const updateCombinedOutputs = () => {
+      const combined = new Map<string, any>();
+
+      // 1. Primero salidas históricas o adicionales
+      for (const [id, item] of salidasMap.entries()) {
+        const guiaKey = (item.numeroSalida || item.numeroGuia || item.id || id).toString().toUpperCase();
+        combined.set(guiaKey, item);
+      }
+
+      // 2. Luego outputs (guías principales de despacho, sobrescribe o agrega)
+      for (const [id, item] of outputsMap.entries()) {
+        const guiaKey = (item.numeroSalida || item.numeroGuia || item.id || id).toString().toUpperCase();
+        combined.set(guiaKey, item);
+      }
+
+      const list = Array.from(combined.values());
+      list.sort((a, b) => {
+        const timeA = toDateSafe(a.date || a.fechaSalida || a.fecha || a.createdAt)?.getTime() || 0;
+        const timeB = toDateSafe(b.date || b.fechaSalida || b.fecha || b.createdAt)?.getTime() || 0;
+        return timeB - timeA;
+      });
+
+      if (list.length > 0) {
+        setOutputs(list);
+        setCachedOutputsAsync(list);
+      }
+      setLoading(false);
+    };
+
+    let unsubOutputs: (() => void) | null = null;
+    let unsubSalidas: (() => void) | null = null;
+
     try {
-      const q = query(collection(db, "outputs"), orderBy("date", "desc"), limit(200));
-      const unsubscribe = onSnapshot(
-        q, 
+      unsubOutputs = onSnapshot(
+        collection(db, "outputs"),
         (snapshot) => {
-          const loadedOutputs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          setOutputs(loadedOutputs);
-          setCachedOutputsAsync(loadedOutputs);
-          setLoading(false);
+          outputsMap.clear();
+          snapshot.docs.forEach((doc) => {
+            outputsMap.set(doc.id, normalizeOutputItem({ id: doc.id, ...doc.data() }, "outputs"));
+          });
+          updateCombinedOutputs();
         },
         (error) => {
-          console.warn("Firestore snapshot offline o no disponible:", error);
+          console.warn("Firestore snapshot outputs:", error);
           setLoading(false);
         }
       );
-      return () => unsubscribe();
     } catch (err) {
-      console.warn("Error subscribing to outputs:", err);
+      console.warn("Error subscribing outputs:", err);
       setLoading(false);
     }
+
+    try {
+      unsubSalidas = onSnapshot(
+        collection(db, "salidas"),
+        (snapshot) => {
+          salidasMap.clear();
+          snapshot.docs.forEach((doc) => {
+            salidasMap.set(doc.id, normalizeOutputItem({ id: doc.id, ...doc.data() }, "salidas"));
+          });
+          updateCombinedOutputs();
+        },
+        (error) => {
+          console.warn("Firestore snapshot salidas:", error);
+        }
+      );
+    } catch (err) {
+      console.warn("Error subscribing salidas:", err);
+    }
+
+    return () => {
+      if (unsubOutputs) unsubOutputs();
+      if (unsubSalidas) unsubSalidas();
+    };
   }, []);
 
   // Mezclar salidas con las entregas offline que están en la cola local
@@ -290,7 +378,11 @@ export default function EntregasPage() {
       const matchesSearch = guia.includes(searchTerm.toLowerCase()) || cliente.includes(searchTerm.toLowerCase());
       if (!matchesSearch) return false;
 
-      const items = out.itemsDispatched || [];
+      const items = Array.isArray(out.itemsDispatched) && out.itemsDispatched.length > 0
+        ? out.itemsDispatched
+        : (Array.isArray(out.items) && out.items.length > 0
+          ? out.items
+          : (Array.isArray(out.lotes) ? out.lotes : []));
       const isDelivered = items.length > 0 && items.every((i: any) => i.isClientDelivered === true);
       
       const isCorrectTab = activeTab === "pendientes" ? !isDelivered : isDelivered;
@@ -299,9 +391,8 @@ export default function EntregasPage() {
       // Si estamos en la pestaña de entregados, aplicamos el filtro por mes y año
       if (activeTab === "entregados") {
         const outDateRaw = out.date || out.fechaSalida || out.createdAt;
-        let date: Date;
-        if (outDateRaw?.toDate) date = outDateRaw.toDate();
-        else date = new Date(outDateRaw);
+        const date = toDateSafe(outDateRaw);
+        if (!date) return true;
 
         const monthMatch = date.getMonth().toString() === selectedMonth;
         const yearMatch = date.getFullYear().toString() === selectedYear;
@@ -346,14 +437,40 @@ export default function EntregasPage() {
         setPendingItems(getPendingDeliveries());
       }
 
-      // 2. Descargar las últimas guías y productos actualizados de la nube
+      // 2. Descargar las últimas guías y productos actualizados de la nube (tanto de 'outputs' como de 'salidas')
       try {
-        const q = query(collection(db, "outputs"), orderBy("date", "desc"), limit(200));
-        const snap = await withTimeout(getDocs(q), 5000);
-        if (snap && !snap.empty) {
-          const freshOutputs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          setOutputs(freshOutputs);
-          await setCachedOutputsAsync(freshOutputs);
+        const [snapOutputs, snapSalidas] = await Promise.all([
+          withTimeout(getDocs(collection(db, "outputs")), 6000),
+          withTimeout(getDocs(collection(db, "salidas")), 6000).catch(() => null)
+        ]);
+
+        const combined = new Map<string, any>();
+
+        if (snapSalidas && !snapSalidas.empty) {
+          snapSalidas.docs.forEach(d => {
+            const norm = normalizeOutputItem({ id: d.id, ...d.data() }, "salidas");
+            const guiaKey = (norm.numeroSalida || norm.numeroGuia || norm.id || d.id).toString().toUpperCase();
+            combined.set(guiaKey, norm);
+          });
+        }
+
+        if (snapOutputs && !snapOutputs.empty) {
+          snapOutputs.docs.forEach(d => {
+            const norm = normalizeOutputItem({ id: d.id, ...d.data() }, "outputs");
+            const guiaKey = (norm.numeroSalida || norm.numeroGuia || norm.id || d.id).toString().toUpperCase();
+            combined.set(guiaKey, norm);
+          });
+        }
+
+        if (combined.size > 0) {
+          const freshList = Array.from(combined.values());
+          freshList.sort((a, b) => {
+            const timeA = toDateSafe(a.date || a.fechaSalida || a.fecha || a.createdAt)?.getTime() || 0;
+            const timeB = toDateSafe(b.date || b.fechaSalida || b.fecha || b.createdAt)?.getTime() || 0;
+            return timeB - timeA;
+          });
+          setOutputs(freshList);
+          await setCachedOutputsAsync(freshList);
         }
       } catch (pullErr) {
         console.warn("Aviso al descargar productos en sincronización manual:", pullErr);
