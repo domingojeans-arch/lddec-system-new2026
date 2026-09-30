@@ -44,7 +44,20 @@ interface EntryFormProps {
 
 export function EntryForm({ initialData, clients, garmentCatalog, processCatalog, onSubmit, onCancel }: EntryFormProps) {
   const { user } = useAuth();
-  const [lots, setLots] = useState<EntryLot[]>(initialData?.lots || []);
+  const [lots, setLots] = useState<EntryLot[]>(() => {
+    if (initialData?.lots && initialData.lots.length > 0) return initialData.lots;
+    return [{
+      id: Math.random().toString(36).substr(2, 9),
+      lotNumber: "",
+      responsible: initialData?.responsible || user?.displayName || "",
+      process: "",
+      washType: "",
+      notes: "",
+      isSample: false,
+      status: "pending",
+      garments: [{ id: Math.random().toString(36).substr(2, 9), garmentType: "", quantity: 0 }],
+    }];
+  });
   const [localError, setLocalError] = useState<string | null>(null);
   
   const form = useForm<z.infer<typeof entrySchema>>({
@@ -69,8 +82,11 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
   });
 
   useEffect(() => {
-    if (!initialData && user?.displayName && !form.getValues("responsible")) {
-      form.setValue("responsible", user.displayName);
+    if (!initialData && user?.displayName) {
+      if (!form.getValues("responsible")) {
+        form.setValue("responsible", user.displayName);
+      }
+      setLots(prev => prev.map(l => (!l.responsible ? { ...l, responsible: user.displayName || "" } : l)));
     }
   }, [user, initialData, form]);
 
@@ -127,6 +143,11 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
       }
       if (!lot?.garments || lot.garments.length === 0) {
         setLocalError(`El Lote ${lot.lotNumber} debe tener prendas.`);
+        return;
+      }
+      const totalLotGarments = (lot.garments || []).reduce((sum, g) => sum + (Number(g.quantity) || 0), 0);
+      if (totalLotGarments <= 0) {
+        setLocalError(`El Lote ${lot.lotNumber} debe tener una cantidad de prendas mayor a 0.`);
         return;
       }
     }

@@ -36,7 +36,7 @@ export function LotRowsEditor({ lots, onChange, garmentCatalog, processCatalog }
       isSample: lastLot?.isSample || false,
       status: "pending",
       garments: lastLot 
-        ? lastLot.garments.map(g => ({ ...g, id: Math.random().toString(36).substr(2, 9) }))
+        ? lastLot.garments.map(g => ({ ...g, id: Math.random().toString(36).substr(2, 9), quantity: 0 }))
         : [{ id: Math.random().toString(36).substr(2, 9), garmentType: "", quantity: 0 }],
     };
     onChange([...lots, newLot]);
@@ -158,9 +158,19 @@ export function LotRowsEditor({ lots, onChange, garmentCatalog, processCatalog }
                     <div className="w-32 space-y-2">
                       <Input 
                         type="number"
-                        value={garment.quantity ?? ""}
-                        placeholder="Cant."
-                        onChange={e => updateGarment(lot.id, garment.id, { quantity: parseInt(e.target.value) || 0 })}
+                        min="0"
+                        value={garment.quantity === 0 ? "" : garment.quantity}
+                        placeholder="0"
+                        onFocus={(e) => {
+                          try {
+                            e.target.select();
+                          } catch {}
+                        }}
+                        onChange={e => {
+                          const raw = e.target.value;
+                          const val = raw === "" ? 0 : parseInt(raw, 10);
+                          updateGarment(lot.id, garment.id, { quantity: isNaN(val) ? 0 : Math.max(0, val) });
+                        }}
                         className="erp-input h-11 text-base font-black text-primary text-center"
                       />
                     </div>
@@ -210,7 +220,7 @@ export function LotRowsEditor({ lots, onChange, garmentCatalog, processCatalog }
             className="h-12 bg-background border-border text-foreground hover:bg-muted font-black text-xs uppercase tracking-widest px-10 rounded-2xl flex items-center gap-3 transition-all shadow-sm"
           >
             <Plus className="h-5 w-5" />
-            Añadir Otro Lote al Ingreso
+            {lots.length === 0 ? "Añadir Primer Lote" : "Añadir Otro Lote al Ingreso"}
           </Button>
         </div>
       </div>
