@@ -31,6 +31,12 @@ export function InventorySummaryReport({
     return Math.floor(val).toLocaleString('es-ES');
   };
 
+  const calcPercent = (part: number, total: number) => {
+    if (!total || total <= 0) return "0.0%";
+    const p = (part / total) * 100;
+    return `${p.toFixed(1)}%`;
+  };
+
   const handlePrint = () => {
     const params = new URLSearchParams({
       si: metrics.stockInicial.toString(),
@@ -187,7 +193,10 @@ export function InventorySummaryReport({
 
                   <TableRow className="border-b border-border/20 hover:bg-transparent bg-muted/5">
                     <TableCell className="h-10 pl-14 text-muted-foreground font-medium text-xs italic">
-                      • de las cuales, despachadas Y facturadas
+                      • de las cuales, despachadas Y facturadas{" "}
+                      <span className="text-emerald-600 font-bold ml-1.5 not-italic">
+                        ({calcPercent(metrics.despachadasFacturadas, metrics.despachosPeriodo)})
+                      </span>
                     </TableCell>
                     <TableCell className="h-10 pr-8 text-right text-muted-foreground font-bold text-xs tabular-nums">
                       {formatNum(metrics.despachadasFacturadas)}
@@ -195,7 +204,10 @@ export function InventorySummaryReport({
                   </TableRow>
                   <TableRow className="border-b border-border/50 hover:bg-transparent bg-muted/5">
                     <TableCell className="h-10 pl-14 text-muted-foreground font-medium text-xs italic">
-                      • de las cuales, despachadas SIN facturar
+                      • de las cuales, despachadas SIN facturar{" "}
+                      <span className="text-amber-600 font-bold ml-1.5 not-italic">
+                        ({calcPercent(metrics.despachadasSinFacturar, metrics.despachosPeriodo)})
+                      </span>
                     </TableCell>
                     <TableCell className="h-10 pr-8 text-right text-muted-foreground font-bold text-xs tabular-nums">
                       {formatNum(metrics.despachadasSinFacturar)}
@@ -302,7 +314,10 @@ export function InventorySummaryReport({
 
                       <TableRow className="border-b border-border/20 hover:bg-transparent bg-muted/5">
                         <TableCell className="h-10 pl-14 text-muted-foreground font-medium text-xs italic">
-                          • de las cuales, despachadas Y facturadas
+                          • de las cuales, despachadas Y facturadas{" "}
+                          <span className="text-emerald-600 font-bold ml-1.5 not-italic">
+                            ({calcPercent(item.metrics.despachadasFacturadas, item.metrics.despachosPeriodo)})
+                          </span>
                         </TableCell>
                         <TableCell className="h-10 pr-8 text-right text-muted-foreground font-bold text-xs tabular-nums">
                           {formatNum(item.metrics.despachadasFacturadas)}
@@ -310,7 +325,10 @@ export function InventorySummaryReport({
                       </TableRow>
                       <TableRow className="border-b border-border/50 hover:bg-transparent bg-muted/5">
                         <TableCell className="h-10 pl-14 text-muted-foreground font-medium text-xs italic">
-                          • de las cuales, despachadas SIN facturar
+                          • de las cuales, despachadas SIN facturar{" "}
+                          <span className="text-amber-600 font-bold ml-1.5 not-italic">
+                            ({calcPercent(item.metrics.despachadasSinFacturar, item.metrics.despachosPeriodo)})
+                          </span>
                         </TableCell>
                         <TableCell className="h-10 pr-8 text-right text-muted-foreground font-bold text-xs tabular-nums">
                           {formatNum(item.metrics.despachadasSinFacturar)}

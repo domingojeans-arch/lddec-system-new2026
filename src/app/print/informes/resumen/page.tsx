@@ -46,6 +46,13 @@ function PrintContent() {
     return Number(val || 0).toLocaleString('es-ES');
   };
 
+  const calcPercent = (part: any, total: any) => {
+    const pVal = Number(part || 0);
+    const tVal = Number(total || 0);
+    if (!tVal || tVal <= 0) return "0.0%";
+    return `${((pVal / tVal) * 100).toFixed(1)}%`;
+  };
+
   if (mode === "mensual" && monthlyData) {
     return (
       <div className="print-container-mensual">
@@ -203,11 +210,15 @@ function PrintContent() {
                   <td className="col-value">{formatNum(month.out)}</td>
                 </tr>
                 <tr className="row-sub">
-                  <td className="col-label" style={{ paddingLeft: '0.8cm' }}>• de las cuales facturadas</td>
+                  <td className="col-label" style={{ paddingLeft: '0.8cm' }}>
+                    • de las cuales facturadas <span style={{ color: '#059669', fontWeight: 800 }}>({calcPercent(month.df, month.out)})</span>
+                  </td>
                   <td className="col-value">{formatNum(month.df)}</td>
                 </tr>
                 <tr className="row-sub">
-                  <td className="col-label" style={{ paddingLeft: '0.8cm' }}>• de las cuales sin facturar</td>
+                  <td className="col-label" style={{ paddingLeft: '0.8cm' }}>
+                    • de las cuales sin facturar <span style={{ color: '#d97706', fontWeight: 800 }}>({calcPercent(month.dsf, month.out)})</span>
+                  </td>
                   <td className="col-value">{formatNum(month.dsf)}</td>
                 </tr>
                 <tr className="row-final">
@@ -378,11 +389,15 @@ function PrintContent() {
             <td className="col-value">{formatNum(data.out)}</td>
           </tr>
           <tr className="row-sub">
-            <td className="col-label" style={{ paddingLeft: '1cm' }}>• de las cuales facturadas</td>
+            <td className="col-label" style={{ paddingLeft: '1cm' }}>
+              • de las cuales facturadas <span style={{ color: '#059669', fontWeight: 800 }}>({calcPercent(data.df, data.out)})</span>
+            </td>
             <td className="col-value">{formatNum(data.df)}</td>
           </tr>
           <tr className="row-sub">
-            <td className="col-label" style={{ paddingLeft: '1cm' }}>• de las cuales sin facturar</td>
+            <td className="col-label" style={{ paddingLeft: '1cm' }}>
+              • de las cuales sin facturar <span style={{ color: '#d97706', fontWeight: 800 }}>({calcPercent(data.dsf, data.out)})</span>
+            </td>
             <td className="col-value">{formatNum(data.dsf)}</td>
           </tr>
           <tr className="row-final">
