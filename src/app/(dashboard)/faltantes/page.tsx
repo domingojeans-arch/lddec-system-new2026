@@ -14,7 +14,8 @@ import {
   Building2,
   Layers,
   Printer,
-  RotateCcw
+  RotateCcw,
+  ArrowLeftRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,10 +120,13 @@ export default function FaltantesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [resForm, setResForm] = useState({
-    tipoResolucion: "despacho", // "despacho" | "falla"
+    tipoResolucion: "despacho", // "despacho" | "falla" | "cruce"
     numeroGuia: "",
     cantidad: 0,
-    observacionesFalla: ""
+    observacionesFalla: "",
+    loteDestino: "",
+    loteDestinoManual: "",
+    motivoCruce: ""
   });
 
   const isReadOnly = user?.role === "socio";
@@ -254,7 +258,7 @@ export default function FaltantesPage() {
 
     entries.forEach(entry => {
       (entry.lotes || []).forEach((lote: any) => {
-        if (!(lote.isNoveltyResolved || lote.fallaLavado)) {
+        if (!(lote.isNoveltyResolved || lote.fallaLavado || lote.esCruceLote)) {
           return;
         }
 
@@ -292,6 +296,13 @@ export default function FaltantesPage() {
         const prenda = lote.garmentType || lote.prendas?.[0]?.tipo || lote.garments?.[0]?.garmentType || "Varios";
         const cantidadFaltante = Number(originalQuantity || 0) - Number(totalDispatched || 0);
 
+        let tipoResolucion = "Despachado";
+        if (lote.fallaLavado) {
+          tipoResolucion = "Falla Lavado";
+        } else if (lote.esCruceLote) {
+          tipoResolucion = `Cruce Lote ${lote.loteCruzado || "S/L"}`;
+        }
+
         results.push({
           id: `${entry.id}-${internalId}`, 
           loteId: visibleLotName,
@@ -307,7 +318,10 @@ export default function FaltantesPage() {
           totalDispatched,
           faltante: cantidadFaltante,
           salidaReferencia,
-          tipoResolucion: lote.fallaLavado ? "Falla Lavado" : "Despachado",
+          tipoResolucion,
+          isCruce: !!lote.esCruceLote,
+          loteCruzado: lote.loteCruzado,
+          motivoCruce: lote.motivoCruce,
           fechaResolucion: lote.fechaResolucion ? new Date(lote.fechaResolucion).toLocaleDateString('es-EC') : '---',
           resueltoPor: lote.resueltoPor || "S/D"
         });
@@ -320,6 +334,42 @@ export default function FaltantesPage() {
       f.visibleIngresoNumber.toLowerCase().includes(searchTerm.toLowerCase())
     ).sort((a, b) => b.entryDateMs - a.entryDateMs);
   }, [entries, outputs, searchTerm]);
+
+  const clientLotesCandidates = useMemo(() => {
+    if (!selectedItem) return [];
+    const clientNameNorm = (selectedItem.clientName || "").trim().toLowerCase();
+    const clientId = selectedItem.parentEntry?.clientId || selectedItem.parentEntry?.clienteId;
+
+    const candidates: { loteId: string; ingreso: string; prenda: string }[] = [];
+    const seenLotes = new Set<string>();
+
+    entries.forEach(entry => {
+      const eClientName = (entry.clientName || entry.clienteNombre || "").trim().toLowerCase();
+      const eClientId = entry.clientId || entry.clienteId;
+
+      const matchesClient = (clientId && eClientId && clientId === eClientId) ||
+                            (clientNameNorm && eClientName && (eClientName === clientNameNorm || eClientName.includes(clientNameNorm) || clientNameNorm.includes(eClientName)));
+
+      if (matchesClient) {
+        const visibleIngreso = getEntryVisible(entry, entry.id);
+
+        (entry.lotes || []).forEach((lote: any) => {
+          const visibleLot = getVisibleLotName(lote);
+          if (visibleLot && visibleLot !== "S/L" && visibleLot !== selectedItem.loteId && !seenLotes.has(visibleLot)) {
+            seenLotes.add(visibleLot);
+            const prenda = lote.garmentType || lote.prendas?.[0]?.tipo || lote.garments?.[0]?.garmentType || "Prenda";
+            candidates.push({
+              loteId: visibleLot,
+              ingreso: visibleIngreso,
+              prenda
+            });
+          }
+        });
+      }
+    });
+
+    return candidates;
+  }, [selectedItem, entries]);
 
   const handleUndoResolution = async (item: any) => {
     if (isReadOnly) return;
@@ -334,7 +384,19 @@ export default function FaltantesPage() {
         const lid = getVisibleLotName(l);
         if (lid === item.loteId) {
           // Revertir todos los campos de resolución
-          const { isNoveltyResolved, productionStatus, fallaLavado, observacionesFalla, resueltoPor, fechaResolucion, ...rest } = l;
+          const { 
+            isNoveltyResolved, 
+            productionStatus, 
+            fallaLavado, 
+            observacionesFalla, 
+            esCruceLote, 
+            loteCruzado, 
+            motivoCruce, 
+            cantidadCruzada, 
+            resueltoPor, 
+            fechaResolucion, 
+            ...rest 
+          } = l;
           return {
             ...rest,
             productionStatus: "In Progress"
@@ -363,7 +425,10 @@ export default function FaltantesPage() {
       tipoResolucion: "despacho",
       numeroGuia: "",
       cantidad: item.faltante,
-      observacionesFalla: ""
+      observacionesFalla: "",
+      loteDestino: "",
+      loteDestinoManual: "",
+      motivoCruce: ""
     });
     setIsModalOpen(true);
   };
@@ -373,6 +438,13 @@ export default function FaltantesPage() {
     if (resForm.tipoResolucion === "despacho" && !resForm.numeroGuia) {
       toast({ variant: "destructive", title: "Falta número de guía de salida" });
       return;
+    }
+    if (resForm.tipoResolucion === "cruce") {
+      const targetLot = resForm.loteDestino === "MANUAL" ? resForm.loteDestinoManual.trim() : resForm.loteDestino.trim();
+      if (!targetLot) {
+        toast({ variant: "destructive", title: "Seleccione o ingrese el lote con el que se cruzó" });
+        return;
+      }
     }
     if (resForm.cantidad <= 0) {
       toast({ variant: "destructive", title: "La cantidad a regularizar debe ser mayor a 0" });
@@ -404,6 +476,11 @@ export default function FaltantesPage() {
         batch.set(outputRef, outputPayload);
       }
 
+      const isCruce = resForm.tipoResolucion === "cruce";
+      const targetLot = isCruce
+        ? (resForm.loteDestino === "MANUAL" ? resForm.loteDestinoManual.trim().toUpperCase() : resForm.loteDestino.trim().toUpperCase())
+        : null;
+
       const entryRef = doc(db, "entries", selectedItem.parentIngresoId);
       const updatedLotes = selectedItem.parentEntry.lotes.map((l: any) => {
         const lid = getVisibleLotName(l);
@@ -414,6 +491,10 @@ export default function FaltantesPage() {
             productionStatus: "Completed",
             fallaLavado: resForm.tipoResolucion === "falla",
             observacionesFalla: resForm.tipoResolucion === "falla" ? resForm.observacionesFalla : "",
+            esCruceLote: isCruce,
+            loteCruzado: targetLot,
+            motivoCruce: isCruce ? (resForm.motivoCruce || `Cruzado con lote ${targetLot}`) : "",
+            cantidadCruzada: isCruce ? resForm.cantidad : null,
             resueltoPor: user?.email || "system",
             fechaResolucion: new Date().toISOString()
           };
@@ -427,7 +508,9 @@ export default function FaltantesPage() {
         title: "Faltante Resuelto", 
         description: resForm.tipoResolucion === "falla" 
           ? "Lote marcado como falla de lavado y regularizado." 
-          : "Guía de salida generada y lote regularizado." 
+          : isCruce
+            ? `Lote regularizado por cruce con lote ${targetLot}.`
+            : "Guía de salida generada y lote regularizado." 
       });
       setIsModalOpen(false);
     } catch (e) {
@@ -642,13 +725,21 @@ export default function FaltantesPage() {
                     </TableCell>
                     <TableCell>
                       <span className={cn(
-                        "text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border",
+                        "text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border inline-flex items-center gap-1",
                         item.tipoResolucion === "Falla Lavado" 
-                          ? "bg-rose-50 text-rose-700 border-rose-100" 
-                          : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                          ? "bg-rose-50 text-rose-700 border-rose-200" 
+                          : item.isCruce
+                            ? "bg-indigo-50 text-indigo-700 border-indigo-200 font-bold"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
                       )}>
+                        {item.isCruce && <ArrowLeftRight className="h-3 w-3 inline text-indigo-600" />}
                         {item.tipoResolucion}
                       </span>
+                      {item.motivoCruce && (
+                        <span className="block text-[8px] font-semibold text-muted-foreground mt-0.5 truncate max-w-[150px]" title={item.motivoCruce}>
+                          {item.motivoCruce}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-center font-bold text-muted-foreground">
                       {item.faltante}
@@ -693,7 +784,11 @@ export default function FaltantesPage() {
         <DialogContent className="max-w-md p-0 rounded-[2.5rem] overflow-hidden border-none shadow-2xl bg-card">
           <div className="p-8 border-b border-border bg-primary/5">
             <DialogTitle className="text-2xl font-black uppercase tracking-tight">Resolver Faltante</DialogTitle>
-            <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">Generar Guía de Salida Complementaria</p>
+            <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">
+              {resForm.tipoResolucion === "despacho" && "Generar Guía de Salida Complementaria"}
+              {resForm.tipoResolucion === "falla" && "Registro de Merma / Falla de Proceso"}
+              {resForm.tipoResolucion === "cruce" && "Compensación con Lote del Mismo Cliente"}
+            </p>
           </div>
           <div className="p-8 space-y-6">
             <div className="bg-muted/30 p-5 rounded-2xl border border-border space-y-3">
@@ -725,11 +820,12 @@ export default function FaltantesPage() {
                   <SelectContent>
                     <SelectItem value="despacho" className="font-bold text-xs uppercase">Registrar Despacho (Guía)</SelectItem>
                     <SelectItem value="falla" className="font-bold text-xs uppercase">Falla de Lavado (Lote Dañado)</SelectItem>
+                    <SelectItem value="cruce" className="font-bold text-xs uppercase">Cruce entre Lotes (Mismo Cliente)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {resForm.tipoResolucion === "despacho" ? (
+              {resForm.tipoResolucion === "despacho" && (
                 <div className="space-y-1.5 animate-in fade-in duration-300">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">N° Guía de Salida</Label>
                   <Input 
@@ -739,7 +835,9 @@ export default function FaltantesPage() {
                     className="erp-input h-12 font-bold" 
                   />
                 </div>
-              ) : (
+              )}
+
+              {resForm.tipoResolucion === "falla" && (
                 <div className="space-y-1.5 animate-in fade-in duration-300">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Detalle / Observaciones de Falla</Label>
                   <Input 
@@ -748,6 +846,58 @@ export default function FaltantesPage() {
                     placeholder="Ej: Prenda rota en proceso de centrifugado / encogimiento excesivo" 
                     className="erp-input h-12 font-semibold text-xs" 
                   />
+                </div>
+              )}
+
+              {resForm.tipoResolucion === "cruce" && (
+                <div className="space-y-3 animate-in fade-in duration-300 bg-muted/20 p-4 rounded-2xl border border-border">
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Lote con el que se cruzó</Label>
+                    {clientLotesCandidates.length > 0 ? (
+                      <Select 
+                        value={resForm.loteDestino} 
+                        onValueChange={(val) => setResForm({...resForm, loteDestino: val})}
+                      >
+                        <SelectTrigger className="erp-input h-12 rounded-xl font-bold text-xs uppercase bg-background border-border">
+                          <SelectValue placeholder="Seleccione un lote del cliente..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clientLotesCandidates.map((c) => (
+                            <SelectItem key={c.loteId} value={c.loteId} className="font-bold text-xs uppercase">
+                              Lote {c.loteId} — {c.prenda} (Ing. {c.ingreso})
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="MANUAL" className="font-bold text-xs text-primary uppercase">
+                            + Escribir otro lote manualmente...
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : null}
+
+                    {(clientLotesCandidates.length === 0 || resForm.loteDestino === "MANUAL") && (
+                      <div className="pt-1">
+                        <Input 
+                          value={resForm.loteDestinoManual} 
+                          onChange={e => setResForm({...resForm, loteDestinoManual: e.target.value.toUpperCase()})}
+                          placeholder="Ej: 24808 (Escriba el N° de Lote)" 
+                          className="erp-input h-12 font-bold uppercase bg-background" 
+                        />
+                        <p className="text-[9px] text-muted-foreground ml-1 mt-1 font-medium">
+                          Indique el número del lote con el que se cruzaron estas prendas.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Motivo / Observaciones del Cruce</Label>
+                    <Input 
+                      value={resForm.motivoCruce} 
+                      onChange={e => setResForm({...resForm, motivoCruce: e.target.value})}
+                      placeholder="Ej: Se despacharon junto a la guía del Lote 24808" 
+                      className="erp-input h-12 font-semibold text-xs bg-background" 
+                    />
+                  </div>
                 </div>
               )}
 

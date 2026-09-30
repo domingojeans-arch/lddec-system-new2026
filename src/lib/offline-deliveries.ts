@@ -171,23 +171,31 @@ export function mergePendingDeliveriesWithOutputs(
     const pendingForOutput = pending.filter(p => p.outputId === out.id);
     if (pendingForOutput.length === 0) return out;
 
+    const hasGuiaDelivery = pendingForOutput.some(p => p.lotNumber === "__GUIA__");
+
     const updatedItems = (out.itemsDispatched || []).map((item: any) => {
       const lotName = getVisibleLotNameFn(item).toUpperCase();
       const matchingPending = pendingForOutput.find(p => p.lotNumber.toUpperCase() === lotName);
-      if (matchingPending) {
+      if (matchingPending || hasGuiaDelivery) {
         return {
           ...item,
           isClientDelivered: true,
-          clientDeliveryTimestamp: matchingPending.deliveredAt,
-          entregadoPor: matchingPending.deliveredBy,
+          clientDeliveryTimestamp: matchingPending?.deliveredAt || pendingForOutput[0]?.deliveredAt,
+          entregadoPor: matchingPending?.deliveredBy || pendingForOutput[0]?.deliveredBy,
           isOfflinePendingSync: true, // Distintivo visual
         };
       }
       return item;
     });
 
+    const allDelivered = updatedItems.length === 0 
+      ? hasGuiaDelivery 
+      : updatedItems.every((i: any) => i.isClientDelivered === true);
+
     return {
       ...out,
+      isClientDelivered: hasGuiaDelivery || allDelivered || out.isClientDelivered,
+      isOfflinePendingSync: hasGuiaDelivery || out.isOfflinePendingSync,
       itemsDispatched: updatedItems,
     };
   });
@@ -250,15 +258,24 @@ export async function syncDeliveriesToFirestore(
         ? outputData.itemsDispatched
         : (Array.isArray(outputData.items) && outputData.items.length > 0
           ? outputData.items
-          : (Array.isArray(outputData.lotes) ? outputData.lotes : []));
+          : (Array.isArray(outputData.lotes) && outputData.lotes.length > 0
+            ? outputData.lotes
+            : (Array.isArray(outputData.lines) && outputData.lines.length > 0
+              ? outputData.lines
+              : (Array.isArray(outputData.prendas) && outputData.prendas.length > 0
+                ? outputData.prendas
+                : (Array.isArray(outputData.garments) && outputData.garments.length > 0
+                  ? outputData.garments
+                  : (Array.isArray(outputData.lots) ? outputData.lots : []))))));
 
       const batch = writeBatch(db);
       const lotNamesToDeliver = new Set(items.map(i => i.lotNumber.toUpperCase()));
+      const hasGuiaDelivery = lotNamesToDeliver.has("__GUIA__");
       const entriesToUpdate = new Map<string, Set<string>>();
 
       const updatedItemsDispatched = currentItems.map((item: any) => {
         const itemLotName = getVisibleLotNameFn(item).toUpperCase();
-        if (lotNamesToDeliver.has(itemLotName)) {
+        if (lotNamesToDeliver.has(itemLotName) || hasGuiaDelivery) {
           const matchingPending = items.find(i => i.lotNumber.toUpperCase() === itemLotName);
           const entryId = item.parentIngresoMaestro || matchingPending?.parentIngresoMaestro;
           if (entryId && itemLotName !== "S/L") {
@@ -268,15 +285,23 @@ export async function syncDeliveriesToFirestore(
           return {
             ...item,
             isClientDelivered: true,
-            clientDeliveryTimestamp: matchingPending?.deliveredAt || new Date().toISOString(),
-            entregadoPor: matchingPending?.deliveredBy || "sistema",
+            clientDeliveryTimestamp: matchingPending?.deliveredAt || items[0]?.deliveredAt || new Date().toISOString(),
+            entregadoPor: matchingPending?.deliveredBy || items[0]?.deliveredBy || "sistema",
           };
         }
         return item;
       });
 
+      const allDelivered = updatedItemsDispatched.length === 0 
+        ? hasGuiaDelivery 
+        : updatedItemsDispatched.every((i: any) => i.isClientDelivered === true);
+
       batch.update(outputRef, {
         itemsDispatched: updatedItemsDispatched,
+        isClientDelivered: allDelivered,
+        status: allDelivered ? "completed" : (outputData.status || "in_transit"),
+        clientDeliveryTimestamp: items[0]?.deliveredAt || new Date().toISOString(),
+        entregadoPor: items[0]?.deliveredBy || "sistema",
         updatedAt: serverTimestamp(),
       });
 

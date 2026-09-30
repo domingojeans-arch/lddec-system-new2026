@@ -99,7 +99,15 @@ function normalizeOutputItem(d: any, collectionName: string = "outputs") {
     ? data.itemsDispatched
     : (Array.isArray(data.items) && data.items.length > 0
       ? data.items
-      : (Array.isArray(data.lotes) ? data.lotes : []));
+      : (Array.isArray(data.lotes) && data.lotes.length > 0
+        ? data.lotes
+        : (Array.isArray(data.lines) && data.lines.length > 0
+          ? data.lines
+          : (Array.isArray(data.prendas) && data.prendas.length > 0
+            ? data.prendas
+            : (Array.isArray(data.garments) && data.garments.length > 0
+              ? data.garments
+              : (Array.isArray(data.lots) ? data.lots : []))))));
 
   return {
     ...data,
@@ -111,11 +119,24 @@ function normalizeOutputItem(d: any, collectionName: string = "outputs") {
 }
 
 function getGuiaRaw(item: any): string {
-  const candidates = [item?.numeroSalida, item?.numeroGuia, item?.outputNumber, item?.id];
+  const candidates = [
+    item?.numeroSalida, 
+    item?.numeroGuia, 
+    item?.outputNumber, 
+    item?.guia,
+    item?.numGuia,
+    item?.guiaNumero,
+    item?.numero
+  ];
   for (const val of candidates) {
     if (isVisibleGuide(val)) return String(val).toUpperCase();
   }
-  return "GUÍA S/N";
+  // Si no tiene número de guía formal y el ID es un hash autogenerado largo de Firestore
+  const rawId = String(item?.id ?? "").trim();
+  if (rawId && rawId.length >= 16 && !rawId.includes("-") && !rawId.includes(" ")) {
+    return `GUÍA S/N (${rawId.substring(0, 6)}...)`;
+  }
+  return rawId ? rawId.toUpperCase() : "GUÍA S/N";
 }
 
 function getVisibleLotName(lote: any): string {
@@ -383,7 +404,8 @@ export default function EntregasPage() {
         : (Array.isArray(out.items) && out.items.length > 0
           ? out.items
           : (Array.isArray(out.lotes) ? out.lotes : []));
-      const isDelivered = items.length > 0 && items.every((i: any) => i.isClientDelivered === true);
+      const isDelivered = out.isClientDelivered === true || 
+        (items.length > 0 && items.every((i: any) => i.isClientDelivered === true));
       
       const isCorrectTab = activeTab === "pendientes" ? !isDelivered : isDelivered;
       if (!isCorrectTab) return false;
@@ -536,6 +558,54 @@ export default function EntregasPage() {
     });
   };
 
+  // Entregar una guía completa directamente (útil para guías globales o sin desglose de lotes)
+  const handleDeliverEntireGuide = async (outputId: string) => {
+    if (!canEdit) return;
+    const output = liveOutputs.find(o => o.id === outputId);
+    if (!output) return;
+
+    const nowIso = new Date().toISOString();
+    const currentUser = user?.displayName || user?.email || "Chofer";
+    const items = output.itemsDispatched || [];
+    const itemsToAdd: PendingDeliveryItem[] = [];
+
+    if (items.length === 0) {
+      itemsToAdd.push({
+        id: `${outputId}___GUIA___${Date.now()}`,
+        outputId,
+        lotNumber: "__GUIA__",
+        parentIngresoMaestro: null,
+        deliveredAt: nowIso,
+        deliveredBy: currentUser,
+      });
+    } else {
+      items.forEach((item: any) => {
+        const lotNum = getVisibleLotName(item);
+        if (!item.isClientDelivered) {
+          itemsToAdd.push({
+            id: `${outputId}_${lotNum}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            outputId,
+            lotNumber: lotNum,
+            parentIngresoMaestro: item.parentIngresoMaestro || null,
+            deliveredAt: nowIso,
+            deliveredBy: currentUser,
+          });
+        }
+      });
+    }
+
+    addMultiplePendingDeliveries(itemsToAdd);
+    setPendingItems(getPendingDeliveries());
+
+    toast({
+      title: "Guía Entregada ✅",
+      description: effectiveOnline 
+        ? "Registrada en el celular 💾. Presiona 'Sincronizar' para subirla a la nube." 
+        : "Registrada en tu celular 💾. Presiona 'Sincronizar' cuando vuelvas a tener señal.",
+      className: "bg-emerald-600 text-white font-bold"
+    });
+  };
+
   // Entregar selección masiva (Optimistic UI instantáneo - guardado local)
   const handleDeliverSelected = async () => {
     if (!canEdit || selectedIds.length === 0) return;
@@ -548,19 +618,32 @@ export default function EntregasPage() {
     selectedIds.forEach(id => {
       const out = liveOutputs.find(o => o.id === id);
       if (out) {
-        (out.itemsDispatched || []).forEach((item: any) => {
-          const lotNum = getVisibleLotName(item);
-          if (lotNum !== "S/L" && !item.isClientDelivered) {
-            itemsToAdd.push({
-              id: `${id}_${lotNum}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-              outputId: id,
-              lotNumber: lotNum,
-              parentIngresoMaestro: item.parentIngresoMaestro || null,
-              deliveredAt: nowIso,
-              deliveredBy: currentUser,
-            });
-          }
-        });
+        const items = out.itemsDispatched || [];
+        if (items.length === 0) {
+          // Si la guía no tiene lotes detallados, permitir entregar la guía completa
+          itemsToAdd.push({
+            id: `${id}___GUIA___${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            outputId: id,
+            lotNumber: "__GUIA__",
+            parentIngresoMaestro: null,
+            deliveredAt: nowIso,
+            deliveredBy: currentUser,
+          });
+        } else {
+          items.forEach((item: any) => {
+            const lotNum = getVisibleLotName(item);
+            if (lotNum !== "S/L" && !item.isClientDelivered) {
+              itemsToAdd.push({
+                id: `${id}_${lotNum}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                outputId: id,
+                lotNumber: lotNum,
+                parentIngresoMaestro: item.parentIngresoMaestro || null,
+                deliveredAt: nowIso,
+                deliveredBy: currentUser,
+              });
+            }
+          });
+        }
       }
     });
 
@@ -573,7 +656,7 @@ export default function EntregasPage() {
     // 2. Feedback visual
     toast({
       title: "Entregas Registradas ✅",
-      description: `Se registraron ${itemsToAdd.length} lote(s) en tu celular 💾. Presiona 'Sincronizar' para subirlos a la nube.`,
+      description: `Se registraron ${itemsToAdd.length} entrega(s) en tu celular 💾. Presiona 'Sincronizar' para subirlas a la nube.`,
       className: "bg-emerald-600 text-white font-bold"
     });
   };
@@ -835,40 +918,57 @@ export default function EntregasPage() {
                         <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                           <PackageCheck className="h-3.5 w-3.5 text-primary" /> Lotes de esta guía:
                         </p>
-                        <div className="space-y-1.5">
-                          {items.map((item: any, idx: number) => {
-                            const lotVisible = getVisibleLotName(item);
-                            return (
-                              <div 
-                                key={idx} 
-                                className="flex items-center justify-between p-2.5 rounded-xl bg-background border border-border/80 gap-2"
-                              >
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-xs font-black text-primary truncate">{lotVisible}</span>
-                                  {item.isOfflinePendingSync ? (
-                                    <Badge className="text-[8px] font-black uppercase px-1.5 h-4.5 rounded-full border-none bg-amber-500/20 text-amber-700 dark:text-amber-300 gap-1">
-                                      <CloudOff className="h-2 w-2" /> Pend. Sinc
-                                    </Badge>
-                                  ) : (
-                                    <Badge className={cn("text-[8px] font-black uppercase px-1.5 h-4.5 rounded-full border-none", item.isClientDelivered ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
-                                      {item.isClientDelivered ? 'Entregado' : 'En Tránsito'}
-                                    </Badge>
+                        {items.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {items.map((item: any, idx: number) => {
+                              const lotVisible = getVisibleLotName(item);
+                              return (
+                                <div 
+                                  key={idx} 
+                                  className="flex items-center justify-between p-2.5 rounded-xl bg-background border border-border/80 gap-2"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs font-black text-primary truncate">{lotVisible}</span>
+                                    {item.isOfflinePendingSync ? (
+                                      <Badge className="text-[8px] font-black uppercase px-1.5 h-4.5 rounded-full border-none bg-amber-500/20 text-amber-700 dark:text-amber-300 gap-1">
+                                        <CloudOff className="h-2 w-2" /> Pend. Sinc
+                                      </Badge>
+                                    ) : (
+                                      <Badge className={cn("text-[8px] font-black uppercase px-1.5 h-4.5 rounded-full border-none", item.isClientDelivered ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
+                                        {item.isClientDelivered ? 'Entregado' : 'En Tránsito'}
+                                      </Badge>
+                                    )}
+                                  </div>
+
+                                  {canEdit && !item.isClientDelivered && (
+                                    <Button 
+                                      size="sm" 
+                                      className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-lg gap-1 shadow-sm shrink-0 active:scale-95 transition-transform" 
+                                      onClick={() => handleDeliverLot(output.id, lotVisible)}
+                                    >
+                                      <CheckCircle2 className="h-3.5 w-3.5" /> Entregar
+                                    </Button>
                                   )}
                                 </div>
-
-                                {canEdit && !item.isClientDelivered && (
-                                  <Button 
-                                    size="sm" 
-                                    className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-lg gap-1 shadow-sm shrink-0 active:scale-95 transition-transform" 
-                                    onClick={() => handleDeliverLot(output.id, lotVisible)}
-                                  >
-                                    <CheckCircle2 className="h-3.5 w-3.5" /> Entregar
-                                  </Button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-3 rounded-xl bg-background border border-border/80 text-center space-y-2">
+                            <p className="text-[11px] text-muted-foreground font-semibold">
+                              Guía sin lotes individuales detallados
+                            </p>
+                            {canEdit && activeTab === "pendientes" && (
+                              <Button 
+                                size="sm" 
+                                className="w-full h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black rounded-lg gap-1.5 shadow-sm" 
+                                onClick={() => handleDeliverEntireGuide(output.id)}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Marcar Guía como Entregada
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -932,43 +1032,60 @@ export default function EntregasPage() {
                           <TableCell colSpan={7} className="p-0 border-b border-border">
                             <div className="p-8 space-y-6">
                               <h4 className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2"><PackageCheck className="h-4 w-4" /> Detalle de Lotes</h4>
-                              <div className="rounded-2xl border border-border bg-background overflow-hidden">
-                                <Table>
-                                  <TableHeader className="bg-muted/30"><TableRow><TableHead className="text-[9px] font-black uppercase py-3 pl-6">Lote</TableHead><TableHead className="text-[9px] font-black uppercase text-center">Estado</TableHead><TableHead className="text-[9px] font-black uppercase text-right pr-6">Acción</TableHead></TableRow></TableHeader>
-                                  <TableBody>
-                                    {(output.itemsDispatched || []).map((item: any, idx: number) => {
-                                      const lotVisible = getVisibleLotName(item);
-                                      return (
-                                        <TableRow key={idx} className="border-b border-border last:border-0">
-                                          <TableCell className="pl-6 font-black text-xs text-primary">{lotVisible}</TableCell>
-                                          <TableCell className="text-center">
-                                            {item.isOfflinePendingSync ? (
-                                              <Badge className="text-[8px] font-black uppercase px-2 h-5 rounded-full border-none bg-amber-500/20 text-amber-700 dark:text-amber-300 gap-1">
-                                                <CloudOff className="h-2.5 w-2.5" /> Pendiente Sinc
-                                              </Badge>
-                                            ) : (
-                                              <Badge className={cn("text-[8px] font-black uppercase px-2 h-5 rounded-full border-none", item.isClientDelivered ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
-                                                {item.isClientDelivered ? 'Entregado' : 'En Tránsito'}
-                                              </Badge>
-                                            )}
-                                          </TableCell>
-                                          <TableCell className="text-right pr-6">
-                                            {canEdit && !item.isClientDelivered && (
-                                              <Button 
-                                                size="sm" 
-                                                className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg gap-1.5" 
-                                                onClick={() => handleDeliverLot(output.id, lotVisible)}
-                                              >
-                                                <CheckCircle2 className="h-3 w-3" /> Entregar
-                                              </Button>
-                                            )}
-                                          </TableCell>
-                                        </TableRow>
-                                      );
-                                    })}
-                                  </TableBody>
-                                </Table>
-                              </div>
+                              {(output.itemsDispatched || []).length > 0 ? (
+                                <div className="rounded-2xl border border-border bg-background overflow-hidden">
+                                  <Table>
+                                    <TableHeader className="bg-muted/30"><TableRow><TableHead className="text-[9px] font-black uppercase py-3 pl-6">Lote</TableHead><TableHead className="text-[9px] font-black uppercase text-center">Estado</TableHead><TableHead className="text-[9px] font-black uppercase text-right pr-6">Acción</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                      {(output.itemsDispatched || []).map((item: any, idx: number) => {
+                                        const lotVisible = getVisibleLotName(item);
+                                        return (
+                                          <TableRow key={idx} className="border-b border-border last:border-0">
+                                            <TableCell className="pl-6 font-black text-xs text-primary">{lotVisible}</TableCell>
+                                            <TableCell className="text-center">
+                                              {item.isOfflinePendingSync ? (
+                                                <Badge className="text-[8px] font-black uppercase px-2 h-5 rounded-full border-none bg-amber-500/20 text-amber-700 dark:text-amber-300 gap-1">
+                                                  <CloudOff className="h-2.5 w-2.5" /> Pendiente Sinc
+                                                </Badge>
+                                              ) : (
+                                                <Badge className={cn("text-[8px] font-black uppercase px-2 h-5 rounded-full border-none", item.isClientDelivered ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600")}>
+                                                  {item.isClientDelivered ? 'Entregado' : 'En Tránsito'}
+                                                </Badge>
+                                              )}
+                                            </TableCell>
+                                            <TableCell className="text-right pr-6">
+                                              {canEdit && !item.isClientDelivered && (
+                                                <Button 
+                                                  size="sm" 
+                                                  className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-lg gap-1.5" 
+                                                  onClick={() => handleDeliverLot(output.id, lotVisible)}
+                                                >
+                                                  <CheckCircle2 className="h-3 w-3" /> Entregar
+                                                </Button>
+                                              )}
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              ) : (
+                                <div className="p-6 rounded-2xl bg-muted/20 border border-border text-center space-y-3">
+                                  <p className="text-xs text-muted-foreground font-semibold">
+                                    Esta guía no tiene lotes detallados registrados (guía global o de periodo anterior).
+                                  </p>
+                                  {canEdit && activeTab === "pendientes" && (
+                                    <Button 
+                                      size="sm" 
+                                      onClick={() => handleDeliverEntireGuide(output.id)}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase px-5 h-9 rounded-xl shadow-md gap-2"
+                                    >
+                                      <CheckCircle2 className="h-4 w-4" /> Marcar Guía como Entregada
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
