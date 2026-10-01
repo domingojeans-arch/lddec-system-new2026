@@ -489,18 +489,74 @@ export default function ChemicalInventoryPage() {
     if (!term) return;
     setIsSearchingLot(true);
     try {
-      const q = query(collection(db, "entries"), where("loteIdList", "array-contains", term), limit(1));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const entryData = snap.docs[0].data();
-        const lot = (entryData.lots || entryData.lotes || []).find((l: any) => getVisibleLotNumber(l) === term);
-        setPesadaHeader(prev => ({ ...prev, clientRef: (entryData.clientName || "SOCIO").toUpperCase(), lotQty: lot?.cantidadConfirmada || lot?.quantity || 0 }));
+      const entriesRef = collection(db, "entries");
+      let entryDoc: any = null;
+
+      // 1. Intentar por loteIdList
+      const q1 = query(entriesRef, where("loteIdList", "array-contains", term), limit(1));
+      const snap1 = await getDocs(q1);
+
+      if (!snap1.empty) {
+        entryDoc = snap1.docs[0];
+      } else {
+        // 2. Intentar por ID directo de documento
+        const dRef = doc(db, "entries", term);
+        const dSnap = await getDoc(dRef);
+        if (dSnap.exists()) {
+          entryDoc = dSnap;
+        } else {
+          // 3. Intentar por numeroIngreso
+          const q2 = query(entriesRef, where("numeroIngreso", "==", term), limit(1));
+          const snap2 = await getDocs(q2);
+          if (!snap2.empty) entryDoc = snap2.docs[0];
+        }
+      }
+
+      if (entryDoc) {
+        const entryData = entryDoc.data();
+        const rawLots = entryData.lots || entryData.lotes || [];
+        const lot = rawLots.find((l: any) => 
+          getVisibleLotNumber(l) === term || 
+          String(l.id || "").toUpperCase() === term ||
+          String(l.lotNumber || "").toUpperCase() === term
+        );
+
+        let lotQty = 0;
+        if (lot) {
+          const garments = Array.isArray(lot.garments) ? lot.garments : (Array.isArray(lot.prendas) ? lot.prendas : []);
+          if (garments.length > 0) {
+            lotQty = garments.reduce((acc: number, g: any) => acc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0);
+          }
+          if (!lotQty) {
+            lotQty = Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || lot.total || 0);
+          }
+        } else if (rawLots.length === 1) {
+          const singleLot = rawLots[0];
+          const garments = Array.isArray(singleLot.garments) ? singleLot.garments : (Array.isArray(singleLot.prendas) ? singleLot.prendas : []);
+          if (garments.length > 0) {
+            lotQty = garments.reduce((acc: number, g: any) => acc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0);
+          }
+          if (!lotQty) {
+            lotQty = Number(singleLot.cantidadConfirmada || singleLot.quantity || singleLot.cantidad || singleLot.total || 0);
+          }
+        }
+
+        setPesadaHeader(prev => ({ 
+          ...prev, 
+          clientRef: (entryData.clientName || entryData.nombreCliente || "SOCIO").toUpperCase(), 
+          lotQty 
+        }));
         setLotFound(true);
       } else {
-        toast({ variant: "destructive", title: "Lote no encontrado" });
+        toast({ variant: "destructive", title: "Lote no encontrado", description: `No se encontró ningún registro para el lote ${term}` });
         setLotFound(false);
       }
-    } catch (e) { console.error(e); } finally { setIsSearchingLot(false); }
+    } catch (e) { 
+      console.error(e); 
+      toast({ variant: "destructive", title: "Error en la búsqueda", description: "Ocurrió un error al buscar el lote." });
+    } finally { 
+      setIsSearchingLot(false); 
+    }
   };
 
   const handleRegisterPurchase = async () => {
@@ -704,8 +760,17 @@ export default function ChemicalInventoryPage() {
   const processesByChemicalId = useMemo(() => {
     const map: Record<string, string[]> = {};
     chemicals.forEach(c => {
-      const pList = chemMaestro.filter(m => m.sustancia === c.chemicalName.toUpperCase()).map(m => m.proceso);
-      map[c.id] = Array.from(new Set(pList));
+      const chemUpper = (c.chemicalName || "").trim().toUpperCase();
+      const pList = chemMaestro
+        .filter(m => (m.sustancia || "").trim().toUpperCase() === chemUpper)
+        .map(m => (m.proceso || "").trim().toUpperCase());
+      
+      if (chemUpper.includes("METABISULFITO")) {
+        if (!pList.some(p => p.includes("NEUTRALIZ"))) {
+          pList.unshift("NEUTRALIZADO");
+        }
+      }
+      map[c.id] = Array.from(new Set(pList.filter(Boolean)));
     });
     return map;
   }, [chemicals, chemMaestro]);
@@ -845,8 +910,26 @@ export default function ChemicalInventoryPage() {
                     <div className="space-y-1.5 xl:col-span-3">
                       <Label className="text-[10px] font-black uppercase text-primary ml-1">ID Lote Planta</Label>
                       <div className="flex gap-1.5">
-                        <Input className="erp-input h-11 font-black flex-1" placeholder="Lote" value={pesadaHeader.lotSearch} onChange={e => setPesadaHeader({...pesadaHeader, lotSearch: e.target.value.toUpperCase()})} readOnly={pesadaHeader.orderType !== "NORMAL"} />
-                        <Button onClick={handleSearchLot} disabled={isSearchingLot || pesadaHeader.orderType !== "NORMAL"} size="icon" className="h-11 w-11 shrink-0 bg-amber-500 rounded-xl">
+                        <Input 
+                          className="erp-input h-11 font-black flex-1" 
+                          placeholder="Lote" 
+                          value={pesadaHeader.lotSearch} 
+                          onChange={e => setPesadaHeader({...pesadaHeader, lotSearch: e.target.value.toUpperCase()})} 
+                          onKeyDown={e => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleSearchLot();
+                            }
+                          }}
+                          readOnly={pesadaHeader.orderType !== "NORMAL"} 
+                        />
+                        <Button 
+                          type="button"
+                          onClick={handleSearchLot} 
+                          disabled={isSearchingLot || pesadaHeader.orderType !== "NORMAL"} 
+                          size="icon" 
+                          className="h-11 w-11 shrink-0 bg-amber-500 hover:bg-amber-600 rounded-xl"
+                        >
                           {isSearchingLot ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-5 w-5" />}
                         </Button>
                       </div>
@@ -873,7 +956,11 @@ export default function ChemicalInventoryPage() {
                   </div>
                   <div className="space-y-4">
                     {pesadaItems.map((item) => {
-                      const availableProcesses = item.chemicalId ? (processesByChemicalId[item.chemicalId] || []) : [];
+                      const rawProcesses = item.chemicalId ? (processesByChemicalId[item.chemicalId] || []) : [];
+                      const availableProcesses = Array.from(new Set([
+                        ...rawProcesses,
+                        ...(item.procesoTecnico ? [item.procesoTecnico] : [])
+                      ]));
                       return (
                         <div key={item.id} className="p-5 md:p-6 bg-muted/10 rounded-[1.5rem] border border-border/80 space-y-4 animate-in slide-in-from-right-2">
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 lg:gap-6 items-end">
@@ -882,7 +969,25 @@ export default function ChemicalInventoryPage() {
                               <div className="relative">
                                 <select 
                                   value={item.chemicalId} 
-                                  onChange={e => updatePesadaItem(item.id, { chemicalId: e.target.value, procesoTecnico: "" })}
+                                  onChange={e => {
+                                    const selectedId = e.target.value;
+                                    const selectedChem = chemicals.find(c => c.id === selectedId);
+                                    const chemName = (selectedChem?.chemicalName || "").trim().toUpperCase();
+                                    const procs = processesByChemicalId[selectedId] || [];
+                                    
+                                    let defaultProcess = "";
+                                    if (chemName.includes("METABISULFITO")) {
+                                      const neutMatch = procs.find(p => p.toUpperCase().includes("NEUTRALIZ"));
+                                      defaultProcess = neutMatch || "NEUTRALIZADO";
+                                    } else if (procs.length === 1) {
+                                      defaultProcess = procs[0];
+                                    }
+                                    
+                                    updatePesadaItem(item.id, { 
+                                      chemicalId: selectedId, 
+                                      procesoTecnico: defaultProcess 
+                                    });
+                                  }}
                                   className="h-11 w-full bg-background border border-border font-black text-xs rounded-xl shadow-sm px-3 uppercase appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20"
                                 >
                                   <option value="" disabled>ELEGIR QUÍMICO...</option>
@@ -913,7 +1018,18 @@ export default function ChemicalInventoryPage() {
                             <div className="lg:col-span-3 xl:col-span-4 flex gap-3">
                               <div className="flex-1 space-y-1.5">
                                 <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Cant. ({item.unit})</Label>
-                                <Input type="number" step="0.01" value={item.quantity} onChange={e => updatePesadaItem(item.id, { quantity: e.target.value })} className="h-11 text-center font-black text-primary bg-background border-border rounded-xl shadow-sm" />
+                                <Input 
+                                  type="number" 
+                                  step="0.01" 
+                                  value={item.quantity} 
+                                  onFocus={(e) => {
+                                    try {
+                                      e.target.select();
+                                    } catch {}
+                                  }}
+                                  onChange={e => updatePesadaItem(item.id, { quantity: e.target.value })} 
+                                  className="h-11 text-center font-black text-primary bg-background border-border rounded-xl shadow-sm" 
+                                />
                               </div>
                               <div className="w-20 space-y-1.5">
                                 <Label className="text-[9px] font-black uppercase text-transparent ml-1">.</Label>

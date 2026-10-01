@@ -57,6 +57,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -169,6 +179,23 @@ export default function MantenimientoPage() {
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isNewManualidadDialogOpen, setIsNewManualidadDialogOpen] = useState(false);
+
+  // --- MÓDULO DE PURGA Y LIBERACIÓN DE ESPACIO (MANUALIDADES) ---
+  const currentYear = new Date().getFullYear();
+  const [purgeMode, setPurgeMode] = useState<"months" | "range">("months");
+  const [purgeYear, setPurgeYear] = useState<number>(currentYear - 1);
+  const [purgeSelectedMonths, setPurgeSelectedMonths] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  const [purgeDateFrom, setPurgeDateFrom] = useState<string>(`${currentYear - 1}-01-01`);
+  const [purgeDateTo, setPurgeDateTo] = useState<string>(`${currentYear - 1}-12-31`);
+  const [purgeStateFilter, setPurgeStateFilter] = useState<string>("all");
+
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewQueried, setPreviewQueried] = useState(false);
+  const [recordsToPurge, setRecordsToPurge] = useState<any[]>([]);
+  const [isPurging, setIsPurging] = useState(false);
+  const [purgeProgress, setPurgeProgress] = useState<string>("");
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [confirmInput, setConfirmInput] = useState("");
 
   // --- MOTOR DE CARGA (getDocs) ---
   const loadUsers = async () => {
@@ -618,6 +645,229 @@ export default function MantenimientoPage() {
     }
   };
 
+  // --- MÉTODOS DE PURGA / LIMPIEZA DE MANUALIDADES ---
+  const MONTHS_LIST = useMemo(() => [
+    { num: 1, name: "Enero", short: "Ene" },
+    { num: 2, name: "Febrero", short: "Feb" },
+    { num: 3, name: "Marzo", short: "Mar" },
+    { num: 4, name: "Abril", short: "Abr" },
+    { num: 5, name: "Mayo", short: "May" },
+    { num: 6, name: "Junio", short: "Jun" },
+    { num: 7, name: "Julio", short: "Jul" },
+    { num: 8, name: "Agosto", short: "Ago" },
+    { num: 9, name: "Septiembre", short: "Sep" },
+    { num: 10, name: "Octubre", short: "Oct" },
+    { num: 11, name: "Noviembre", short: "Nov" },
+    { num: 12, name: "Diciembre", short: "Dic" }
+  ], []);
+
+  const getManualidadDate = (work: any): Date | null => {
+    const fechaVal = work.fecha || work.fechaStr || work.workDate;
+    if (typeof fechaVal === "string") {
+      const s = fechaVal.trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const parts = s.substring(0, 10).split("-");
+        return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      }
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+        const parts = s.split("/");
+        return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      }
+    }
+    const d = toDate(work.fecha || work.fechaStr || work.workDate);
+    if (d && !isNaN(d.getTime())) return d;
+    const cd = toDate(work.createdAt);
+    if (cd && !isNaN(cd.getTime())) return cd;
+    return null;
+  };
+
+  const togglePurgeMonth = (m: number) => {
+    setPurgeSelectedMonths(prev => 
+      prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m].sort((a, b) => a - b)
+    );
+    setPreviewQueried(false);
+  };
+
+  const handlePreviewPurge = async () => {
+    if (!db) return;
+    setPreviewLoading(true);
+    setPreviewQueried(false);
+    setRecordsToPurge([]);
+    
+    try {
+      const docsMap = new Map<string, any>();
+      
+      if (purgeMode === "months") {
+        if (purgeSelectedMonths.length === 0) {
+          toast({ variant: "destructive", title: "Selecciona meses", description: "Debes seleccionar al menos un mes para consultar." });
+          setPreviewLoading(false);
+          return;
+        }
+
+        for (const m of purgeSelectedMonths) {
+          const mStr = String(m).padStart(2, "0");
+          const lastDay = new Date(purgeYear, m, 0).getDate();
+          const startStr = `${purgeYear}-${mStr}-01`;
+          const endStr = `${purgeYear}-${mStr}-${String(lastDay).padStart(2, "0")}`;
+
+          const qPromises = [
+            getDocs(query(collection(db, "manualidades"), where("fecha", ">=", startStr), where("fecha", "<=", endStr))).catch(() => ({ docs: [] })),
+            getDocs(query(collection(db, "manualidades"), where("fechaStr", ">=", startStr), where("fechaStr", "<=", endStr))).catch(() => ({ docs: [] }))
+          ];
+          const res = await Promise.all(qPromises);
+          res.forEach((snap: any) => {
+            if (snap && snap.docs) {
+              snap.docs.forEach((d: any) => {
+                docsMap.set(d.id, { id: d.id, ...d.data() });
+              });
+            }
+          });
+        }
+      } else {
+        if (!purgeDateFrom || !purgeDateTo) {
+          toast({ variant: "destructive", title: "Fechas requeridas", description: "Selecciona el rango de fechas inicial y final." });
+          setPreviewLoading(false);
+          return;
+        }
+
+        const qPromises = [
+          getDocs(query(collection(db, "manualidades"), where("fecha", ">=", purgeDateFrom), where("fecha", "<=", purgeDateTo))).catch(() => ({ docs: [] })),
+          getDocs(query(collection(db, "manualidades"), where("fechaStr", ">=", purgeDateFrom), where("fechaStr", "<=", purgeDateTo))).catch(() => ({ docs: [] }))
+        ];
+        const res = await Promise.all(qPromises);
+        res.forEach((snap: any) => {
+          if (snap && snap.docs) {
+            snap.docs.forEach((d: any) => {
+              docsMap.set(d.id, { id: d.id, ...d.data() });
+            });
+          }
+        });
+      }
+
+      // Consulta general complementaria para asegurar integridad
+      const generalSnap = await getDocs(query(collection(db, "manualidades"), limit(3000))).catch(() => ({ docs: [] }));
+      if (generalSnap && generalSnap.docs) {
+        generalSnap.docs.forEach((d: any) => {
+          docsMap.set(d.id, { id: d.id, ...d.data() });
+        });
+      }
+
+      const allDocs = Array.from(docsMap.values());
+      const filtered = allDocs.filter((work: any) => {
+        if (purgeStateFilter === "aprobado_rechazado") {
+          if (work.estado !== "aprobado" && work.estado !== "rechazado") return false;
+        } else if (purgeStateFilter === "pendiente") {
+          if (work.estado !== "pendiente") return false;
+        }
+
+        const d = getManualidadDate(work);
+        if (!d) return false;
+
+        if (purgeMode === "months") {
+          const y = d.getFullYear();
+          const m = d.getMonth() + 1;
+          return y === purgeYear && purgeSelectedMonths.includes(m);
+        } else {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          const targetStr = `${y}-${m}-${day}`;
+          return targetStr >= purgeDateFrom && targetStr <= purgeDateTo;
+        }
+      });
+
+      filtered.sort((a, b) => {
+        const da = getManualidadDate(a)?.getTime() || 0;
+        const db = getManualidadDate(b)?.getTime() || 0;
+        return da - db;
+      });
+
+      setRecordsToPurge(filtered);
+      setPreviewQueried(true);
+
+      if (filtered.length === 0) {
+        toast({ title: "Sin registros encontrados", description: "No se encontraron registros de manualidades en el período seleccionado." });
+      } else {
+        toast({ title: "Consulta completada", description: `Se encontraron ${filtered.length} registros listos para revisión y purga.` });
+      }
+    } catch (e) {
+      console.error("Error al consultar registros de manualidades:", e);
+      toast({ variant: "destructive", title: "Error en la consulta" });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleDownloadPurgeBackup = () => {
+    if (recordsToPurge.length === 0) return;
+    const jsonStr = JSON.stringify(recordsToPurge, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const periodLabel = purgeMode === "months" 
+      ? `ano_${purgeYear}_meses_${purgeSelectedMonths.join("-")}` 
+      : `${purgeDateFrom}_al_${purgeDateTo}`;
+    const fileName = `respaldo_manualidades_${periodLabel}_${Date.now()}.json`;
+    saveAs(blob, fileName);
+    toast({ title: "Respaldo descargado", description: `Se descargó el archivo ${fileName} con ${recordsToPurge.length} registros.` });
+  };
+
+  const handleExecutePurge = async () => {
+    if (confirmInput.trim().toUpperCase() !== "ELIMINAR") {
+      toast({ variant: "destructive", title: "Confirmación requerida", description: "Escribe la palabra ELIMINAR para proceder." });
+      return;
+    }
+
+    setIsPurging(true);
+    try {
+      const total = recordsToPurge.length;
+      const BATCH_SIZE = 400;
+      let count = 0;
+
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        const chunk = recordsToPurge.slice(i, i + BATCH_SIZE);
+        const batch = writeBatch(db);
+
+        chunk.forEach(r => {
+          batch.delete(doc(db, "manualidades", r.id));
+        });
+
+        setPurgeProgress(`Eliminando registros ${Math.min(i + chunk.length, total)} de ${total}...`);
+        await batch.commit();
+        count += chunk.length;
+      }
+
+      toast({
+        title: "Purga completada exitosamente",
+        description: `Se eliminaron ${count} registros de manualidades y se liberó espacio en la base de datos.`
+      });
+
+      setIsConfirmDialogOpen(false);
+      setConfirmInput("");
+      setRecordsToPurge([]);
+      setPreviewQueried(false);
+    } catch (e) {
+      console.error("Error al ejecutar purga:", e);
+      toast({ variant: "destructive", title: "Error al eliminar registros" });
+    } finally {
+      setIsPurging(false);
+      setPurgeProgress("");
+    }
+  };
+
+  const purgeTotals = useMemo(() => {
+    const count = recordsToPurge.length;
+    const prendas = recordsToPurge.reduce((acc, r) => acc + (Number(r.cantidad) || 0), 0);
+    const monto = recordsToPurge.reduce((acc, r) => {
+      const qty = Number(r.cantidad) || 0;
+      const pu = Number(r.precioUnitario) || 0;
+      const tot = Number(r.total) || (qty * pu);
+      return acc + tot;
+    }, 0);
+    const aprobados = recordsToPurge.filter(r => r.estado === "aprobado").length;
+    const rechazados = recordsToPurge.filter(r => r.estado === "rechazado").length;
+    const pendientes = recordsToPurge.filter(r => r.estado === "pendiente").length;
+    return { count, prendas, monto, aprobados, rechazados, pendientes };
+  }, [recordsToPurge]);
+
   if (loading) return <div className="h-[60vh] flex flex-col items-center justify-center gap-4"><Loader2 className="h-10 w-10 animate-spin text-primary/30" /><p className="text-[10px] font-black uppercase tracking-[0.3em]">Cargando mantenimiento...</p></div>;
 
   return (
@@ -887,6 +1137,348 @@ export default function MantenimientoPage() {
         {/* --- CONCENTRACIONES TÉCNICAS (QUÍMICOS) --- */}
         <div className="lg:col-span-12"><Card className="rounded-[2.5rem] border border-border shadow-premium overflow-hidden bg-card"><CardHeader className="bg-muted/30 border-b py-6 px-8 flex flex-row items-center justify-between"><CardTitle className="text-sm font-black uppercase flex items-center gap-3"><Beaker className="h-5 w-5 text-primary" /> Concentraciones Técnicas (Químicos)</CardTitle></CardHeader><CardContent className="p-8 space-y-10"><div className="rounded-[2rem] border border-border overflow-hidden bg-background"><Table><TableHeader className="bg-muted/50"><TableRow><TableHead className="py-6 pl-10 text-[10px] font-black uppercase">Proceso Técnico</TableHead><TableHead className="text-[10px] font-black uppercase">Sustancia / Químico</TableHead><TableHead className="text-[10px] font-black uppercase text-center">Min (gr/L)</TableHead><TableHead className="text-[10px] font-black uppercase text-center">Max (gr/L)</TableHead><TableHead className="text-[10px] font-black uppercase text-right pr-10">Acción</TableHead></TableRow></TableHeader><TableBody>{chemMaestro.map(cm => (<TableRow key={cm.id} className="hover:bg-muted/5 border-b border-border/50"><TableCell className="py-6 pl-10"><span className="font-black text-xs uppercase text-primary">{cm.proceso}</span></TableCell><TableCell><span className="font-bold text-xs uppercase">{cm.sustancia}</span></TableCell><TableCell className="text-center"><Badge variant="outline" className="font-black text-emerald-600 border-emerald-200 bg-emerald-50 h-7 px-4 rounded-lg">{cm.min} gr/L</Badge></TableCell><TableCell className="text-center"><Badge variant="outline" className="font-black text-red-600 border-red-200 bg-red-50 h-7 px-4 rounded-lg">{cm.max} gr/L</Badge></TableCell><TableCell className="text-right pr-10"><div className="flex justify-end gap-2"><Button variant="ghost" size="icon" onClick={() => {}} className="h-9 w-9 rounded-xl text-muted-foreground hover:text-primary"><Edit3 className="h-4 w-4" /></Button><Button variant="ghost" size="icon" onClick={() => deleteDoc(doc(db, "quimicos_procesos_maestro", cm.id))} className="h-9 w-9 rounded-xl text-muted-foreground hover:text-red-600"><Trash2 className="h-4 w-4" /></Button></div></TableCell></TableRow>))}</TableBody></Table></div></CardContent></Card></div>
 
+        {/* --- PURGA Y LIBERACIÓN DE ESPACIO: PRODUCCIÓN / MANUALIDADES --- */}
+        <div className="lg:col-span-12">
+          <Card className="rounded-[2.5rem] border-2 border-destructive/20 shadow-premium overflow-hidden bg-card transition-all">
+            <CardHeader className="bg-destructive/5 border-b border-destructive/10 py-6 px-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-destructive/10 text-destructive">
+                    <Trash2 className="h-5 w-5" />
+                  </div>
+                  <CardTitle className="text-base font-black uppercase text-foreground tracking-tight">
+                    Depuración y Liberación de Espacio: Producción / Manualidades
+                  </CardTitle>
+                  <Badge variant="outline" className="border-destructive/30 text-destructive bg-destructive/5 font-black text-[9px] uppercase tracking-widest px-3 py-1">
+                    Mantenimiento Anual
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground font-medium pl-11">
+                  Elimina de forma permanente registros históricos de trabajos de manualidades para liberar almacenamiento en Firestore. Selecciona los meses o rango de fechas que ya no necesitas.
+                </p>
+              </div>
+
+              {previewQueried && recordsToPurge.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleDownloadPurgeBackup}
+                    className="h-10 px-4 rounded-xl border-border font-bold text-xs gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Respaldar JSON ({recordsToPurge.length})
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setConfirmInput("");
+                      setIsConfirmDialogOpen(true);
+                    }}
+                    className="h-10 px-5 rounded-xl bg-destructive hover:bg-destructive/90 text-white font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-destructive/20"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar Definitivamente
+                  </Button>
+                </div>
+              )}
+            </CardHeader>
+
+            <CardContent className="p-8 space-y-8">
+              {/* Selectores de Período */}
+              <div className="bg-muted/20 p-6 rounded-[2rem] border border-border/80 space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-4">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-black uppercase tracking-wider text-muted-foreground mr-2">Modo de Selección:</Label>
+                    <div className="inline-flex p-1 rounded-xl bg-muted/60 border border-border">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setPurgeMode("months"); setPreviewQueried(false); }}
+                        className={cn("h-8 rounded-lg text-xs font-black uppercase tracking-wider px-4 transition-all", purgeMode === "months" ? "bg-background shadow text-primary" : "text-muted-foreground hover:text-foreground")}
+                      >
+                        Por Meses y Año
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { setPurgeMode("range"); setPreviewQueried(false); }}
+                        className={cn("h-8 rounded-lg text-xs font-black uppercase tracking-wider px-4 transition-all", purgeMode === "range" ? "bg-background shadow text-primary" : "text-muted-foreground hover:text-foreground")}
+                      >
+                        Por Rango de Fechas
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Filtrar Estado:</Label>
+                    <Select value={purgeStateFilter} onValueChange={(v) => { setPurgeStateFilter(v); setPreviewQueried(false); }}>
+                      <SelectTrigger className="w-64 h-9 erp-input font-bold text-xs rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="all" className="font-bold text-xs">Todos los Estados (Recomendado)</SelectItem>
+                        <SelectItem value="aprobado_rechazado" className="font-bold text-xs">Solo Aprobados y Rechazados</SelectItem>
+                        <SelectItem value="pendiente" className="font-bold text-xs">Solo Pendientes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {purgeMode === "months" ? (
+                  <div className="space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-xs font-black uppercase tracking-wider text-primary">Año a Purgar:</Label>
+                        <Select value={String(purgeYear)} onValueChange={(v) => { setPurgeYear(Number(v)); setPreviewQueried(false); }}>
+                          <SelectTrigger className="w-36 h-10 erp-input font-black text-sm rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl">
+                            {[currentYear + 1, currentYear, currentYear - 1, currentYear - 2, currentYear - 3, currentYear - 4].map(y => (
+                              <SelectItem key={y} value={String(y)} className="font-black text-xs">{y}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-xs text-muted-foreground font-semibold">
+                          ({purgeSelectedMonths.length} {purgeSelectedMonths.length === 1 ? "mes seleccionado" : "meses seleccionados"})
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => { setPurgeSelectedMonths([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]); setPreviewQueried(false); }}
+                          className="h-8 px-3 text-[10px] font-black uppercase rounded-lg border-border"
+                        >
+                          Seleccionar Todo el Año
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => { setPurgeSelectedMonths([1, 2, 3, 4, 5, 6]); setPreviewQueried(false); }}
+                          className="h-8 px-3 text-[10px] font-black uppercase rounded-lg border-border"
+                        >
+                          1er Semestre (Ene-Jun)
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => { setPurgeSelectedMonths([7, 8, 9, 10, 11, 12]); setPreviewQueried(false); }}
+                          className="h-8 px-3 text-[10px] font-black uppercase rounded-lg border-border"
+                        >
+                          2do Semestre (Jul-Dic)
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => { setPurgeSelectedMonths([]); setPreviewQueried(false); }}
+                          className="h-8 px-2.5 text-[10px] font-bold uppercase text-muted-foreground hover:text-destructive"
+                        >
+                          Limpiar
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Grilla interactiva de 12 meses */}
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+                      {MONTHS_LIST.map((m) => {
+                        const isSelected = purgeSelectedMonths.includes(m.num);
+                        return (
+                          <button
+                            key={m.num}
+                            type="button"
+                            onClick={() => togglePurgeMonth(m.num)}
+                            className={cn(
+                              "p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1 select-none",
+                              isSelected 
+                                ? "bg-primary text-white border-primary shadow-md shadow-primary/20 scale-[1.02]" 
+                                : "bg-card hover:bg-muted/50 text-muted-foreground border-border/80"
+                            )}
+                          >
+                            <span className="text-[10px] uppercase font-bold tracking-widest opacity-80">{m.short}</span>
+                            <span className="text-xs font-black uppercase tracking-tight">{m.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Fecha Inicial (Desde)</Label>
+                      <Input 
+                        type="date" 
+                        value={purgeDateFrom} 
+                        onChange={e => { setPurgeDateFrom(e.target.value); setPreviewQueried(false); }}
+                        className="erp-input h-11 font-bold" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Fecha Final (Hasta)</Label>
+                      <Input 
+                        type="date" 
+                        value={purgeDateTo} 
+                        onChange={e => { setPurgeDateTo(e.target.value); setPreviewQueried(false); }}
+                        className="erp-input h-11 font-bold" 
+                      />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground pb-2">
+                        Se abarcarán todos los registros creados entre ambas fechas inclusivas.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-2 flex justify-start">
+                  <Button 
+                    onClick={handlePreviewPurge} 
+                    disabled={previewLoading}
+                    className="h-11 px-8 rounded-xl bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-primary/20"
+                  >
+                    {previewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    Consultar Registros a Purgar
+                  </Button>
+                </div>
+              </div>
+
+              {/* Panel de Resultados / Vista Previa */}
+              {previewQueried && (
+                recordsToPurge.length === 0 ? (
+                  <div className="p-8 rounded-[2rem] border-2 border-dashed border-border text-center space-y-2 bg-muted/10">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
+                    <p className="text-sm font-black uppercase text-foreground">Sin registros en el período seleccionado</p>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                      No se encontraron trabajos de manualidades para las fechas o meses indicados. La base de datos ya está limpia para este período.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    {/* Tarjetas de Resumen */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="bg-destructive/10 border border-destructive/20 rounded-2xl p-4 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-destructive">Registros a Eliminar</p>
+                        <p className="text-3xl font-black text-destructive mt-1">{purgeTotals.count.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-muted/30 border border-border rounded-2xl p-4 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Prendas Afectadas</p>
+                        <p className="text-3xl font-black text-foreground mt-1">{purgeTotals.prendas.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-muted/30 border border-border rounded-2xl p-4 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Monto Histórico Total</p>
+                        <p className="text-3xl font-black text-emerald-600 mt-1">${purgeTotals.monto.toFixed(2)}</p>
+                      </div>
+                      <div className="bg-muted/30 border border-border rounded-2xl p-4 text-center flex flex-col justify-center">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Desglose por Estado</p>
+                        <div className="flex items-center justify-center gap-2 text-xs font-black">
+                          <span className="text-emerald-600">{purgeTotals.aprobados} Aprob.</span>
+                          <span>•</span>
+                          <span className="text-amber-600">{purgeTotals.pendientes} Pend.</span>
+                          <span>•</span>
+                          <span className="text-red-500">{purgeTotals.rechazados} Rech.</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Alerta de Seguridad */}
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1 text-xs text-amber-800 dark:text-amber-300">
+                        <p className="font-black uppercase">¡Atención: Acción Destructiva Permanente!</p>
+                        <p>
+                          Al confirmar, se eliminarán de raíz los <strong>{purgeTotals.count} registros</strong> de la base de datos de producción (manualidades). Esta acción liberará espacio de forma inmediata. Te recomendamos hacer clic en <strong>"Respaldar JSON"</strong> antes de proceder para conservar un archivo de auditoría si fuera necesario en el futuro.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Previa de los primeros registros */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+                          Muestra de registros a purgar (mostrando los primeros {Math.min(8, recordsToPurge.length)} de {recordsToPurge.length}):
+                        </Label>
+                        <span className="text-[10px] font-bold text-muted-foreground">
+                          {purgeMode === "months" ? `Año ${purgeYear} (${purgeSelectedMonths.length} meses)` : `Desde ${purgeDateFrom} hasta ${purgeDateTo}`}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl border border-border overflow-hidden bg-background">
+                        <Table>
+                          <TableHeader className="bg-muted/50">
+                            <TableRow>
+                              <TableHead className="py-3 pl-6 text-[9px] font-black uppercase">Fecha</TableHead>
+                              <TableHead className="text-[9px] font-black uppercase">Lote</TableHead>
+                              <TableHead className="text-[9px] font-black uppercase">Cliente</TableHead>
+                              <TableHead className="text-[9px] font-black uppercase">Operario</TableHead>
+                              <TableHead className="text-[9px] font-black uppercase">Manualidad</TableHead>
+                              <TableHead className="text-[9px] font-black uppercase text-center">Cant.</TableHead>
+                              <TableHead className="text-[9px] font-black uppercase text-right pr-6">Estado</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {recordsToPurge.slice(0, 8).map((r, idx) => {
+                              const d = getManualidadDate(r);
+                              const fStr = d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : (r.fecha || r.fechaStr || "-");
+                              return (
+                                <TableRow key={r.id || idx} className="hover:bg-muted/5 border-b border-border/40 text-xs">
+                                  <TableCell className="py-2.5 pl-6 font-bold text-muted-foreground">{fStr}</TableCell>
+                                  <TableCell className="font-black text-primary uppercase">{r.loteNumero || r.lote || "-"}</TableCell>
+                                  <TableCell className="font-bold uppercase text-[11px] truncate max-w-[150px]">{r.clienteNombre || r.cliente || "-"}</TableCell>
+                                  <TableCell className="font-medium uppercase text-[11px] truncate max-w-[150px]">{r.operarioNombre || r.operario || "-"}</TableCell>
+                                  <TableCell className="font-bold uppercase text-xs">{r.proceso || r.manualidad || "-"}</TableCell>
+                                  <TableCell className="text-center font-black text-foreground">{r.cantidad || 0}</TableCell>
+                                  <TableCell className="text-right pr-6">
+                                    <Badge variant="outline" className={cn(
+                                      "text-[9px] font-black uppercase px-2 py-0.5 rounded-md border-none",
+                                      r.estado === "aprobado" ? "bg-emerald-500/10 text-emerald-600" :
+                                      r.estado === "rechazado" ? "bg-red-500/10 text-red-600" : "bg-amber-500/10 text-amber-600"
+                                    )}>
+                                      {r.estado || "pendiente"}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+
+                    {/* Botones de Acción Final */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-border/80">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={handleDownloadPurgeBackup}
+                        className="w-full sm:w-auto h-12 px-6 rounded-xl border-border font-bold text-xs gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Descargar Copia de Seguridad JSON ({recordsToPurge.length} registros)
+                      </Button>
+                      <Button 
+                        type="button" 
+                        onClick={() => {
+                          setConfirmInput("");
+                          setIsConfirmDialogOpen(true);
+                        }}
+                        className="w-full sm:w-auto h-12 px-8 rounded-xl bg-destructive hover:bg-destructive/90 text-white font-black text-xs uppercase tracking-wider gap-2 shadow-lg shadow-destructive/20"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar Definitivamente ({recordsToPurge.length} registros)
+                      </Button>
+                    </div>
+                  </div>
+                )
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
       </div>
 
       {/* MODAL DE EDICIÓN DE USUARIO */}
@@ -979,6 +1571,87 @@ export default function MantenimientoPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* DIÁLOGO DE CONFIRMACIÓN DE MÁXIMA SEGURIDAD PARA PURGA */}
+      <AlertDialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+        <AlertDialogContent className="rounded-[2.5rem] p-0 overflow-hidden border border-destructive/30 shadow-2xl bg-card max-w-lg">
+          <div className="p-8 border-b border-destructive/20 bg-destructive/10">
+            <AlertDialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-destructive text-white shadow-lg">
+                  <ShieldAlert className="h-6 w-6" />
+                </div>
+                <div>
+                  <AlertDialogTitle className="text-xl font-black uppercase tracking-tight text-destructive">
+                    ¿Confirmar Eliminación Definitiva?
+                  </AlertDialogTitle>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-0.5">
+                    Operación Irreversible de Liberación de Espacio
+                  </p>
+                </div>
+              </div>
+            </AlertDialogHeader>
+          </div>
+
+          <div className="p-8 space-y-6">
+            <AlertDialogDescription className="text-xs text-foreground/80 leading-relaxed space-y-2">
+              <p>
+                Estás a punto de borrar definitivamente <strong>{recordsToPurge.length.toLocaleString()} registros</strong> de la colección de manualidades correspondientes a:
+              </p>
+              <div className="p-3 rounded-xl bg-muted/40 border border-border font-black text-xs text-primary">
+                {purgeMode === "months" 
+                  ? `Año ${purgeYear} — Meses: ${purgeSelectedMonths.map(m => MONTHS_LIST.find(x => x.num === m)?.name).join(", ")}` 
+                  : `Período: ${purgeDateFrom} hasta ${purgeDateTo}`}
+              </div>
+              <p className="text-destructive font-bold">
+                ⚠️ Una vez eliminados, estos registros no se podrán recuperar en el sistema ni en la vista de producción.
+              </p>
+            </AlertDialogDescription>
+
+            <div className="space-y-2 pt-2 border-t border-border">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                Para confirmar, escribe la palabra <span className="text-destructive font-black">ELIMINAR</span> a continuación:
+              </Label>
+              <Input
+                value={confirmInput}
+                onChange={e => setConfirmInput(e.target.value.toUpperCase())}
+                placeholder="ELIMINAR"
+                disabled={isPurging}
+                className="erp-input h-12 font-black tracking-widest text-center text-destructive text-base"
+                autoFocus
+              />
+            </div>
+
+            {isPurging && (
+              <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 flex items-center gap-3">
+                <Loader2 className="h-5 w-5 animate-spin text-destructive shrink-0" />
+                <p className="text-xs font-black text-destructive uppercase tracking-wide">
+                  {purgeProgress || "Eliminando registros por lotes en Firestore..."}
+                </p>
+              </div>
+            )}
+
+            <AlertDialogFooter className="gap-3 pt-4 border-t border-border/50">
+              <AlertDialogCancel 
+                disabled={isPurging} 
+                onClick={() => setIsConfirmDialogOpen(false)}
+                className="rounded-xl h-12 font-bold uppercase text-xs border-border"
+              >
+                Cancelar
+              </AlertDialogCancel>
+              <Button
+                type="button"
+                onClick={handleExecutePurge}
+                disabled={confirmInput.trim().toUpperCase() !== "ELIMINAR" || isPurging}
+                className="bg-destructive hover:bg-destructive/90 text-white rounded-xl h-12 font-black uppercase text-xs shadow-lg shadow-destructive/20 gap-2 flex-1"
+              >
+                {isPurging ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {isPurging ? "Borrando..." : "Confirmar y Purgar Definitivamente"}
+              </Button>
+            </AlertDialogFooter>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
