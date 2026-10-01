@@ -68,11 +68,14 @@ function getVisibleLotName(lote: any): string {
   if (!lote) return "S/L";
   const candidates = [
     lote.lotNumber,
+    lote.entryLotNumber,
     lote.numeroLote,
     lote.loteId,
     lote.lote,
     lote.loteNumero,
     lote.numLote,
+    lote.loteName,
+    lote.name,
     lote.id
   ];
 
@@ -456,24 +459,35 @@ export default function FaltantesPage() {
       const batch = writeBatch(db);
 
       if (resForm.tipoResolucion === "despacho") {
-        const outputRef = doc(collection(db, "outputs"));
+        const term = resForm.numeroGuia.trim().toUpperCase();
+        const outputRef = doc(db, "outputs", term);
+        const clientName = (selectedItem.clientName || "SOCIO").toUpperCase();
+        const lotId = selectedItem.loteId || "S/L";
         const outputPayload = {
-          numeroSalida: resForm.numeroGuia.toUpperCase(),
+          numeroSalida: term,
+          numeroGuia: term,
           date: serverTimestamp(),
+          clientName: clientName,
+          clienteNombre: clientName,
+          containedClientNames: [clientName],
+          isClientDelivered: false,
           itemsDispatched: [{
-            entryLotNumber: selectedItem.loteId,
+            lotNumber: lotId,
+            entryLotNumber: lotId,
+            loteId: lotId,
             parentIngresoMaestro: selectedItem.parentIngresoId,
             parentIngresoNumber: selectedItem.visibleIngresoNumber,
-            clientName: selectedItem.clientName,
+            clientName: clientName,
             quantityToDispatch: resForm.cantidad,
-            isMissingResolution: true
+            isMissingResolution: true,
+            isClientDelivered: false
           }],
           status: "completed",
-          notes: `Resolución de faltante para lote ${selectedItem.loteId}`,
+          notes: `Resolución de faltante para lote ${lotId}`,
           createdAt: serverTimestamp(),
           createdBy: user?.email || "system"
         };
-        batch.set(outputRef, outputPayload);
+        batch.set(outputRef, outputPayload, { merge: true });
       }
 
       const isCruce = resForm.tipoResolucion === "cruce";

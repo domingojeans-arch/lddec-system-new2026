@@ -143,11 +143,14 @@ function getVisibleLotName(lote: any): string {
   if (!lote) return "S/L";
   const candidates = [
     lote.lotNumber,
+    lote.entryLotNumber,
     lote.numeroLote,
     lote.loteId,
     lote.lote,
     lote.loteNumero,
     lote.numLote,
+    lote.loteName,
+    lote.name,
     lote.id
   ];
 
@@ -206,8 +209,18 @@ function getClienteSalida(item: any): string {
   let rawClient = item?.clienteNombre || item?.cliente || item?.clientName || "";
   if (!rawClient) {
     const clientNamesArray = Array.isArray(item?.containedClientNames) ? item.containedClientNames : [];
-    rawClient = clientNamesArray.length > 0 ? clientNamesArray.join(", ") : "S/D";
+    if (clientNamesArray.length > 0) {
+      rawClient = clientNamesArray.join(", ");
+    }
   }
+  if (!rawClient || rawClient.trim() === "S/D") {
+    const items = item?.itemsDispatched || item?.items || item?.lotes || [];
+    const fromItems = items.map((i: any) => i.clientName || i.clienteNombre || i.cliente).filter(Boolean);
+    if (fromItems.length > 0) {
+      rawClient = Array.from(new Set(fromItems)).join(", ");
+    }
+  }
+  if (!rawClient) rawClient = "S/D";
   return cleanClientNames(rawClient.toString().toUpperCase());
 }
 
@@ -523,13 +536,21 @@ export default function EntregasPage() {
     }
   };
 
-  // Entregar un lote individual (Optimistic UI instantáneo - guardado local)
+  // Entregar un lote individual (Optimistic UI instantáneo - guardado local con sincronización inmediata si hay red)
   const handleDeliverLot = async (outputId: string, lotNumber: string) => {
     if (!canEdit) return;
     const output = liveOutputs.find(o => o.id === outputId);
     if (!output) return;
 
-    const itemToDeliver = (output.itemsDispatched || []).find((i: any) => getVisibleLotName(i) === lotNumber.toUpperCase());
+    const itemToDeliver = (output.itemsDispatched || []).find((i: any) => {
+      const v = getVisibleLotName(i).toUpperCase();
+      const target = lotNumber.toUpperCase();
+      return v === target || 
+        (i.entryLotNumber && String(i.entryLotNumber).toUpperCase() === target) ||
+        (i.lotNumber && String(i.lotNumber).toUpperCase() === target) ||
+        (i.loteId && String(i.loteId).toUpperCase() === target) ||
+        (target === "S/L" && (!v || v === "S/L"));
+    });
     if (!itemToDeliver) return;
 
     const nowIso = new Date().toISOString();
@@ -539,7 +560,7 @@ export default function EntregasPage() {
     const pendingItem: PendingDeliveryItem = {
       id: `${outputId}_${lotNumber}_${Date.now()}`,
       outputId,
-      lotNumber,
+      lotNumber: lotNumber !== "S/L" ? lotNumber : "__GUIA__",
       parentIngresoMaestro: itemToDeliver.parentIngresoMaestro || null,
       deliveredAt: nowIso,
       deliveredBy: currentUser,
@@ -548,12 +569,21 @@ export default function EntregasPage() {
     addPendingDelivery(pendingItem);
     setPendingItems(getPendingDeliveries());
 
-    // 2. Feedback visual instantáneo (0 milisegundos de espera)
+    // 2. Si está en línea, sincronizar de inmediato en segundo plano
+    if (effectiveOnline && db) {
+      syncDeliveriesToFirestore(db, getPendingDeliveries(), getVisibleLotName)
+        .then(({ syncedCount }) => {
+          if (syncedCount > 0) setPendingItems(getPendingDeliveries());
+        })
+        .catch(err => console.warn("Auto-sync lot background error:", err));
+    }
+
+    // 3. Feedback visual instantáneo (0 milisegundos de espera)
     toast({
       title: "Lote Entregado ✅",
       description: effectiveOnline 
-        ? "Registrado en el celular 💾. Presiona 'Sincronizar' cuando desees subirlo a la nube." 
-        : "Registrado en tu celular 💾. Presiona 'Sincronizar' cuando vuelvas a tener señal.",
+        ? "Registrado y sincronizado con la nube." 
+        : "Registrado en tu celular 💾. Se sincronizará automáticamente al recuperar señal.",
       className: "bg-emerald-600 text-white font-bold"
     });
   };
@@ -585,28 +615,46 @@ export default function EntregasPage() {
           itemsToAdd.push({
             id: `${outputId}_${lotNum}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
             outputId,
-            lotNumber: lotNum,
+            lotNumber: lotNum !== "S/L" ? lotNum : "__GUIA__",
             parentIngresoMaestro: item.parentIngresoMaestro || null,
             deliveredAt: nowIso,
             deliveredBy: currentUser,
           });
         }
       });
+      if (itemsToAdd.length === 0 && !output.isClientDelivered) {
+        itemsToAdd.push({
+          id: `${outputId}___GUIA___${Date.now()}`,
+          outputId,
+          lotNumber: "__GUIA__",
+          parentIngresoMaestro: null,
+          deliveredAt: nowIso,
+          deliveredBy: currentUser,
+        });
+      }
     }
 
     addMultiplePendingDeliveries(itemsToAdd);
     setPendingItems(getPendingDeliveries());
 
+    if (effectiveOnline && db) {
+      syncDeliveriesToFirestore(db, getPendingDeliveries(), getVisibleLotName)
+        .then(({ syncedCount }) => {
+          if (syncedCount > 0) setPendingItems(getPendingDeliveries());
+        })
+        .catch(err => console.warn("Auto-sync guide background error:", err));
+    }
+
     toast({
       title: "Guía Entregada ✅",
       description: effectiveOnline 
-        ? "Registrada en el celular 💾. Presiona 'Sincronizar' para subirla a la nube." 
+        ? "Guía y sus lotes entregados y sincronizados con la nube." 
         : "Registrada en tu celular 💾. Presiona 'Sincronizar' cuando vuelvas a tener señal.",
       className: "bg-emerald-600 text-white font-bold"
     });
   };
 
-  // Entregar selección masiva (Optimistic UI instantáneo - guardado local)
+  // Entregar selección masiva (Optimistic UI instantáneo - guardado local con auto-sync)
   const handleDeliverSelected = async () => {
     if (!canEdit || selectedIds.length === 0) return;
     setProcessingBulk(true);
@@ -630,19 +678,31 @@ export default function EntregasPage() {
             deliveredBy: currentUser,
           });
         } else {
+          let addedForThisGuide = 0;
           items.forEach((item: any) => {
             const lotNum = getVisibleLotName(item);
-            if (lotNum !== "S/L" && !item.isClientDelivered) {
+            if (!item.isClientDelivered) {
               itemsToAdd.push({
                 id: `${id}_${lotNum}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
                 outputId: id,
-                lotNumber: lotNum,
+                lotNumber: lotNum !== "S/L" ? lotNum : "__GUIA__",
                 parentIngresoMaestro: item.parentIngresoMaestro || null,
                 deliveredAt: nowIso,
                 deliveredBy: currentUser,
               });
+              addedForThisGuide++;
             }
           });
+          if (addedForThisGuide === 0 && !out.isClientDelivered) {
+            itemsToAdd.push({
+              id: `${id}___GUIA___${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              outputId: id,
+              lotNumber: "__GUIA__",
+              parentIngresoMaestro: null,
+              deliveredAt: nowIso,
+              deliveredBy: currentUser,
+            });
+          }
         }
       }
     });
@@ -653,10 +713,21 @@ export default function EntregasPage() {
     setSelectedIds([]);
     setProcessingBulk(false);
 
-    // 2. Feedback visual
+    // 2. Si está en línea, sincronizar de inmediato
+    if (effectiveOnline && db) {
+      syncDeliveriesToFirestore(db, getPendingDeliveries(), getVisibleLotName)
+        .then(({ syncedCount }) => {
+          if (syncedCount > 0) setPendingItems(getPendingDeliveries());
+        })
+        .catch(err => console.warn("Auto-sync bulk background error:", err));
+    }
+
+    // 3. Feedback visual
     toast({
       title: "Entregas Registradas ✅",
-      description: `Se registraron ${itemsToAdd.length} entrega(s) en tu celular 💾. Presiona 'Sincronizar' para subirlas a la nube.`,
+      description: effectiveOnline
+        ? `Se registraron ${itemsToAdd.length} entrega(s) y se sincronizaron con la nube.`
+        : `Se registraron ${itemsToAdd.length} entrega(s) en tu celular 💾. Presiona 'Sincronizar' cuando vuelvas a tener señal.`,
       className: "bg-emerald-600 text-white font-bold"
     });
   };
@@ -998,12 +1069,13 @@ export default function EntregasPage() {
                   <TableHead className="text-[11px] font-black uppercase">Socio Industrial</TableHead>
                   <TableHead className="text-[11px] font-black uppercase text-center">Fecha Salida</TableHead>
                   <TableHead className="text-[11px] font-black uppercase text-center">Lotes</TableHead>
-                  <TableHead className="text-[11px] font-black uppercase text-right pr-8">Estado</TableHead>
+                  <TableHead className="text-[11px] font-black uppercase text-right pr-6">Estado</TableHead>
+                  {canEdit && activeTab === "pendientes" && <TableHead className="text-[11px] font-black uppercase text-center w-28 pr-6">Acción</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={7} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary/20"/></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={canEdit && activeTab === "pendientes" ? 8 : 7} className="h-64 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary/20"/></TableCell></TableRow>
                 ) : filteredOutputs.length > 0 ? filteredOutputs.map((output) => {
                   const hasPendingOffline = (output.itemsDispatched || []).some((i: any) => i.isOfflinePendingSync);
                   return (
@@ -1015,7 +1087,7 @@ export default function EntregasPage() {
                         <TableCell onClick={() => toggleRow(output.id)} className="cursor-pointer"><span className="font-bold text-foreground uppercase truncate block max-w-[250px]">{getClienteSalida(output)}</span></TableCell>
                         <TableCell onClick={() => toggleRow(output.id)} className="text-center cursor-pointer"><span className="text-xs font-medium text-muted-foreground">{formatFechaEC(output.date || output.fechaSalida)}</span></TableCell>
                         <TableCell onClick={() => toggleRow(output.id)} className="text-center cursor-pointer"><Badge variant="outline" className="bg-muted/50 border-none font-black text-primary">{(output.itemsDispatched || []).length}</Badge></TableCell>
-                        <TableCell className="text-right pr-8" onClick={() => toggleRow(output.id)}>
+                        <TableCell className="text-right pr-6" onClick={() => toggleRow(output.id)}>
                           {hasPendingOffline ? (
                             <Badge variant="outline" className="text-[9px] font-black uppercase border-none px-3 py-1 bg-amber-500/15 text-amber-700 dark:text-amber-300 gap-1 inline-flex items-center">
                               <CloudOff className="h-3 w-3" /> Entregado (Offline)
@@ -1026,10 +1098,21 @@ export default function EntregasPage() {
                             </Badge>
                           )}
                         </TableCell>
+                        {canEdit && activeTab === "pendientes" && (
+                          <TableCell className="text-center pr-6" onClick={(e) => e.stopPropagation()}>
+                            <Button 
+                              size="sm" 
+                              className="h-8 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black rounded-lg gap-1.5 shadow-sm active:scale-95 transition-transform" 
+                              onClick={() => handleDeliverEntireGuide(output.id)}
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Entregar
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                       {expandedRows[output.id] && (
                         <TableRow className="bg-muted/5">
-                          <TableCell colSpan={7} className="p-0 border-b border-border">
+                          <TableCell colSpan={canEdit && activeTab === "pendientes" ? 8 : 7} className="p-0 border-b border-border">
                             <div className="p-8 space-y-6">
                               <h4 className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-2"><PackageCheck className="h-4 w-4" /> Detalle de Lotes</h4>
                               {(output.itemsDispatched || []).length > 0 ? (
@@ -1093,7 +1176,7 @@ export default function EntregasPage() {
                     </React.Fragment>
                   );
                 }) : (
-                  <TableRow><TableCell colSpan={7} className="h-64 text-center opacity-20"><Truck className="h-16 w-16 mx-auto mb-4"/><p className="text-sm font-black uppercase">Sin registros en este periodo</p></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={canEdit && activeTab === "pendientes" ? 8 : 7} className="h-64 text-center opacity-20"><Truck className="h-16 w-16 mx-auto mb-4"/><p className="text-sm font-black uppercase">Sin registros en este periodo</p></TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

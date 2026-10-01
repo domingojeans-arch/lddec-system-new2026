@@ -1,4 +1,15 @@
-import { Firestore, doc, getDoc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { 
+  Firestore, 
+  doc, 
+  getDoc, 
+  writeBatch, 
+  serverTimestamp,
+  collection,
+  query,
+  where,
+  getDocs,
+  limit
+} from "firebase/firestore";
 
 export interface PendingDeliveryItem {
   id: string; // Clave única (ej: outputId_lotNumber_timestamp)
@@ -168,15 +179,33 @@ export function mergePendingDeliveriesWithOutputs(
   if (!pending || pending.length === 0) return outputs;
 
   return outputs.map((out) => {
-    const pendingForOutput = pending.filter(p => p.outputId === out.id);
+    const pendingForOutput = pending.filter(p => 
+      p.outputId === out.id || 
+      (out.numeroSalida && p.outputId === out.numeroSalida) || 
+      (out.numeroGuia && p.outputId === out.numeroGuia) ||
+      (out._docId && p.outputId === out._docId)
+    );
     if (pendingForOutput.length === 0) return out;
 
     const hasGuiaDelivery = pendingForOutput.some(p => p.lotNumber === "__GUIA__");
+    const pendingLotNames = new Set(pendingForOutput.map(p => p.lotNumber.toUpperCase()));
 
     const updatedItems = (out.itemsDispatched || []).map((item: any) => {
       const lotName = getVisibleLotNameFn(item).toUpperCase();
-      const matchingPending = pendingForOutput.find(p => p.lotNumber.toUpperCase() === lotName);
-      if (matchingPending || hasGuiaDelivery) {
+      const altNames = [
+        lotName,
+        item.entryLotNumber ? String(item.entryLotNumber).toUpperCase() : "",
+        item.lotNumber ? String(item.lotNumber).toUpperCase() : "",
+        item.loteId ? String(item.loteId).toUpperCase() : "",
+        item.numeroLote ? String(item.numeroLote).toUpperCase() : "",
+      ].filter(Boolean);
+
+      const isMatch = hasGuiaDelivery || 
+        altNames.some(name => pendingLotNames.has(name)) ||
+        (pendingLotNames.has("S/L") && (lotName === "S/L" || altNames.length === 0));
+
+      if (isMatch) {
+        const matchingPending = pendingForOutput.find(p => altNames.includes(p.lotNumber.toUpperCase())) || pendingForOutput[0];
         return {
           ...item,
           isClientDelivered: true,
@@ -239,6 +268,7 @@ export async function syncDeliveriesToFirestore(
     try {
       let outputRef = doc(db, "outputs", outputId);
       let outputSnap = await withTimeout(getDoc(outputRef), 3000);
+      
       if (!outputSnap.exists()) {
         outputRef = doc(db, "salidas", outputId);
         outputSnap = await withTimeout(getDoc(outputRef), 3000);
@@ -247,8 +277,41 @@ export async function syncDeliveriesToFirestore(
         outputRef = doc(db, "muestras", outputId);
         outputSnap = await withTimeout(getDoc(outputRef), 3000);
       }
+
+      // Si no existe por ID directo, buscar mediante query en outputs y salidas (ej: si outputId es el número de guía)
       if (!outputSnap.exists()) {
-        // Si la salida ya no existe en ninguna colección, descartamos los items de la cola
+        try {
+          const qOutputs = query(collection(db, "outputs"), where("numeroSalida", "==", outputId), limit(1));
+          const qSnap = await withTimeout(getDocs(qOutputs), 3000);
+          if (!qSnap.empty) {
+            outputRef = qSnap.docs[0].ref;
+            outputSnap = qSnap.docs[0];
+          }
+        } catch (e) {}
+      }
+      if (!outputSnap.exists()) {
+        try {
+          const qOutputsGuia = query(collection(db, "outputs"), where("numeroGuia", "==", outputId), limit(1));
+          const qSnap = await withTimeout(getDocs(qOutputsGuia), 3000);
+          if (!qSnap.empty) {
+            outputRef = qSnap.docs[0].ref;
+            outputSnap = qSnap.docs[0];
+          }
+        } catch (e) {}
+      }
+      if (!outputSnap.exists()) {
+        try {
+          const qSalidas = query(collection(db, "salidas"), where("numeroSalida", "==", outputId), limit(1));
+          const qSnap = await withTimeout(getDocs(qSalidas), 3000);
+          if (!qSnap.empty) {
+            outputRef = qSnap.docs[0].ref;
+            outputSnap = qSnap.docs[0];
+          }
+        } catch (e) {}
+      }
+
+      if (!outputSnap.exists()) {
+        // Si la salida ya no existe en ninguna colección tras todas las búsquedas, descartar items obsoletos
         items.forEach(i => syncedIds.push(i.id));
         continue;
       }
@@ -275,12 +338,25 @@ export async function syncDeliveriesToFirestore(
 
       const updatedItemsDispatched = currentItems.map((item: any) => {
         const itemLotName = getVisibleLotNameFn(item).toUpperCase();
-        if (lotNamesToDeliver.has(itemLotName) || hasGuiaDelivery) {
-          const matchingPending = items.find(i => i.lotNumber.toUpperCase() === itemLotName);
+        const altNames = [
+          itemLotName,
+          item.entryLotNumber ? String(item.entryLotNumber).toUpperCase() : "",
+          item.lotNumber ? String(item.lotNumber).toUpperCase() : "",
+          item.loteId ? String(item.loteId).toUpperCase() : "",
+          item.numeroLote ? String(item.numeroLote).toUpperCase() : "",
+        ].filter(Boolean);
+
+        const isMatch = hasGuiaDelivery || 
+          altNames.some(name => lotNamesToDeliver.has(name)) ||
+          (lotNamesToDeliver.has("S/L") && (itemLotName === "S/L" || altNames.length === 0));
+
+        if (isMatch) {
+          const matchingPending = items.find(i => altNames.includes(i.lotNumber.toUpperCase())) || items[0];
           const entryId = item.parentIngresoMaestro || matchingPending?.parentIngresoMaestro;
-          if (entryId && itemLotName !== "S/L") {
+          const bestLotName = (altNames.find(n => n !== "S/L") || itemLotName);
+          if (entryId && bestLotName && bestLotName !== "S/L") {
             if (!entriesToUpdate.has(entryId)) entriesToUpdate.set(entryId, new Set());
-            entriesToUpdate.get(entryId)!.add(itemLotName);
+            entriesToUpdate.get(entryId)!.add(bestLotName);
           }
           return {
             ...item,
@@ -314,7 +390,15 @@ export async function syncDeliveriesToFirestore(
             const entryData = entrySnap.data();
             const updatedLotes = (entryData.lotes || []).map((l: any) => {
               const lid = getVisibleLotNameFn(l).toUpperCase();
-              if (lotNumbers.has(lid)) {
+              const altLids = [
+                lid,
+                l.entryLotNumber ? String(l.entryLotNumber).toUpperCase() : "",
+                l.lotNumber ? String(l.lotNumber).toUpperCase() : "",
+                l.loteId ? String(l.loteId).toUpperCase() : "",
+                l.numeroLote ? String(l.numeroLote).toUpperCase() : "",
+              ].filter(Boolean);
+
+              if (altLids.some(name => lotNumbers.has(name))) {
                 return { ...l, productionStatus: "Completed", status: "ready" };
               }
               return l;
