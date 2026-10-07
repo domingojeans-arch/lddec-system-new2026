@@ -76,7 +76,11 @@ import { es } from "date-fns/locale";
 export default function ProveedoresPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const canEdit = user?.role === "admin" || user?.role === "contador" || user?.role === "financiero";
+  const canEdit = 
+    user?.role === "admin" || 
+    user?.role === "facturacion" || 
+    user?.role === "contador" || 
+    user?.role === "financiero";
 
   // Datos de Firestore
   const [invoices, setInvoices] = useState<PurchaseInvoice[]>([]);

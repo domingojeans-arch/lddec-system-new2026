@@ -121,7 +121,7 @@ export const navItems: NavItem[] = [
     title: "Proveedores", 
     path: "/proveedores", 
     icon: Store, 
-    allowedRoles: ["admin", "contador", "financiero", "socio"] 
+    allowedRoles: ["admin", "facturacion", "contador", "financiero", "socio"] 
   },
   { 
     title: "Mantenimiento", 
