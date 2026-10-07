@@ -45,7 +45,11 @@ import {
   orderBy, 
   deleteDoc, 
   doc, 
-  where 
+  where,
+  getDoc,
+  getDocs,
+  updateDoc,
+  serverTimestamp
 } from "firebase/firestore";
 import { 
   Supplier, 
@@ -58,6 +62,7 @@ import { InvoiceFormDialog } from "@/components/proveedores/invoice-form-dialog"
 import { SupplierFormDialog } from "@/components/proveedores/supplier-form-dialog";
 import { PaymentDialog } from "@/components/proveedores/payment-dialog";
 import { SupplierLedgerDialog } from "@/components/proveedores/supplier-ledger-dialog";
+import { InvoicePaymentsDialog } from "@/components/proveedores/invoice-payments-dialog";
 import { 
   startOfWeek, 
   endOfWeek, 
@@ -97,6 +102,9 @@ export default function ProveedoresPage() {
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<PurchaseInvoice | null>(null);
+
+  const [isPaymentsViewModalOpen, setIsPaymentsViewModalOpen] = useState(false);
+  const [selectedInvoiceForPaymentsView, setSelectedInvoiceForPaymentsView] = useState<PurchaseInvoice | null>(null);
 
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [selectedSupplierForLedger, setSelectedSupplierForLedger] = useState<Supplier | null>(null);
@@ -155,7 +163,15 @@ export default function ProveedoresPage() {
     if (!db) return;
     const q = query(collection(db, "supplier_payments"), orderBy("fechaPago", "desc"));
     const unsub = onSnapshot(q, (snap) => {
-      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const list = snap.docs.map((d) => {
+        const data = d.data() as any;
+        return {
+          _docId: d.id,
+          ...data,
+          id: d.id,
+          paymentCode: data.id || d.id,
+        };
+      });
       setAllPayments(list);
     }, (err) => console.warn("Error cargando pagos:", err));
     return () => unsub();
@@ -336,11 +352,146 @@ export default function ProveedoresPage() {
     return balances;
   }, [invoices]);
 
+  // Manejador para eliminar un pago / abono y recalcular saldos
+  const handleDeletePayment = async (p: any, targetInv?: PurchaseInvoice) => {
+    if (!canEdit) return;
+
+    const monto = Number(p.monto || 0);
+    const numFactura = p.invoiceNumber || targetInv?.numeroFactura || "";
+    const prov = p.proveedorNombre || targetInv?.proveedorNombre || "proveedor";
+
+    const mensaje = `¿Estás seguro de eliminar este pago de $${monto.toFixed(2)}${numFactura ? ` para la factura #${numFactura}` : ''} (${prov})?\n\nEsta acción recalculará y restablecerá el saldo pendiente de la factura.`;
+
+    if (!confirm(mensaje)) return;
+
+    try {
+      // 1. Eliminar de la colección 'supplier_payments'
+      const firestoreDocId = p._docId || (p.invoiceNumber ? p.id : null);
+      let deletedFromCol = false;
+
+      if (firestoreDocId) {
+        try {
+          const docRef = doc(db, "supplier_payments", firestoreDocId);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            await deleteDoc(docRef);
+            deletedFromCol = true;
+          }
+        } catch (err) {
+          console.warn("No se pudo borrar directo de supplier_payments por ID:", err);
+        }
+      }
+
+      // Si no se borró directo, buscar por paymentCode o id interno
+      const paymentCode = p.paymentCode || p.id;
+      if (!deletedFromCol && paymentCode) {
+        const qPay = query(collection(db, "supplier_payments"), where("id", "==", paymentCode));
+        const qSnap = await getDocs(qPay);
+        for (const d of qSnap.docs) {
+          await deleteDoc(doc(db, "supplier_payments", d.id));
+          deletedFromCol = true;
+        }
+      }
+
+      // Si aún no, buscar por invoiceNumber y monto/fecha
+      if (!deletedFromCol && (p.invoiceNumber || targetInv?.numeroFactura)) {
+        const searchInvoiceNum = p.invoiceNumber || targetInv?.numeroFactura;
+        const qPay2 = query(collection(db, "supplier_payments"), where("invoiceNumber", "==", searchInvoiceNum));
+        const qSnap2 = await getDocs(qPay2);
+        for (const d of qSnap2.docs) {
+          const dData = d.data();
+          if (Math.abs(Number(dData.monto) - monto) < 0.01 && dData.fechaPago === p.fechaPago) {
+            await deleteDoc(doc(db, "supplier_payments", d.id));
+            break;
+          }
+        }
+      }
+
+      // 2. Actualizar la factura en 'purchase_invoices'
+      let targetInvoiceId = p.invoiceId || targetInv?.id;
+      let invoiceData: any = null;
+
+      if (targetInvoiceId) {
+        const invSnap = await getDoc(doc(db, "purchase_invoices", targetInvoiceId));
+        if (invSnap.exists()) {
+          invoiceData = { id: invSnap.id, ...invSnap.data() };
+        }
+      }
+
+      // Si no se encontró por ID directo, buscar por número de factura
+      if (!invoiceData && numFactura) {
+        const qInv = query(collection(db, "purchase_invoices"), where("numeroFactura", "==", numFactura));
+        const qInvSnap = await getDocs(qInv);
+        if (!qInvSnap.empty) {
+          const fDoc = qInvSnap.docs[0];
+          targetInvoiceId = fDoc.id;
+          invoiceData = { id: fDoc.id, ...fDoc.data() };
+        }
+      }
+
+      if (invoiceData && targetInvoiceId) {
+        const prevPagos: any[] = Array.isArray(invoiceData.pagos) ? invoiceData.pagos : [];
+        let removed = false;
+
+        const updatedPagos = prevPagos.filter((pay: any) => {
+          if (!removed && (pay.id === paymentCode || pay.id === p.id || pay.id === p._docId)) {
+            removed = true;
+            return false;
+          }
+          if (!removed && Math.abs(Number(pay.monto) - monto) < 0.01 && pay.fechaPago === p.fechaPago) {
+            removed = true;
+            return false;
+          }
+          return true;
+        });
+
+        const newTotalAbonado = Number(
+          updatedPagos.reduce((acc: number, curr: any) => acc + Number(curr.monto || 0), 0).toFixed(2)
+        );
+        const montoTotal = Number(invoiceData.montoTotal || 0);
+        const newSaldoPendiente = Math.max(0, Number((montoTotal - newTotalAbonado).toFixed(2)));
+
+        let nuevoEstado: "PENDIENTE" | "ABONADA" | "PAGADA" = "PENDIENTE";
+        if (newTotalAbonado > 0) {
+          nuevoEstado = newSaldoPendiente <= 0 ? "PAGADA" : "ABONADA";
+        }
+
+        await updateDoc(doc(db, "purchase_invoices", targetInvoiceId), {
+          pagos: updatedPagos,
+          totalAbonado: newTotalAbonado,
+          saldoPendiente: newSaldoPendiente,
+          estado: nuevoEstado,
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      toast({
+        title: "Pago eliminado con éxito ✅",
+        description: `Se eliminó el abono de $${monto.toFixed(2)} y se actualizó el saldo pendiente de la factura.`,
+        className: "bg-emerald-600 text-white font-bold",
+      });
+    } catch (e: any) {
+      console.error("Error al eliminar pago:", e);
+      toast({
+        variant: "destructive",
+        title: "Error al eliminar pago",
+        description: e.message || "Ocurrió un error inesperado al eliminar el pago.",
+      });
+    }
+  };
+
   // Manejador para eliminar factura
   const handleDeleteInvoice = async (inv: PurchaseInvoice) => {
     if (!canEdit) return;
     if (confirm(`¿Estás seguro de eliminar la factura ${inv.numeroFactura} de ${inv.proveedorNombre}?`)) {
       try {
+        // Limpiar pagos de esta factura en supplier_payments
+        const qPay = query(collection(db, "supplier_payments"), where("invoiceId", "==", inv.id));
+        const paySnap = await getDocs(qPay);
+        for (const d of paySnap.docs) {
+          await deleteDoc(doc(db, "supplier_payments", d.id));
+        }
+
         await deleteDoc(doc(db, "purchase_invoices", inv.id));
         toast({
           title: "Factura eliminada",
@@ -356,15 +507,39 @@ export default function ProveedoresPage() {
   // Manejador para eliminar proveedor
   const handleDeleteSupplier = async (sup: Supplier) => {
     if (!canEdit) return;
-    const hasInvoices = invoices.some((i) => i.proveedorId === sup.id);
-    if (hasInvoices) {
-      alert("No se puede eliminar este proveedor porque tiene facturas de compra registradas.");
+    const supInvoices = invoices.filter((i) => i.proveedorId === sup.id);
+    if (supInvoices.length > 0) {
+      const confirmInvoices = confirm(
+        `El proveedor "${sup.nombre}" tiene ${supInvoices.length} factura(s) de compra asociada(s).\n\n¿Deseas eliminar este proveedor junto con sus facturas asociadas?`
+      );
+      if (!confirmInvoices) return;
+
+      try {
+        for (const inv of supInvoices) {
+          await deleteDoc(doc(db, "purchase_invoices", inv.id));
+        }
+        await deleteDoc(doc(db, "suppliers", sup.id));
+        toast({
+          title: "Proveedor y facturas eliminados ✅",
+          description: `Se eliminó a ${sup.nombre} y sus facturas asociadas.`,
+          className: "bg-red-600 text-white font-bold",
+        });
+        if (isSupplierModalOpen) setIsSupplierModalOpen(false);
+      } catch (e: any) {
+        toast({ variant: "destructive", title: "Error al eliminar", description: e.message });
+      }
       return;
     }
-    if (confirm(`¿Deseas eliminar el proveedor ${sup.nombre}?`)) {
+
+    if (confirm(`¿Deseas eliminar definitivamente el proveedor "${sup.nombre}"?`)) {
       try {
         await deleteDoc(doc(db, "suppliers", sup.id));
-        toast({ title: "Proveedor eliminado", className: "bg-red-600 text-white font-bold" });
+        toast({
+          title: "Proveedor eliminado ✅",
+          description: `Se eliminó a ${sup.nombre} del sistema.`,
+          className: "bg-red-600 text-white font-bold",
+        });
+        if (isSupplierModalOpen) setIsSupplierModalOpen(false);
       } catch (e: any) {
         toast({ variant: "destructive", title: "Error al eliminar", description: e.message });
       }
@@ -862,7 +1037,21 @@ export default function ProveedoresPage() {
                           </TableCell>
 
                           <TableCell className="text-right text-xs font-bold text-emerald-600 whitespace-nowrap">
-                            ${(inv.totalAbonado || 0).toFixed(2)}
+                            {((inv.totalAbonado || 0) > 0 || (inv.pagos && inv.pagos.length > 0)) ? (
+                              <button
+                                type="button"
+                                className="hover:underline font-black text-emerald-600 inline-flex items-center gap-1 cursor-pointer"
+                                title="Ver abonos realizados a esta factura"
+                                onClick={() => {
+                                  setSelectedInvoiceForPaymentsView(inv);
+                                  setIsPaymentsViewModalOpen(true);
+                                }}
+                              >
+                                ${(inv.totalAbonado || 0).toFixed(2)}
+                              </button>
+                            ) : (
+                              <span>${(inv.totalAbonado || 0).toFixed(2)}</span>
+                            )}
                           </TableCell>
 
                           <TableCell className="text-right whitespace-nowrap">
@@ -889,6 +1078,21 @@ export default function ProveedoresPage() {
 
                           <TableCell className="text-right pr-5 whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
+                              {((inv.totalAbonado || 0) > 0 || (inv.pagos && inv.pagos.length > 0)) && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-xs font-bold text-muted-foreground hover:text-foreground rounded-xl px-2.5 gap-1 border-border"
+                                  title="Ver y administrar abonos de esta factura"
+                                  onClick={() => {
+                                    setSelectedInvoiceForPaymentsView(inv);
+                                    setIsPaymentsViewModalOpen(true);
+                                  }}
+                                >
+                                  <Receipt className="h-3.5 w-3.5 text-primary" /> Pagos ({inv.pagos?.length || 0})
+                                </Button>
+                              )}
+
                               {canEdit && inv.saldoPendiente > 0 && (
                                 <Button
                                   size="sm"
@@ -1042,17 +1246,30 @@ export default function ProveedoresPage() {
                         </Button>
 
                         {canEdit && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
-                            onClick={() => {
-                              setSupplierToEdit(sup);
-                              setIsSupplierModalOpen(true);
-                            }}
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
+                              title="Editar proveedor"
+                              onClick={() => {
+                                setSupplierToEdit(sup);
+                                setIsSupplierModalOpen(true);
+                              }}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
+                              title="Eliminar proveedor"
+                              onClick={() => handleDeleteSupplier(sup)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </CardContent>
@@ -1090,7 +1307,10 @@ export default function ProveedoresPage() {
                     <TableHead className="text-[10px] font-black uppercase">Método de Pago</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Banco / Referencia</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Registrado Por</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase text-right pr-5">Monto Pagado ($)</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-right">Monto Pagado ($)</TableHead>
+                    {canEdit && (
+                      <TableHead className="text-[10px] font-black uppercase text-right pr-5">Acciones</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1120,14 +1340,30 @@ export default function ProveedoresPage() {
                         <TableCell className="text-xs text-muted-foreground">
                           {p.registradoPor || "Sistema"}
                         </TableCell>
-                        <TableCell className="text-right pr-5 font-black text-xs text-emerald-600 dark:text-emerald-400">
+                        <TableCell className="text-right font-black text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                           +${Number(p.monto || 0).toFixed(2)}
                         </TableCell>
+                        {canEdit && (
+                          <TableCell className="text-right pr-5 whitespace-nowrap">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
+                              title="Eliminar este pago y restablecer saldo de la factura"
+                              onClick={() => {
+                                const targetInv = invoices.find(i => i.id === p.invoiceId || i.numeroFactura === p.invoiceNumber);
+                                handleDeletePayment(p, targetInv);
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-40 text-center text-xs text-muted-foreground font-semibold">
+                      <TableCell colSpan={canEdit ? 8 : 7} className="h-40 text-center text-xs text-muted-foreground font-semibold">
                         Aún no hay pagos a proveedores registrados en el sistema.
                       </TableCell>
                     </TableRow>
@@ -1156,6 +1392,7 @@ export default function ProveedoresPage() {
         isOpen={isSupplierModalOpen}
         onClose={() => setIsSupplierModalOpen(false)}
         supplierToEdit={supplierToEdit}
+        onDeleteSupplier={handleDeleteSupplier}
       />
 
       {/* DIÁLOGO REGISTRAR PAGO / ABONO */}
@@ -1176,6 +1413,24 @@ export default function ProveedoresPage() {
           setSelectedInvoiceForPayment(inv);
           setIsPaymentModalOpen(true);
         }}
+        onDeletePayment={handleDeletePayment}
+        canEdit={canEdit}
+      />
+
+      {/* DIÁLOGO CONSULTA Y ELIMINACIÓN DE PAGOS / ABONOS DE FACTURA */}
+      <InvoicePaymentsDialog
+        isOpen={isPaymentsViewModalOpen}
+        onClose={() => {
+          setIsPaymentsViewModalOpen(false);
+          setSelectedInvoiceForPaymentsView(null);
+        }}
+        invoice={
+          selectedInvoiceForPaymentsView 
+            ? (invoices.find(i => i.id === selectedInvoiceForPaymentsView.id) || selectedInvoiceForPaymentsView)
+            : null
+        }
+        onDeletePayment={handleDeletePayment}
+        canEdit={canEdit}
       />
     </div>
   );

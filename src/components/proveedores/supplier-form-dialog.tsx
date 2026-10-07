@@ -11,13 +11,14 @@ import { Supplier, PURCHASE_CATEGORIES, CREDIT_DAYS_OPTIONS } from "@/types/prov
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Store, Building2, Phone, Mail, MapPin, CalendarClock } from "lucide-react";
+import { Loader2, Store, Building2, Phone, Mail, MapPin, CalendarClock, Trash2 } from "lucide-react";
 
 interface SupplierFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
   supplierToEdit?: Supplier | null;
   onSupplierCreated?: (newSupplier: Supplier) => void;
+  onDeleteSupplier?: (supplier: Supplier) => void;
 }
 
 export function SupplierFormDialog({
@@ -25,6 +26,7 @@ export function SupplierFormDialog({
   onClose,
   supplierToEdit,
   onSupplierCreated,
+  onDeleteSupplier,
 }: SupplierFormDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -254,18 +256,31 @@ export function SupplierFormDialog({
             </div>
           </div>
 
-          <DialogFooter className="pt-3 gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={loading} className="rounded-xl">
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-              className="bg-primary hover:bg-primary/90 text-white font-black uppercase text-xs rounded-xl px-6"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {supplierToEdit ? "Guardar Cambios" : "Crear Proveedor"}
-            </Button>
+          <DialogFooter className="pt-3 gap-2 flex flex-col sm:flex-row items-center justify-between">
+            {supplierToEdit && onDeleteSupplier ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => onDeleteSupplier(supplierToEdit)}
+                disabled={loading}
+                className="w-full sm:w-auto rounded-xl font-black text-xs uppercase gap-1.5 bg-red-600 hover:bg-red-700 mr-auto"
+              >
+                <Trash2 className="h-4 w-4" /> Eliminar Proveedor
+              </Button>
+            ) : <div />}
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <Button type="button" variant="outline" onClick={onClose} disabled={loading} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={loading}
+                className="bg-primary hover:bg-primary/90 text-white font-black uppercase text-xs rounded-xl px-6"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {supplierToEdit ? "Guardar Cambios" : "Crear Proveedor"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

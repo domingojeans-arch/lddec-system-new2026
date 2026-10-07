@@ -17,7 +17,8 @@ import {
   CheckCircle2, 
   AlertCircle,
   Clock,
-  Calendar
+  Calendar,
+  Trash2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -28,6 +29,8 @@ interface SupplierLedgerDialogProps {
   supplier: Supplier | null;
   invoices: PurchaseInvoice[];
   onOpenPaymentDialog: (invoice: PurchaseInvoice) => void;
+  onDeletePayment?: (payment: any, invoice?: PurchaseInvoice) => Promise<void>;
+  canEdit?: boolean;
 }
 
 export function SupplierLedgerDialog({
@@ -36,6 +39,8 @@ export function SupplierLedgerDialog({
   supplier,
   invoices,
   onOpenPaymentDialog,
+  onDeletePayment,
+  canEdit = false,
 }: SupplierLedgerDialogProps) {
   if (!supplier) return null;
 
@@ -218,13 +223,16 @@ export function SupplierLedgerDialog({
                     <TableHead className="text-[10px] font-black uppercase">Factura</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Método</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Banco / Referencia</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase text-right pr-4">Monto Pagado ($)</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-right">Monto Pagado ($)</TableHead>
+                    {canEdit && onDeletePayment && (
+                      <TableHead className="text-[10px] font-black uppercase text-right pr-4">Acción</TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {allPayments.length > 0 ? (
                     allPayments.map((p, idx) => (
-                      <TableRow key={idx}>
+                      <TableRow key={p.id || idx}>
                         <TableCell className="text-xs font-semibold">{formatDateSafe(p.fechaPago)}</TableCell>
                         <TableCell className="font-mono text-xs font-bold text-primary">{p.invoiceNumber}</TableCell>
                         <TableCell className="text-xs uppercase font-bold text-muted-foreground">
@@ -236,14 +244,30 @@ export function SupplierLedgerDialog({
                             <span className="font-mono text-[10px] text-muted-foreground">Ref: {p.numeroReferencia}</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right pr-4 font-black text-xs text-emerald-600 dark:text-emerald-400">
+                        <TableCell className="text-right font-black text-xs text-emerald-600 dark:text-emerald-400">
                           +${p.monto.toFixed(2)}
                         </TableCell>
+                        {canEdit && onDeletePayment && (
+                          <TableCell className="text-right pr-4 whitespace-nowrap">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
+                              title="Eliminar este abono y restablecer saldo"
+                              onClick={() => {
+                                const targetInv = supplierInvoices.find(i => i.numeroFactura === p.invoiceNumber);
+                                onDeletePayment(p, targetInv);
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-28 text-center text-xs text-muted-foreground font-semibold">
+                      <TableCell colSpan={canEdit && onDeletePayment ? 6 : 5} className="h-28 text-center text-xs text-muted-foreground font-semibold">
                         No se registran pagos realizados a este proveedor aún.
                       </TableCell>
                     </TableRow>

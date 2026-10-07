@@ -99,18 +99,23 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
 
   // Determinar reportes permitidos por rol
   const reportTypes = useMemo(() => {
-    const role = user?.role || "socio";
+    if (!user) return [];
+    const role = user.role;
     if (role === "admin" || role === "contador" || role === "financiero" || role === "socio" || role === "colaboradora") return ALL_REPORT_TYPES;
     if (role === "bodega") return ["Resumen Operativo Mes a Mes", "Informe de Ingresos Detallado", "Informe de Salidas Detallado"];
     if (role === "bodega_quimicos") return ["Informe Detallado de Movimientos Químicos"];
-    if (role === "facturacion") return ["Informe de Ingresos vs. Facturación", "Informe de Salidas Detallado", "Informe Detallado de Ventas (Libro de Ventas)"];
+    if (role === "facturacion") return [
+      "Informe de Ingresos vs. Facturación",
+      "Informe Detallado de Ventas (Libro de Ventas)",
+      "Informe de Salidas Detallado"
+    ];
     if (role === "produccion") return ["Informe Detallado de Manualidades", "Liquidación de Pagos a Operarios", "Informe Detallado de Movimientos Químicos"];
     if (role === "banco") return ["Informe de Movimientos Bancarios"];
     return ["Resumen Operativo Mes a Mes"];
-  }, [user?.role]);
+  }, [user]);
 
   const [filters, setFilters] = useState({
-    type: reportTypes[0] || ALL_REPORT_TYPES[0],
+    type: "",
     dateFrom: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     dateTo: new Date().toISOString().split('T')[0],
     clientId: "all",
@@ -118,6 +123,14 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
     accountId: "all",
     chemicalId: "all"
   });
+
+  // Sincronizar reporte por defecto cuando se cargan los permisos del usuario
+  useEffect(() => {
+    if (reportTypes.length > 0 && (!filters.type || !reportTypes.includes(filters.type))) {
+      setFilters(prev => ({ ...prev, type: reportTypes[0] }));
+      setReportGenerated(false);
+    }
+  }, [reportTypes, filters.type]);
 
   // Cargar catálogos dinámicos para filtros especializados
   useEffect(() => {
@@ -437,7 +450,7 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-muted-foreground ml-1">1. Tipo de Informe</Label>
             <Select value={filters.type} onValueChange={(v) => { setFilters({ ...filters, type: v }); setReportGenerated(false); }}>
-              <SelectTrigger className="erp-input h-12 font-bold"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="erp-input h-12 font-bold"><SelectValue placeholder="Seleccione un informe" /></SelectTrigger>
               <SelectContent className="rounded-2xl shadow-2xl">
                 {reportTypes.map(t => <SelectItem key={t} value={t} className="text-xs uppercase font-bold">{t}</SelectItem>)}
               </SelectContent>
