@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Printer, ArrowDownCircle, Shirt, Package } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getEntryTotalPrendas } from "@/lib/entryUtils";
 
 interface EntriesDetailedReportProps {
   entries: any[];
@@ -22,21 +23,8 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
   const prodEntries = entries.filter(e => !e.isSample);
   const sampleEntries = entries.filter(e => e.isSample);
 
-  const prodPrendas = prodEntries.reduce((acc, e) => {
-    const rawLots = e.lotes || e.lots || [];
-    return acc + rawLots.reduce((lotAcc: number, lot: any) => {
-      const val = lot.cantidad || lot.quantity || lot.cantidadConfirmada || 0;
-      return lotAcc + Number(val || 0);
-    }, 0);
-  }, 0);
-
-  const samplePrendas = sampleEntries.reduce((acc, e) => {
-    const rawLots = e.lotes || e.lots || [];
-    return acc + rawLots.reduce((lotAcc: number, lot: any) => {
-      const val = lot.cantidad || lot.quantity || lot.cantidadConfirmada || 0;
-      return lotAcc + Number(val || 0);
-    }, 0);
-  }, 0);
+  const prodPrendas = prodEntries.reduce((acc, e) => acc + getEntryTotalPrendas(e), 0);
+  const samplePrendas = sampleEntries.reduce((acc, e) => acc + getEntryTotalPrendas(e), 0);
 
   const formatNum = (val: number) => {
     return Math.floor(val).toLocaleString('es-ES');
@@ -133,10 +121,7 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
                 <TableBody>
                   {prodEntries.length > 0 ? prodEntries.map((e) => {
                     const rawLots = e.lotes || e.lots || [];
-                    const qty = rawLots.reduce((acc: number, l: any) => {
-                      const val = l.cantidad || l.quantity || l.cantidadConfirmada || 0;
-                      return acc + Number(val || 0);
-                    }, 0);
+                    const qty = getEntryTotalPrendas(e);
                     return (
                       <TableRow key={e.id}>
                         <TableCell className="py-4 pl-8 text-xs font-medium">
@@ -172,10 +157,7 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
                 <TableBody>
                   {sampleEntries.length > 0 ? sampleEntries.map((e) => {
                     const rawLots = e.lotes || e.lots || [];
-                    const qty = rawLots.reduce((acc: number, l: any) => {
-                      const val = l.cantidad || l.quantity || l.cantidadConfirmada || 0;
-                      return acc + Number(val || 0);
-                    }, 0);
+                    const qty = getEntryTotalPrendas(e);
                     return (
                       <TableRow key={e.id}>
                         <TableCell className="py-4 pl-8 text-xs font-medium">

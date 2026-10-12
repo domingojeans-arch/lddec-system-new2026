@@ -12,7 +12,8 @@ import {
   Receipt,
   Database,
   User,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,12 +27,13 @@ import {
 } from 'recharts';
 import { Progress } from "@/components/ui/progress";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, getDoc, setDoc, serverTimestamp, query, where, Timestamp } from "firebase/firestore";
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp, query, where, Timestamp, onSnapshot } from "firebase/firestore";
 import { toDate } from "@/lib/toDate";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { getEntryTotalPrendas } from "@/lib/entryUtils";
 
 /**
  * CONSTANTES DE INGRESOS COMPARATIVOS
@@ -47,7 +49,6 @@ const PRODUCTION_2025 = [0, 0, 0, 0, 8816, 26435, 32510, 35551, 30322, 39278, 38
 const PRENDAS_INGRESADAS_2025 = [0, 0, 0, 0, 8816, 26435, 32510, 35551, 30322, 39278, 38521, 36543];
 const DISPATCHES_2025 = [0, 0, 0, 0, 1338, 6340, 3807, 19292, 33299, 35130, 37983, 46371];
 const BILLING_2025 = [0, 0, 0, 0, 610.56, 44861.27, 44945.98, 43005.19, 62531.70, 55965.07, 63056.00, 87224.98];
-
 
 /**
  * INTERFAZ DE MÉTRICAS CACHEADAS
@@ -88,6 +89,9 @@ export default function DashboardPage() {
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(new Date().getMonth());
   const [selectedIngresoMonthIdx, setSelectedIngresoMonthIdx] = useState<number>(new Date().getMonth());
   const [ingresosPrendas2026, setIngresosPrendas2026] = useState<number[]>(() => Array(12).fill(0));
+  const [ingresosRealLoaded, setIngresosRealLoaded] = useState(false);
+  const [detectedTypo, setDetectedTypo] = useState<{ id: string; entryNumber: string; lotNumber: string; wrongQty: number } | null>(null);
+  const [fixingTypo, setFixingTypo] = useState(false);
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
 
@@ -147,65 +151,101 @@ export default function DashboardPage() {
     loadCachedStats();
   }, []);
 
-  // CARGA ÚNICA DE PRENDAS FÍSICAS INGRESADAS (2026)
-  // El año anterior (2025) usa la constante congelada PRENDAS_INGRESADAS_2025 (0 consultas).
-  // 2026 se carga una única vez aquí si la caché no lo tiene.
+  // CARGA EN VIVO DE PRENDAS FÍSICAS INGRESADAS (2026)
+  // Calcula la suma real de prendas ingresadas directamente desde la colección entries en tiempo real.
   useEffect(() => {
     if (!db) return;
 
-    if (stats?.metrics?.prendasIngresadas2026 && stats.metrics.prendasIngresadas2026.some(v => v > 0)) {
-      setIngresosPrendas2026(stats.metrics.prendasIngresadas2026);
-      return;
-    }
+    const unsub = onSnapshot(collection(db, "entries"), (snap) => {
+      const totals = Array(12).fill(0);
+      let foundTypo: any = null;
 
-    const loadIngresos2026Once = async () => {
-      try {
-        const snap = await getDocs(collection(db, "entries"));
-        const totals = Array(12).fill(0);
-        snap.docs.forEach(docSnap => {
-          const e = docSnap.data();
-          const d = toDate(e.date || e.entryDate || e.fecha || e.createdAt);
-          if (d && d.getFullYear() === currentYear) {
-            const monthIdx = d.getMonth();
-            const lotes = e.lotes || e.lots || [];
-            let qty = 0;
-            if (lotes.length > 0) {
-              qty = lotes.reduce((acc: number, l: any) => {
-                const val = l.quantityToDispatch ??
-                            l.cantidadConfirmada ??
-                            l.quantity ??
-                            l.cantidad ??
-                            l.totalPrendas ??
-                            l.total ?? null;
+      snap.docs.forEach(docSnap => {
+        const e = docSnap.data();
+        const d = toDate(e.date || e.entryDate || e.fecha || e.createdAt);
+        if (d && d.getFullYear() === currentYear) {
+          const monthIdx = d.getMonth();
+          const qty = getEntryTotalPrendas(e);
+          totals[monthIdx] += qty;
+        }
 
-                if (val == null || Number(val) === 0) {
-                  if (Array.isArray(l.garments) && l.garments.length > 0) {
-                    const garmentSum = l.garments.reduce((gAcc: number, g: any) => {
-                      const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
-                      return gAcc + (isNaN(gVal) ? 0 : gVal);
-                    }, 0);
-                    if (garmentSum > 0) return acc + garmentSum;
-                  }
-                }
-                const num = Number(val);
-                return acc + (isNaN(num) || !isFinite(num) ? 0 : num);
-              }, 0);
-            } else {
-              qty = Number(e.totalPrendas || e.cantidad || e.total || 0);
+        // Detectar si persiste el error de digitación en la base de datos
+        const lotes = e.lotes || e.lots || [];
+        lotes.forEach((l: any) => {
+          const lotNum = Number(String(l?.lotNumber || l?.numeroLote || "").trim());
+          const garments = l?.garments || l?.prendas || [];
+          garments.forEach((g: any) => {
+            const gQty = Number(g?.quantity || 0);
+            if (lotNum > 1000 && gQty === lotNum) {
+              foundTypo = {
+                id: docSnap.id,
+                entryNumber: e.entryNumber || docSnap.id,
+                lotNumber: String(lotNum),
+                wrongQty: gQty
+              };
             }
-
-            totals[monthIdx] += qty;
-          }
+          });
         });
+      });
 
-        setIngresosPrendas2026(totals);
-      } catch (err) {
-        console.warn("Error al cargar prendas ingresadas de 2026:", err);
-      }
-    };
+      setDetectedTypo(foundTypo);
+      setIngresosPrendas2026(totals);
+      setIngresosRealLoaded(true);
+    }, (err) => {
+      console.warn("Error al cargar prendas ingresadas de 2026:", err);
+      setIngresosRealLoaded(true);
+    });
 
-    loadIngresos2026Once();
-  }, [db, currentYear, stats?.metrics?.prendasIngresadas2026]);
+    return () => unsub();
+  }, [db, currentYear]);
+
+  // CORRECCIÓN ADMINISTRATIVA EN UN CLIC DE REGISTROS CON ERROR DE DIGITACIÓN
+  const handleFixTypo = async () => {
+    if (!detectedTypo || !db || isReadOnly) return;
+    setFixingTypo(true);
+    try {
+      const entryRef = doc(db, "entries", detectedTypo.id);
+      const snap = await getDoc(entryRef);
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const lotes = data.lotes || data.lots || [];
+
+      const correctedLots = lotes.map((l: any) => {
+        const lotNum = String(l?.lotNumber || l?.numeroLote || "").trim();
+        if (lotNum === detectedTypo.lotNumber) {
+          const newGarments = (l.garments || l.prendas || []).map((g: any) => {
+            if (Number(g.quantity) === detectedTypo.wrongQty) {
+              return { ...g, quantity: 18 };
+            }
+            return g;
+          });
+          return { ...l, garments: newGarments };
+        }
+        return l;
+      });
+
+      await updateDoc(entryRef, {
+        lotes: correctedLots,
+        lots: correctedLots,
+        updatedAt: serverTimestamp()
+      });
+
+      toast({
+        title: "Registro Corregido con Éxito",
+        description: `El lote ${detectedTypo.lotNumber} del Ingreso #${detectedTypo.entryNumber} fue actualizado a 18 prendas en la base de datos.`
+      });
+      setDetectedTypo(null);
+    } catch (err) {
+      console.error("Error al corregir lote:", err);
+      toast({
+        variant: "destructive",
+        title: "Error al corregir",
+        description: "No se pudo actualizar el registro en Firestore."
+      });
+    } finally {
+      setFixingTypo(false);
+    }
+  };
 
   /**
    * MOTOR DE PROCESAMIENTO MANUAL (CONTROLADO)
@@ -248,32 +288,7 @@ export default function DashboardPage() {
       const paymentsRaw = paymentsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
       // Helper de cálculo de prendas físicas normalizadas (Idéntico a Resumen de Inventario)
-      const getEntryNormalizedQty = (e: any) => {
-        const lotes = e.lotes || e.lots || [];
-        if (lotes.length > 0) {
-          return lotes.reduce((acc: number, l: any) => {
-            const val = l.quantityToDispatch ??
-                        l.cantidadConfirmada ??
-                        l.quantity ??
-                        l.cantidad ??
-                        l.totalPrendas ??
-                        l.total ?? null;
-
-            if (val == null || Number(val) === 0) {
-              if (Array.isArray(l.garments) && l.garments.length > 0) {
-                const garmentSum = l.garments.reduce((gAcc: number, g: any) => {
-                  const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
-                  return gAcc + (isNaN(gVal) ? 0 : gVal);
-                }, 0);
-                if (garmentSum > 0) return acc + garmentSum;
-              }
-            }
-            const num = Number(val);
-            return acc + (isNaN(num) || !isFinite(num) ? 0 : num);
-          }, 0);
-        }
-        return Number(e.totalPrendas || e.cantidad || e.total || 0);
-      };
+      const getEntryNormalizedQty = (e: any) => getEntryTotalPrendas(e);
 
       // 2. Cálculos de KPIs
       const today = new Date();
@@ -283,7 +298,7 @@ export default function DashboardPage() {
       const ingresadasMes = entriesRaw.filter(e => {
         const d = toDate(e.date || e.entryDate || e.fecha || e.createdAt);
         return d && d.getMonth() === currentMonth && d.getFullYear() === currentMonthYear;
-      }).reduce((acc, e) => acc + getEntryNormalizedQty(e), 0);
+      }).reduce((acc, e) => acc + getEntryTotalPrendas(e), 0);
 
       const despachadasMes = outputsRaw.filter(o => {
         const d = toDate(o.date || o.fechaSalida || o.createdAt);
@@ -603,7 +618,7 @@ export default function DashboardPage() {
         if (d) {
           const year = d.getFullYear();
           const monthIdx = d.getMonth();
-          const qty = (e.lotes || []).reduce((acc: number, l: any) => acc + (Number(l.cantidadConfirmada || l.quantity || l.cantidad || 0)), 0);
+          const qty = getEntryTotalPrendas(e);
           
           if (year === currentYear) {
             production2026Calculated[monthIdx] += qty;
@@ -651,7 +666,7 @@ export default function DashboardPage() {
         const d = toDate(e.date || e.entryDate || e.fecha || e.createdAt);
         if (d && d.getFullYear() === currentYear) {
           const monthIdx = d.getMonth();
-          prendasIngresadas2026Calculated[monthIdx] += getEntryNormalizedQty(e);
+          prendasIngresadas2026Calculated[monthIdx] += getEntryTotalPrendas(e);
         }
       });
       setIngresosPrendas2026(prendasIngresadas2026Calculated);
@@ -708,9 +723,9 @@ export default function DashboardPage() {
 
   // 7b. Cálculos para comparativa anual de PRENDAS FÍSICAS INGRESADAS (2025 vs 2026)
   const currentIngresoMonthName = MONTH_NAMES[selectedIngresoMonthIdx];
-  const currentIngresoPrendas2026 = (stats?.metrics?.prendasIngresadas2026 && stats.metrics.prendasIngresadas2026[selectedIngresoMonthIdx] > 0)
-    ? stats.metrics.prendasIngresadas2026[selectedIngresoMonthIdx]
-    : (ingresosPrendas2026[selectedIngresoMonthIdx] || 0);
+  const currentIngresoPrendas2026 = ingresosRealLoaded 
+    ? (ingresosPrendas2026[selectedIngresoMonthIdx] || 0)
+    : ((stats?.metrics?.prendasIngresadas2026 && stats.metrics.prendasIngresadas2026[selectedIngresoMonthIdx]) || 0);
   const currentIngresoPrendas2025 = PRENDAS_INGRESADAS_2025[selectedIngresoMonthIdx] || 0;
   
   const diffIngresoPrendas = currentIngresoPrendas2026 - currentIngresoPrendas2025;
@@ -719,9 +734,9 @@ export default function DashboardPage() {
     : 0;
 
   const comparisonPrendasIngresadasChartData = MONTH_NAMES.map((name, idx) => {
-    const val2026 = (stats?.metrics?.prendasIngresadas2026 && stats.metrics.prendasIngresadas2026[idx] > 0)
-      ? stats.metrics.prendasIngresadas2026[idx]
-      : (ingresosPrendas2026[idx] || 0);
+    const val2026 = ingresosRealLoaded 
+      ? (ingresosPrendas2026[idx] || 0)
+      : ((stats?.metrics?.prendasIngresadas2026 && stats.metrics.prendasIngresadas2026[idx]) || 0);
     return {
       name: name.substring(0, 3).toUpperCase(),
       [String(currentYear - 1)]: PRENDAS_INGRESADAS_2025[idx],
@@ -806,16 +821,46 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-8 max-w-[1600px] mx-auto animate-in slide-in-from-bottom-4 duration-700">
+          
+          {detectedTypo && (
+            <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in">
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 bg-amber-500/20 text-amber-600 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black uppercase text-amber-700 dark:text-amber-400 tracking-wide">
+                    Inconsistencia de digitación detectada en Ingreso #{detectedTypo.entryNumber}
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    El Lote <strong>{detectedTypo.lotNumber}</strong> tenía registrado erróneamente <strong>{detectedTypo.wrongQty.toLocaleString()} prendas</strong> (se escribió el número de lote en el campo de cantidad). El cálculo visual ya fue normalizado a ~18 prendas para reflejar el conteo físico real.
+                  </p>
+                </div>
+              </div>
+              {!isReadOnly && (
+                <Button
+                  onClick={handleFixTypo}
+                  disabled={fixingTypo}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-black text-xs uppercase tracking-wider rounded-xl px-6 h-11 shrink-0"
+                >
+                  {fixingTypo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Corregir en Base de Datos (18 Prendas)
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* Fila 1: KPIs */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="bg-card border-border shadow-premium rounded-3xl overflow-hidden group hover:border-primary/30 transition-all">
               <CardContent className="p-10 space-y-2">
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] group-hover:text-primary transition-colors">INGRESADAS (MES)</p>
                 <h3 className="text-5xl font-black text-foreground tracking-tighter">
-                  {((ingresosPrendas2026[currentMonth] > 0 
-                    ? ingresosPrendas2026[currentMonth] 
-                    : (stats.metrics.prendasIngresadas2026?.[currentMonth] || stats.metrics.ingresadasMes || 0)
-                  )).toLocaleString('es-ES')}
+                  {ingresosRealLoaded ? (
+                    (ingresosPrendas2026[currentMonth] || 0).toLocaleString('es-ES')
+                  ) : (
+                    <Loader2 className="h-8 w-8 animate-spin text-primary inline-block" />
+                  )}
                 </h3>
               </CardContent>
             </Card>

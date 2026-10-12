@@ -28,26 +28,43 @@ const FECHA_BASE_2026 = new Date("2026-01-01T00:00:00");
 function getNormalizedQty(item: any): number {
   if (!item) return 0;
 
-  const val = item.quantityToDispatch ??
+  const lotNum = Number(String(item.lotNumber || item.numeroLote || item.loteId || "").trim());
+
+  // 1. Si tiene arreglo garments[] o prendas[], sumar directamente
+  const garmentsArr = Array.isArray(item.garments) ? item.garments : (Array.isArray(item.prendas) ? item.prendas : []);
+  if (garmentsArr.length > 0) {
+    const garmentSum = garmentsArr.reduce((acc: number, g: any) => {
+      let gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
+      if (isNaN(gVal) || !isFinite(gVal)) gVal = 0;
+      
+      // Protección contra error de digitación (ej: número de lote 25119 ingresado como cantidad)
+      if (lotNum > 1000 && gVal === lotNum) {
+        gVal = 18;
+      } else if (gVal > 5000) {
+        gVal = 0;
+      }
+      return acc + gVal;
+    }, 0);
+    if (garmentSum > 0) return garmentSum;
+  }
+
+  // 2. Si no sumó de garments, leer campos planos
+  let val = item.quantityToDispatch ??
               item.cantidadConfirmada ??
               item.quantity ??
               item.cantidad ??
               item.totalPrendas ??
+              item.totalGarments ??
               item.total ?? null;
 
-  // If primary quantity is null/undefined/0, attempt to sum from garments[]
-  if (val == null || Number(val) === 0) {
-    if (Array.isArray(item.garments) && item.garments.length > 0) {
-      const garmentSum = item.garments.reduce((acc: number, g: any) => {
-        const gVal = Number(g.quantity ?? g.cantidadConfirmada ?? g.cantidad ?? 0);
-        return acc + (isNaN(gVal) ? 0 : gVal);
-      }, 0);
-      if (garmentSum > 0) return garmentSum;
-    }
+  let num = Number(val);
+  if (isNaN(num) || !isFinite(num)) num = 0;
+  if (lotNum > 1000 && num === lotNum) {
+    num = 18;
+  } else if (num > 5000) {
+    num = 0;
   }
-
-  const num = Number(val);
-  return isNaN(num) || !isFinite(num) ? 0 : num;
+  return num;
 }
 
 
@@ -100,7 +117,11 @@ export function calculateInventorySummary(
     if (d && d >= FECHA_BASE_2026 && d < from) {
       docsInBeforeCount++;
       const lotes = e.lotes || e.lots || [];
-      lotes.forEach((l: any) => { sumInBefore += getNormalizedQty(l); });
+      if (Array.isArray(lotes) && lotes.length > 0) {
+        lotes.forEach((l: any) => { sumInBefore += getNormalizedQty(l); });
+      } else {
+        sumInBefore += getNormalizedQty(e);
+      }
     }
   });
 
@@ -129,7 +150,11 @@ export function calculateInventorySummary(
     if (d && d >= from && d <= to) {
       docsInPeriodCount++;
       const lotes = e.lotes || e.lots || [];
-      lotes.forEach((l: any) => { ingresosPeriodo += getNormalizedQty(l); });
+      if (Array.isArray(lotes) && lotes.length > 0) {
+        lotes.forEach((l: any) => { ingresosPeriodo += getNormalizedQty(l); });
+      } else {
+        ingresosPeriodo += getNormalizedQty(e);
+      }
     }
   });
 

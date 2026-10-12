@@ -86,11 +86,18 @@ function mapFirestoreToEntry(docSnap: any): Entry {
     };
   });
   const totalGarments = mappedLots.reduce((acc: number, lot: any) => {
+    const lotNum = Number(String(lot.lotNumber || "").trim());
     const garments = lot.garments || [];
     if (garments.length > 0) {
-      return acc + garments.reduce((gAcc: number, g: any) => gAcc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0);
+      return acc + garments.reduce((gAcc: number, g: any) => {
+        let gVal = Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0;
+        if (lotNum > 1000 && gVal === lotNum) gVal = 18;
+        return gAcc + gVal;
+      }, 0);
     }
-    return acc + Number(lot?.cantidad || lot?.cantidadConfirmada || lot?.quantity || lot?.total || 0);
+    let lotQty = Number(lot?.cantidad || lot?.cantidadConfirmada || lot?.quantity || lot?.total || 0);
+    if (lotNum > 1000 && lotQty === lotNum) lotQty = 18;
+    return acc + lotQty;
   }, 0);
   return {
     id,

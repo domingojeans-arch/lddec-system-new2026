@@ -149,6 +149,22 @@ service cloud.firestore {
       allow write: if isAdmin() || hasRole('facturacion') || hasRole('colaboradora');
     }
 
+    // PROVEEDORES, FACTURAS DE COMPRA Y PAGOS A PROVEEDORES
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('contador') || hasRole('financiero');
+    }
+
+    match /purchase_invoices/{invoiceId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('contador') || hasRole('financiero');
+    }
+
+    match /supplier_payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || hasRole('facturacion') || hasRole('contador') || hasRole('financiero');
+    }
+
     // REGLA GENERAL DE SEGURIDAD
     match /{document=**} {
       allow read, write: if isAdmin();
