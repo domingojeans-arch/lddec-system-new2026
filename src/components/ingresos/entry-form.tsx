@@ -17,8 +17,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LotRowsEditor } from "./lot-rows-editor";
-import { Save, X, Calendar, User, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Save, X, Calendar, User, AlertCircle, CheckCircle2, ClipboardCheck, Layers, Shirt } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Combobox } from "@/components/lddec/combobox";
@@ -59,6 +68,8 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
     }];
   });
   const [localError, setLocalError] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [pendingSubmitData, setPendingSubmitData] = useState<(EntryInput & { lots: EntryLot[] }) | null>(null);
   
   const form = useForm<z.infer<typeof entrySchema>>({
     resolver: zodResolver(entrySchema),
@@ -153,12 +164,24 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
     }
 
     const client = clients.find(c => c.id === values.clientId);
-    onSubmit({
+    setPendingSubmitData({
       ...values,
-      clientName: client?.name || client?.nombre || "Desconocido",
+      clientName: client?.name || client?.nombre || initialData?.clientName || "Desconocido",
       lots,
     });
+    setIsConfirmOpen(true);
   };
+
+  const handleConfirmSave = () => {
+    if (!pendingSubmitData) return;
+    setIsConfirmOpen(false);
+    onSubmit(pendingSubmitData);
+  };
+
+  const totalSummaryGarments = (pendingSubmitData?.lots || []).reduce(
+    (acc, lot) => acc + (lot.garments || []).reduce((gSum, g) => gSum + (Number(g.quantity) || 0), 0),
+    0
+  );
 
   return (
     <Form {...form}>
@@ -315,6 +338,142 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
             Guardar Ingreso
           </Button>
         </div>
+
+        {/* Ventana de Resumen antes de Guardar */}
+        <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+          <DialogContent className="max-w-md sm:max-w-lg p-6 rounded-[28px] border border-border shadow-2xl">
+            <DialogHeader className="space-y-1 pb-2 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-primary/10 p-2 rounded-xl">
+                  <ClipboardCheck className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <DialogTitle className="text-lg font-black uppercase tracking-tight">
+                    Resumen del Ingreso
+                  </DialogTitle>
+                  <DialogDescription className="text-xs font-medium text-muted-foreground">
+                    Verifica los datos antes de guardar el ingreso
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            {pendingSubmitData && (
+              <div className="space-y-4 py-2">
+                {/* Datos principales: Cliente y N° de Ingreso */}
+                <div className="bg-muted/30 rounded-2xl p-4 border border-border/60 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        Cliente / Socio
+                      </p>
+                      <p className="text-sm font-black text-foreground uppercase mt-0.5">
+                        {pendingSubmitData.clientName}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        N° de Ingreso
+                      </p>
+                      <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                        <span className="text-base font-black text-primary">
+                          #{pendingSubmitData.entryNumber}
+                        </span>
+                        {pendingSubmitData.isSample && (
+                          <Badge className="bg-primary/15 text-primary border-none text-[9px] font-black uppercase px-2 py-0">
+                            Muestra
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground block">Fecha</span>
+                      <span className="font-bold text-foreground">{pendingSubmitData.entryDate}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground block">Responsable</span>
+                      <span className="font-bold text-foreground uppercase">{pendingSubmitData.responsible}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabla de Lotes, Tipo de Prenda y Cantidad */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1.5">
+                      <Layers className="h-3.5 w-3.5" /> Detalle de Lotes ({pendingSubmitData.lots.length})
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+                      <Shirt className="h-3.5 w-3.5 text-emerald-600" /> Total: {totalSummaryGarments} prendas
+                    </span>
+                  </div>
+
+                  <div className="max-h-[240px] overflow-y-auto rounded-2xl border border-border bg-card">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/60 sticky top-0 border-b border-border">
+                        <tr>
+                          <th className="py-2.5 pl-4 text-left text-[10px] font-black uppercase text-muted-foreground">N° Lote</th>
+                          <th className="py-2.5 px-2 text-left text-[10px] font-black uppercase text-muted-foreground">Tipo de Prenda</th>
+                          <th className="py-2.5 pr-4 text-right text-[10px] font-black uppercase text-muted-foreground">Cantidad</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {pendingSubmitData.lots.map((lot) =>
+                          (lot.garments || []).map((g, gIdx) => (
+                            <tr key={`${lot.id}-${g.id || gIdx}`} className="hover:bg-muted/20">
+                              <td className="py-2.5 pl-4 font-black text-foreground">
+                                {lot.lotNumber}
+                              </td>
+                              <td className="py-2.5 px-2 font-semibold text-foreground uppercase">
+                                {g.garmentType || <span className="text-amber-600 italic">Sin especificar</span>}
+                              </td>
+                              <td className="py-2.5 pr-4 text-right font-black text-primary">
+                                {Number(g.quantity) || 0}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                      <tfoot className="bg-muted/40 border-t border-border">
+                        <tr>
+                          <td colSpan={2} className="py-2.5 pl-4 text-[10px] font-black uppercase text-foreground">
+                            Total Prendas a Ingresar
+                          </td>
+                          <td className="py-2.5 pr-4 text-right text-sm font-black text-emerald-600">
+                            {totalSummaryGarments}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter className="flex flex-row gap-3 pt-2 sm:justify-between">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsConfirmOpen(false)}
+                className="flex-1 h-11 rounded-xl font-bold text-xs"
+              >
+                <X className="h-4 w-4 mr-1.5" />
+                Corregir
+              </Button>
+              <Button
+                type="button"
+                onClick={handleConfirmSave}
+                className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/20 gap-1.5"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Guardar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </form>
     </Form>
   );
