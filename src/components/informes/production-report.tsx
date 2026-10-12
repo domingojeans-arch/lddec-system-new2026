@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Clock, CheckCircle2, AlertCircle, Printer, Cog } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getLotTotalPrendas } from "@/lib/entryUtils";
 
 interface ProductionReportProps {
   entries: Entry[];
@@ -19,7 +20,7 @@ const statusMap = {
 };
 
 export function ProductionReport({ entries }: ProductionReportProps) {
-  const allLots = entries.flatMap(e => e.lots.map(l => ({ ...l, clientName: e.clientName, entryNumber: e.entryNumber })));
+  const allLots = entries.flatMap(e => (e.lots || (e as any).lotes || []).map((l: any) => ({ ...l, clientName: e.clientName, entryNumber: e.entryNumber })));
   const pendingLots = allLots.filter(l => l.status === 'pending').length;
   const inProcessLots = allLots.filter(l => l.status === 'in_process').length;
   const readyLots = allLots.filter(l => l.status === 'ready').length;
@@ -94,7 +95,7 @@ export function ProductionReport({ entries }: ProductionReportProps) {
                 <TableCell className="text-sm print:text-black">{lot.clientName}</TableCell>
                 <TableCell className="text-sm text-muted-foreground print:text-black">{lot.garmentType}</TableCell>
                 <TableCell className="text-sm font-medium print:text-black">{lot.process}</TableCell>
-                <TableCell className="text-center font-black text-primary print:text-black">{(lot as any).cantidad || (lot as any).quantity || (lot as any).cantidadConfirmada || 0}</TableCell>
+                <TableCell className="text-center font-black text-primary print:text-black">{getLotTotalPrendas(lot)}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className={`text-[10px] uppercase font-black border-none print:text-black print:border-black ${(statusMap[lot.status as keyof typeof statusMap] || statusMap.pending).color}`}>
                     {(statusMap[lot.status as keyof typeof statusMap] || statusMap.pending).label}

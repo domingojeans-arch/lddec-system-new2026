@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toDate } from "@/lib/toDate";
+import { getEntryTotalPrendas } from "@/lib/entryUtils";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, writeBatch, doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
@@ -250,11 +251,7 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo, cl
         const invoiceNumberStr = isClosedUnbilled ? "Cerrada sin facturar" : (invoice?.numeroFactura || entry.numeroFactura || "FACTURADO");
         const invoiceValueNum = isBilled ? (invoice ? Number(invoice.totalFactura || invoice.total || 0) : Number(entry.valorFactura || 0)) : 0;
 
-        const rawLots = entry.lotes || entry.lots || [];
-        const quantity = rawLots.reduce((acc: number, l: any) => {
-          const val = l.cantidad || l.quantity || l.cantidadConfirmada || 0;
-          return acc + Number(val || 0);
-        }, 0);
+        const quantity = getEntryTotalPrendas(entry);
 
         return {
           id: entry.id,

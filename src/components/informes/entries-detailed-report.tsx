@@ -115,19 +115,19 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
                     <TableHead className="text-[10px] font-black uppercase">N° Ingreso</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Cliente</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-center">Lotes</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase text-right pr-8">Prendas</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-right pr-8">Prendas Ingresadas</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {prodEntries.length > 0 ? prodEntries.map((e) => {
-                    const rawLots = e.lotes || e.lots || [];
+                    const rawLots = (Array.isArray(e.lots) && e.lots.length > 0) ? e.lots : (Array.isArray(e.lotes) ? e.lotes : []);
                     const qty = getEntryTotalPrendas(e);
                     return (
                       <TableRow key={e.id}>
                         <TableCell className="py-4 pl-8 text-xs font-medium">
                           {e.date?.toDate ? e.date.toDate().toLocaleDateString('es-EC') : (e.entryDate || 'S/F')}
                         </TableCell>
-                        <TableCell className="font-bold text-xs">{e.id}</TableCell>
+                        <TableCell className="font-bold text-xs">{e.entryNumber || e.numeroIngreso || e.id}</TableCell>
                         <TableCell className="text-xs font-medium uppercase truncate max-w-[200px]">{e.clientName || e.clienteNombre || "Socio"}</TableCell>
                         <TableCell className="text-center text-xs">{rawLots.length}</TableCell>
                         <TableCell className="text-right pr-8 font-black text-foreground">{formatNum(qty)}</TableCell>
@@ -151,19 +151,19 @@ export function EntriesDetailedReport({ entries, dateFrom, dateTo }: EntriesDeta
                     <TableHead className="text-[10px] font-black uppercase">N° Ingreso</TableHead>
                     <TableHead className="text-[10px] font-black uppercase">Cliente</TableHead>
                     <TableHead className="text-[10px] font-black uppercase text-center">Lotes</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase text-right pr-8">Prendas</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase text-right pr-8">Prendas Ingresadas</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sampleEntries.length > 0 ? sampleEntries.map((e) => {
-                    const rawLots = e.lotes || e.lots || [];
+                    const rawLots = (Array.isArray(e.lots) && e.lots.length > 0) ? e.lots : (Array.isArray(e.lotes) ? e.lotes : []);
                     const qty = getEntryTotalPrendas(e);
                     return (
                       <TableRow key={e.id}>
                         <TableCell className="py-4 pl-8 text-xs font-medium">
                           {e.date?.toDate ? e.date.toDate().toLocaleDateString('es-EC') : (e.entryDate || 'S/F')}
                         </TableCell>
-                        <TableCell className="font-bold text-xs">{e.id}</TableCell>
+                        <TableCell className="font-bold text-xs">{e.entryNumber || e.numeroIngreso || e.id}</TableCell>
                         <TableCell className="text-xs font-medium uppercase truncate max-w-[200px]">{e.clientName || e.clienteNombre || "Socio"}</TableCell>
                         <TableCell className="text-center text-xs">{rawLots.length}</TableCell>
                         <TableCell className="text-right pr-8 font-black text-primary">{formatNum(qty)}</TableCell>
