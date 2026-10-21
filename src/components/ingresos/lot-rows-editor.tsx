@@ -200,13 +200,14 @@ export function LotRowsEditor({ lots, onChange, garmentCatalog, processCatalog }
               </Button>
             </div>
 
-            <div className="space-y-2 pt-4">
+            <div className="space-y-1.5 pt-2">
               <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest">Instrucciones / Notas del Lote</Label>
               <Textarea 
                 value={lot.notes ?? ""}
                 placeholder="Detalles sobre el proceso o especificaciones urgentes..."
                 onChange={e => updateLot(lot.id, { notes: e.target.value })}
-                className="erp-input min-h-[100px] h-auto py-4 rounded-[18px] text-sm resize-none"
+                rows={2}
+                className="erp-input min-h-[46px] h-12 py-2 px-3.5 rounded-xl text-xs resize-none"
               />
             </div>
           </div>
