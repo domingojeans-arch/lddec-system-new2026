@@ -84,81 +84,38 @@ function getEntryVisible(item: any, id?: string): string {
   return id || "INGRESO S/N";
 }
 
-const getProcessColor = (name: string, isSelected: boolean) => {
+const getProcessColor = (isBlue: boolean, isSelected: boolean) => {
   if (isSelected) {
+    if (isBlue) {
+      return {
+        button: "bg-blue-600 border-blue-600 text-white shadow-md ring-2 ring-blue-500/30 font-black",
+        circle: "border-white bg-white",
+        check: "text-blue-600"
+      };
+    } else {
+      return {
+        button: "bg-zinc-950 dark:bg-zinc-900 border-zinc-950 dark:border-zinc-700 text-white shadow-md ring-2 ring-zinc-900/30 font-black",
+        circle: "border-white bg-white",
+        check: "text-zinc-950 dark:text-zinc-900"
+      };
+    }
+  }
+
+  // 1. Color Azul (Letra A, C, E...)
+  if (isBlue) {
     return {
-      button: "bg-primary border-primary text-white shadow-md",
-      circle: "border-white bg-white"
+      button: "bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/50 text-blue-700 dark:text-blue-300 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-100/70 dark:hover:bg-blue-900/40",
+      circle: "border-blue-300 dark:border-blue-700",
+      check: ""
     };
   }
 
-  const firstChar = (name || "").trim().toUpperCase().charAt(0);
-  const code = firstChar.charCodeAt(0) || 65;
-
-  const palettes = [
-    // 0. Azul
-    {
-      button: "bg-blue-50/60 dark:bg-blue-950/20 border-blue-200/60 dark:border-blue-900/30 text-blue-700 dark:text-blue-300 hover:border-blue-400 dark:hover:border-blue-700",
-      circle: "border-blue-300 dark:border-blue-800/50"
-    },
-    // 1. Esmeralda
-    {
-      button: "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:border-emerald-400 dark:hover:border-emerald-700",
-      circle: "border-emerald-300 dark:border-emerald-800/50"
-    },
-    // 2. Violeta
-    {
-      button: "bg-violet-50/60 dark:bg-violet-950/20 border-violet-200/60 dark:border-violet-900/30 text-violet-700 dark:text-violet-300 hover:border-violet-400 dark:hover:border-violet-700",
-      circle: "border-violet-300 dark:border-violet-800/50"
-    },
-    // 3. Ámbar
-    {
-      button: "bg-amber-50/60 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-900/30 text-amber-700 dark:text-amber-300 hover:border-amber-400 dark:hover:border-amber-700",
-      circle: "border-amber-300 dark:border-amber-800/50"
-    },
-    // 4. Rosa
-    {
-      button: "bg-rose-50/60 dark:bg-rose-950/20 border-rose-200/60 dark:border-rose-900/30 text-rose-700 dark:text-rose-300 hover:border-rose-400 dark:hover:border-rose-700",
-      circle: "border-rose-300 dark:border-rose-800/50"
-    },
-    // 5. Cian
-    {
-      button: "bg-cyan-50/60 dark:bg-cyan-950/20 border-cyan-200/60 dark:border-cyan-900/30 text-cyan-700 dark:text-cyan-300 hover:border-cyan-400 dark:hover:border-cyan-700",
-      circle: "border-cyan-300 dark:border-cyan-800/50"
-    },
-    // 6. Naranja
-    {
-      button: "bg-orange-50/60 dark:bg-orange-950/20 border-orange-200/60 dark:border-orange-900/30 text-orange-700 dark:text-orange-300 hover:border-orange-400 dark:hover:border-orange-700",
-      circle: "border-orange-300 dark:border-orange-800/50"
-    },
-    // 7. Fucsia
-    {
-      button: "bg-fuchsia-50/60 dark:bg-fuchsia-950/20 border-fuchsia-200/60 dark:border-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300 hover:border-fuchsia-400 dark:hover:border-fuchsia-700",
-      circle: "border-fuchsia-300 dark:border-fuchsia-800/50"
-    },
-    // 8. Indigo
-    {
-      button: "bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-200/60 dark:border-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:border-indigo-400 dark:hover:border-indigo-700",
-      circle: "border-indigo-300 dark:border-indigo-800/50"
-    },
-    // 9. Lime
-    {
-      button: "bg-lime-50/60 dark:bg-lime-950/20 border-lime-200/60 dark:border-lime-900/30 text-lime-700 dark:text-lime-300 hover:border-lime-400 dark:hover:border-lime-700",
-      circle: "border-lime-300 dark:border-lime-800/50"
-    },
-    // 10. Slate
-    {
-      button: "bg-slate-50/80 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-700",
-      circle: "border-slate-300 dark:border-slate-700"
-    }
-  ];
-
-  if (code < 65 || code > 90) {
-    return palettes[10];
-  }
-
-  const index = (code - 65) % 10;
-  return palettes[index];
+  // 2. Color Negro / Oscuro (Letra B, D, F...)
+  return {
+    button: "bg-zinc-100/80 dark:bg-zinc-900/60 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-200 hover:border-zinc-500 dark:hover:border-zinc-500 hover:bg-zinc-200/80 dark:hover:bg-zinc-800",
+    circle: "border-zinc-400 dark:border-zinc-600",
+    check: ""
+  };
 };
 
 export default function RevisionLotePage() {
@@ -671,41 +628,52 @@ export default function RevisionLotePage() {
                   )}
                 </h4>
                 <div className="space-y-6">
-                  {groupedProcesses.map(({ letter, items }) => (
-                    <div key={letter} className="space-y-2.5">
-                      <div className="flex items-center gap-3 pt-1">
-                        <span className="text-xs font-black text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-lg tracking-wider">
-                          {letter}
-                        </span>
-                        <div className="h-px bg-border flex-1" />
+                  {groupedProcesses.map(({ letter, items }, groupIndex) => {
+                    const isBlue = groupIndex % 2 === 0;
+                    return (
+                      <div key={letter} className="space-y-2.5">
+                        <div className="flex items-center gap-3 pt-1">
+                          <span className={cn(
+                            "text-xs font-black px-2.5 py-0.5 rounded-lg tracking-wider",
+                            isBlue 
+                              ? "bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/30" 
+                              : "bg-zinc-900/10 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-400/30 dark:border-zinc-700"
+                          )}>
+                            {letter}
+                          </span>
+                          <div className={cn(
+                            "h-px flex-1",
+                            isBlue ? "bg-blue-200/60 dark:bg-blue-900/40" : "bg-zinc-200 dark:bg-zinc-800"
+                          )} />
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-3">
+                          {items.map((process) => {
+                            const isSelected = isProcessSelected(process.id);
+                            const colorStyles = getProcessColor(isBlue, isSelected);
+                            
+                            return (
+                              <button 
+                                key={process.id} 
+                                onClick={() => toggleProcess(process)} 
+                                className={cn(
+                                  "flex items-center gap-2 h-10 px-3 rounded-xl border text-left transition-all group shrink-0", 
+                                  colorStyles.button
+                                )}
+                              >
+                                <div className={cn(
+                                  "h-4 w-4 rounded-full border flex items-center justify-center shrink-0", 
+                                  colorStyles.circle
+                                )}>
+                                  {isSelected && <Check className={cn("h-2.5 w-2.5", colorStyles.check)} />}
+                                </div>
+                                <span className="text-[11px] font-black uppercase tracking-tight leading-none truncate">{process.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 gap-3">
-                        {items.map((process) => {
-                          const isSelected = isProcessSelected(process.id);
-                          const colorStyles = getProcessColor(process.name, isSelected);
-                          
-                          return (
-                            <button 
-                              key={process.id} 
-                              onClick={() => toggleProcess(process)} 
-                              className={cn(
-                                "flex items-center gap-2 h-10 px-3 rounded-xl border text-left transition-all group shrink-0", 
-                                colorStyles.button
-                              )}
-                            >
-                              <div className={cn(
-                                "h-4 w-4 rounded-full border flex items-center justify-center shrink-0", 
-                                colorStyles.circle
-                              )}>
-                                {isSelected && <Check className="h-2.5 w-2.5 text-primary" />}
-                              </div>
-                              <span className="text-[9px] font-black uppercase tracking-tighter leading-none">{process.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
