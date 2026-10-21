@@ -655,9 +655,9 @@ export default function ChemicalInventoryPage() {
 
         await updateDoc(doc(db, "quimicos_kardex", editingKardexId), {
           fecha: pesadaDate,
-          quimico: targetChem.chemicalName.toUpperCase(),
+          quimico: targetChem?.chemicalName?.toUpperCase() || "UNKNOWN",
           chemicalId: item.chemicalId,
-          order: pesadaHeader.order.toUpperCase(),
+          order: currentOrder,
           orderType: pesadaHeader.orderType,
           tipoSalida: pesadaHeader.orderType === "NORMAL" ? "produccion" : (pesadaHeader.orderType === "REPROCESO" ? "reproceso" : (pesadaHeader.orderType === "LAVADO_MAQUINA" ? "lavado_maquina" : "muestras")),
           procesoTecnico: item.procesoTecnico,
@@ -665,10 +665,41 @@ export default function ChemicalInventoryPage() {
           cant: qtyGrams,
           unit: "g",
           lote: pesadaHeader.lotSearch.toUpperCase(),
+          clientName: pesadaHeader.clientRef,
           updatedAt: serverTimestamp(),
           lastEditedBy: user?.displayName || user?.email || "Usuario"
         });
-        toast({ title: "Movimiento Actualizado" });
+
+        // Si se agregaron más químicos a la mezcla durante la edición, guardarlos como salidas adicionales del mismo lote/orden
+        if (pesadaItems.length > 1) {
+          for (const addItem of pesadaItems.slice(1)) {
+            const addQtyRaw = parseFloat(addItem.quantity) || 0;
+            const addQtyGrams = addItem.unit === "kg" ? addQtyRaw * 1000 : addQtyRaw;
+            const addTargetChem = chemicals.find(c => c.id === addItem.chemicalId);
+
+            await addDoc(collection(db, "quimicos_kardex"), {
+              fecha: pesadaDate,
+              tipo: "SALIDA",
+              orderType: pesadaHeader.orderType,
+              tipoSalida: pesadaHeader.orderType === "NORMAL" ? "produccion" : (pesadaHeader.orderType === "REPROCESO" ? "reproceso" : (pesadaHeader.orderType === "LAVADO_MAQUINA" ? "lavado_maquina" : "muestras")),
+              chemicalId: addItem.chemicalId,
+              quimico: addTargetChem?.chemicalName?.toUpperCase() || "UNKNOWN",
+              order: currentOrder,
+              procesoTecnico: addItem.procesoTecnico,
+              pesoOrden: parseFloat(pesadaHeader.orderWeight) || 0,
+              cant: addQtyGrams,
+              unit: "g",
+              lote: pesadaHeader.lotSearch.toUpperCase(),
+              clientName: pesadaHeader.clientRef,
+              createdAt: serverTimestamp(),
+              registradoPor: user?.displayName || user?.email || "Usuario"
+            });
+          }
+          toast({ title: "Movimiento y Nuevos Químicos Guardados" });
+        } else {
+          toast({ title: "Movimiento Actualizado" });
+        }
+
         handleCancelEdit();
       } else {
         for (const item of pesadaItems) {
@@ -1073,7 +1104,7 @@ export default function ChemicalInventoryPage() {
                                   <SelectContent className="rounded-2xl"><SelectItem value="kg">kg</SelectItem><SelectItem value="g">g</SelectItem></SelectContent>
                                 </Select>
                               </div>
-                              {!editingKardexId && (
+                              {(!editingKardexId || pesadaItems.length > 1) && (
                                 <div className="space-y-1.5">
                                   <Label className="text-[9px] font-black uppercase text-transparent ml-1">.</Label>
                                   <Button variant="ghost" size="icon" onClick={() => removePesadaItem(item.id)} className="h-11 w-11 text-destructive hover:bg-red-50 rounded-xl bg-red-50/50 shrink-0"><Trash2 className="h-4 w-4" /></Button>
@@ -1085,13 +1116,11 @@ export default function ChemicalInventoryPage() {
                       );
                     })}
                   </div>
-                  {!editingKardexId && (
-                    <div className="flex justify-center mt-2">
-                      <Button variant="ghost" size="sm" onClick={addPesadaItem} className="h-9 px-6 text-[10px] font-black uppercase text-primary border border-dashed border-primary/30 hover:bg-primary/5 rounded-xl">
-                        <Plus className="h-4 w-4 mr-2" /> Añadir Otro Químico a la Mezcla
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex justify-center mt-2">
+                    <Button variant="ghost" size="sm" onClick={addPesadaItem} className="h-9 px-6 text-[10px] font-black uppercase text-primary border border-dashed border-primary/30 hover:bg-primary/5 rounded-xl">
+                      <Plus className="h-4 w-4 mr-2" /> Añadir Otro Químico a la Mezcla
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4">
