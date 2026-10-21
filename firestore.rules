@@ -21,7 +21,11 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return isActive() && getProfile().role == role;
+      return isActive() && (
+        getProfile().role == role || 
+        (role == 'colaboradora' && (getProfile().role == 'colaboradora' || getProfile().role == 'colaborador')) ||
+        (role == 'colaborador' && (getProfile().role == 'colaboradora' || getProfile().role == 'colaborador'))
+      );
     }
 
     // Unificación de roles de bodega para evitar bloqueos de publicación
@@ -130,17 +134,17 @@ service cloud.firestore {
     // BODEGA DE QUÍMICOS
     match /quimicos_stock/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('bodega_quimicos') || hasRole('bodeguero_quimicos') || hasRole('produccion');
+      allow write: if isAdmin() || hasRole('bodega_quimicos') || hasRole('bodeguero_quimicos') || hasRole('produccion') || hasRole('colaboradora') || hasRole('colaborador');
     }
 
     match /quimicos_kardex/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('bodega_quimicos') || hasRole('bodeguero_quimicos') || hasRole('produccion');
+      allow write: if isAdmin() || hasRole('bodega_quimicos') || hasRole('bodeguero_quimicos') || hasRole('produccion') || hasRole('colaboradora') || hasRole('colaborador');
     }
 
     match /quimicos_procesos_maestro/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin() || hasRole('produccion') || hasRole('bodega_quimicos') || hasRole('bodeguero_quimicos');
+      allow write: if isAdmin() || hasRole('produccion') || hasRole('bodega_quimicos') || hasRole('bodeguero_quimicos') || hasRole('colaboradora') || hasRole('colaborador');
     }
 
     // CONFIGURACIÓN GLOBAL

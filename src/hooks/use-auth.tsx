@@ -51,6 +51,10 @@ function getNormalizedRole(rawRole: any): SystemRole {
     r = "bodega_quimicos";
   }
 
+  if (r === "colaborador" || r === "colaborador/a" || r === "colaboradora") {
+    return "colaboradora";
+  }
+
   if (ALLOWED_ROLES.includes(r)) {
     return r as SystemRole;
   }

@@ -595,10 +595,40 @@ export default function ChemicalInventoryPage() {
   };
 
   const handleConfirmPesada = async () => {
-    if (isReadOnly) return;
-    const hasInvalidQty = pesadaItems.some(i => !i.quantity || parseFloat(i.quantity) <= 0);
-    if (!pesadaHeader.order || pesadaItems.some(i => !i.chemicalId || !i.procesoTecnico) || hasInvalidQty || !lotFound) {
-      toast({ variant: "destructive", title: "Datos incompletos" });
+    if (isReadOnly) {
+      toast({ variant: "destructive", title: "Modo Solo Lectura", description: "Tu usuario no tiene permisos para descargar." });
+      return;
+    }
+
+    let currentOrder = (pesadaHeader.order || "").trim().toUpperCase();
+    if (!currentOrder && pesadaHeader.lotSearch) {
+      currentOrder = pesadaHeader.lotSearch.trim().toUpperCase();
+      setPesadaHeader(prev => ({ ...prev, order: currentOrder }));
+    }
+
+    if (!currentOrder) {
+      toast({ variant: "destructive", title: "Falta Nº de Orden", description: "Por favor ingresa el número de orden o lote." });
+      return;
+    }
+
+    if (!lotFound && pesadaHeader.orderType === "NORMAL") {
+      toast({ variant: "destructive", title: "Lote no confirmado", description: "Ingresa el ID del lote y presiona el botón de búsqueda para validarlo." });
+      return;
+    }
+
+    if (pesadaItems.some(i => !i.chemicalId)) {
+      toast({ variant: "destructive", title: "Falta Químico", description: "Selecciona el químico a descargar." });
+      return;
+    }
+
+    if (pesadaItems.some(i => !i.procesoTecnico)) {
+      toast({ variant: "destructive", title: "Falta Proceso Técnico", description: "Selecciona el proceso técnico de la pesada." });
+      return;
+    }
+
+    const hasInvalidQty = pesadaItems.some(i => !i.quantity || parseFloat(i.quantity) <= 0 || isNaN(parseFloat(i.quantity)));
+    if (hasInvalidQty) {
+      toast({ variant: "destructive", title: "Cantidad Inválida", description: "Ingresa una cantidad mayor a 0 para todos los insumos." });
       return;
     }
 
@@ -606,10 +636,10 @@ export default function ChemicalInventoryPage() {
     
     try {
       if (!editingKardexId) {
-        const qDup = query(collection(db, "quimicos_kardex"), where("order", "==", pesadaHeader.order.toUpperCase()));
+        const qDup = query(collection(db, "quimicos_kardex"), where("order", "==", currentOrder));
         const snapDup = await getDocs(qDup);
         if (!snapDup.empty) {
-          toast({ variant: "destructive", title: "Orden Duplicada" });
+          toast({ variant: "destructive", title: "Orden Duplicada", description: `Ya existe un registro con la orden ${currentOrder}` });
           setProcessing(false);
           return;
         }
@@ -670,8 +700,13 @@ export default function ChemicalInventoryPage() {
         setLotFound(false);
       }
       loadKardexData();
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error al guardar" });
+    } catch (e: any) {
+      console.error("Error al registrar pesada:", e);
+      toast({ 
+        variant: "destructive", 
+        title: "Error al guardar", 
+        description: e?.message || "Ocurrió un error al guardar en la base de datos." 
+      });
     } finally {
       setProcessing(false);
     }
@@ -1060,7 +1095,7 @@ export default function ChemicalInventoryPage() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Button onClick={handleConfirmPesada} disabled={processing || !lotFound} className="flex-1 h-14 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl transition-all">{processing ? <Loader2 className="h-5 w-5 animate-spin" /> : (editingKardexId ? <Save className="h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />)} {editingKardexId ? "GUARDAR CAMBIOS" : "CONFIRMAR Y DESCARGAR"}</Button>
+                  <Button onClick={handleConfirmPesada} disabled={processing} className="flex-1 h-14 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-xs tracking-widest rounded-2xl shadow-xl transition-all">{processing ? <Loader2 className="h-5 w-5 animate-spin" /> : (editingKardexId ? <Save className="h-4 w-4 mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />)} {editingKardexId ? "GUARDAR CAMBIOS" : "CONFIRMAR Y DESCARGAR"}</Button>
                   {editingKardexId && <Button onClick={handleCancelEdit} variant="outline" className="h-14 px-8 border-border text-muted-foreground font-black uppercase text-[10px] tracking-widest rounded-2xl"><RotateCcw className="h-4 w-4 mr-2" /> CANCELAR EDICIÓN</Button>}
                 </div>
               </CardContent>
