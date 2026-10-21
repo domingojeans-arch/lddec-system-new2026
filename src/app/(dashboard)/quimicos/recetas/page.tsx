@@ -34,7 +34,7 @@ export default function ChemicalRecipesPage() {
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const canEdit = user?.role === "admin" || user?.role === "produccion" || user?.role === "bodega_quimicos";
+  const canEdit = user?.role === "admin" || user?.role === "produccion" || user?.role === "bodega_quimicos" || user?.role === "colaboradora";
 
   const filteredRecipes = useMemo(() => {
     return recipes.filter(rec => 

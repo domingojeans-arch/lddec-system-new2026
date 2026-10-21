@@ -55,7 +55,7 @@ export const navItems: NavItem[] = [
     title: "Bodega Químicos", 
     path: "/quimicos", 
     icon: Beaker, 
-    allowedRoles: ["admin", "bodega", "produccion", "socio", "bodega_quimicos"] 
+    allowedRoles: ["admin", "bodega", "produccion", "socio", "bodega_quimicos", "colaboradora"] 
   },
   { 
     title: "Salidas", 

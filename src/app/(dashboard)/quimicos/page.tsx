@@ -161,7 +161,7 @@ export default function ChemicalInventoryPage() {
   const isAdmin = user?.role === "admin";
   const isReadOnly = user?.role === "socio";
   const isBodegueroQuimicos = user?.role === "bodega_quimicos";
-  const canManagePurchases = user?.role === "admin" || user?.role === "produccion" || user?.role === "bodega_quimicos";
+  const canManagePurchases = user?.role === "admin" || user?.role === "produccion" || user?.role === "bodega_quimicos" || user?.role === "colaboradora";
 
   const [chemicals, setChemicals] = useState<any[]>([]);
   const [kardex, setKardex] = useState<any[]>([]);
