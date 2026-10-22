@@ -4,7 +4,8 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Printer, Receipt, FileSpreadsheet, TrendingUp, DollarSign, Ban } from "lucide-react";
+import { Printer, Receipt, FileSpreadsheet, TrendingUp, DollarSign, Ban, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { cn } from "@/lib/utils";
 import { toDate } from "@/lib/toDate";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,21 @@ interface SalesDetailedReportProps {
 
 export function SalesDetailedReport({ invoices, dateFrom, dateTo }: SalesDetailedReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportReportToPdf("sales-report-area", {
+        filename: `libro-de-ventas-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
@@ -124,8 +140,21 @@ export function SalesDetailedReport({ invoices, dateFrom, dateTo }: SalesDetaile
           <Button onClick={handleExportExcel} variant="outline" className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 font-bold h-11 px-6 rounded-xl gap-2">
             <FileSpreadsheet className="h-4 w-4" /> Exportar a Excel
           </Button>
-          <Button onClick={() => window.print()} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg">
-            <Printer className="h-4 w-4" /> Imprimir Libro de Ventas
+          <Button 
+            variant="outline" 
+            onClick={() => window.print()} 
+            className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-6 rounded-xl gap-2"
+          >
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+          <Button 
+            onClick={handleExportPdf} 
+            disabled={isExporting} 
+            className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-lg"
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExporting ? "Generando PDF..." : "Guardar PDF"}
+
           </Button>
         </div>
       </div>

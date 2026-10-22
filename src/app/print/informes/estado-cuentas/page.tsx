@@ -8,6 +8,9 @@ import { filterPaymentsByDate, calculateClientAccountingMetrics } from "@/lib/ac
 import { collection, getDocs } from "firebase/firestore";
 import { toDate } from "@/lib/toDate";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Printer, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { formatClientName } from "@/lib/format-name";
 
 function PrintContent() {
@@ -15,6 +18,21 @@ function PrintContent() {
   const [loading, setLoading] = useState(true);
   const [fechaGenerada, setFechaGenerada] = useState('');
   const [reportData, setReportData] = useState<any[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportReportToPdf("print-area-estado-cuentas", {
+        filename: `estado-cuentas-corte-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const dateFrom = searchParams.get("from") || "";
   const dateTo = searchParams.get("to") || "";
@@ -175,7 +193,16 @@ function PrintContent() {
   if (loading) return <div className="p-20 text-center font-black uppercase tracking-widest">Generando Estado de Cuentas A4...</div>;
 
   return (
-    <div className="print-page reporte-horizontal">
+    <div id="print-area-estado-cuentas" className="print-page reporte-horizontal relative">
+      <div className="fixed top-4 right-4 z-50 flex gap-2 print:hidden bg-white/95 backdrop-blur p-2 rounded-xl shadow-lg border border-slate-300">
+        <Button onClick={() => window.print()} variant="outline" className="text-xs h-9 gap-1.5 font-bold">
+          <Printer className="h-4 w-4" /> Imprimir
+        </Button>
+        <Button onClick={handleExportPdf} disabled={isExporting} className="text-xs h-9 gap-1.5 bg-primary text-white font-bold">
+          {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExporting ? "Generando..." : "Guardar como PDF"}
+        </Button>
+      </div>
       <style>{`
         @page { 
           size: A4 landscape !important; 

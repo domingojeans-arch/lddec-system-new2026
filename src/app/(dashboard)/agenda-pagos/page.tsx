@@ -10,6 +10,8 @@ import {
   Plus, 
   Building, 
   Receipt, 
+  Printer, 
+  Download, 
   Truck, 
   AlertCircle, 
   CreditCard,
@@ -42,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { exportReportToPdf } from "@/lib/pdfExport";
 
 interface PendingPayment {
   id: string;
@@ -188,6 +191,40 @@ export default function AgendaPagosPage() {
     }).filter(inv => inv.isOverdue)
       .sort((a, b) => b.diasVencidos - a.diasVencidos); // Mostrar las más vencidas primero
   }, [invoices]);
+
+  const [isExportingOverduePdf, setIsExportingOverduePdf] = useState(false);
+  const [fechaGenerada, setFechaGenerada] = useState("");
+
+  useEffect(() => {
+    setFechaGenerada(new Date().toLocaleString("es-EC"));
+  }, []);
+
+  const totalOverdueSaldo = useMemo(() => {
+    return overdueInvoices.reduce((acc, inv) => acc + (Number(inv.saldo) || 0), 0);
+  }, [overdueInvoices]);
+
+  const totalOverdueFacturado = useMemo(() => {
+    return overdueInvoices.reduce((acc, inv) => acc + (Number(inv.totalFactura) || 0), 0);
+  }, [overdueInvoices]);
+
+  const handleExportOverduePdf = async () => {
+    setIsExportingOverduePdf(true);
+    try {
+      await exportReportToPdf("overdue-invoices-report", {
+        filename: `facturas-vencidas-cobro-${format(new Date(), "yyyy-MM-dd")}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF facturas vencidas:", err);
+      toast({
+        title: "Error al generar PDF",
+        description: "No se pudo generar el documento.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsExportingOverduePdf(false);
+    }
+  };
 
   // 3. ADD PAYMENT
   const handleSubmit = async (e: React.FormEvent) => {
@@ -906,6 +943,68 @@ export default function AgendaPagosPage() {
           </TabsContent>
 
           <TabsContent value="vencidas" className="m-0 outline-none animate-in fade-in duration-500">
+            <style jsx global>{`
+              @media print {
+                @page { size: A4 landscape; margin: 8mm; }
+                body { margin: 0; padding: 0; background: white !important; }
+                .print-hidden, nav, header, aside, .tabs-list { display: none !important; }
+                #overdue-invoices-report {
+                  width: 100% !important;
+                  background: white !important;
+                  color: black !important;
+                }
+                #overdue-invoices-report .header-logo {
+                  position: absolute !important;
+                  top: 0 !important;
+                  right: 0 !important;
+                  width: 2cm !important;
+                  height: 2cm !important;
+                  object-fit: contain !important;
+                }
+                #overdue-invoices-report .header-title {
+                  font-size: 15pt !important;
+                  font-weight: 900 !important;
+                  text-transform: uppercase !important;
+                  color: black !important;
+                  margin-bottom: 2px !important;
+                }
+                #overdue-invoices-report .header-subtitle {
+                  font-size: 12pt !important;
+                  font-weight: 700 !important;
+                  color: #e11d48 !important;
+                  text-transform: uppercase !important;
+                  margin-bottom: 6px !important;
+                }
+                #overdue-invoices-report .meta-info {
+                  font-size: 8.5pt !important;
+                  font-weight: 600 !important;
+                  color: #475569 !important;
+                  text-transform: uppercase !important;
+                  margin-bottom: 12px !important;
+                }
+                #overdue-invoices-report table {
+                  width: 100% !important;
+                  border-collapse: collapse !important;
+                  border: 1.5pt solid black !important;
+                }
+                #overdue-invoices-report th {
+                  background: #f1f5f9 !important;
+                  border: 1pt solid black !important;
+                  color: black !important;
+                  font-weight: 900 !important;
+                  font-size: 8pt !important;
+                  padding: 5px 6px !important;
+                }
+                #overdue-invoices-report td {
+                  border: 1pt solid black !important;
+                  color: black !important;
+                  font-size: 8pt !important;
+                  padding: 4px 6px !important;
+                  line-height: 1.15 !important;
+                }
+              }
+            `}</style>
+
             <Card className="bg-card border-border shadow-premium rounded-[2rem] overflow-hidden">
               <CardHeader className="px-8 pt-8 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -916,9 +1015,37 @@ export default function AgendaPagosPage() {
                     Cuentas por cobrar cuyo plazo de crédito de días ya ha expirado
                   </p>
                 </div>
-                <Badge className="bg-rose-500/10 text-rose-600 border-none font-bold uppercase text-[9px] px-3 h-8 rounded-xl flex items-center justify-center">
-                  {overdueInvoices.length} Facturas Vencidas
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 print-hidden">
+                  <Badge className="bg-rose-500/10 text-rose-600 border-none font-bold uppercase text-[9px] px-3 h-8 rounded-xl flex items-center justify-center">
+                    {overdueInvoices.length} Facturas Vencidas
+                  </Badge>
+                  {overdueInvoices.length > 0 && (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => window.print()}
+                        className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-9 px-4 rounded-xl gap-2 text-xs"
+                      >
+                        <Printer className="h-4 w-4" /> Imprimir
+                      </Button>
+                      <Button
+                        onClick={handleExportOverduePdf}
+                        disabled={isExportingOverduePdf}
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold h-9 px-4 rounded-xl gap-2 text-xs shadow-md shadow-rose-600/20"
+                      >
+                        {isExportingOverduePdf ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" /> Generando...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4" /> Guardar PDF
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="px-8 pb-8">
                 {overdueInvoices.length === 0 ? (
@@ -932,66 +1059,92 @@ export default function AgendaPagosPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b border-border/80 text-[9px] font-black uppercase text-muted-foreground tracking-widest text-left">
-                          <th className="pb-4 pr-4">Nº Factura</th>
-                          <th className="pb-4 pr-4">Cliente</th>
-                          <th className="pb-4 pr-4">Emisión</th>
-                          <th className="pb-4 pr-4 text-center">Plazo Crédito</th>
-                          <th className="pb-4 pr-4">Vencimiento</th>
-                          <th className="pb-4 pr-4 text-center">Días Vencidos</th>
-                          <th className="pb-4 pr-4 text-right">Total Factura</th>
-                          <th className="pb-4 text-right">Saldo Pendiente</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {overdueInvoices.map((inv) => {
-                          const dateObj = toDate(inv.fechaFactura || inv.createdAt);
-                          const formattedEmision = dateObj ? format(dateObj, "yyyy-MM-dd") : "S/F";
+                  <div id="overdue-invoices-report" className="relative">
+                    <img src="/logo-lddec.png" alt="Logo" className="hidden print:block header-logo" />
 
-                          return (
-                            <tr key={inv.id} className="border-b border-border/40 hover:bg-muted/10 transition-colors">
-                              <td className="py-4 pr-4 font-black text-xs text-primary uppercase">
-                                {inv.numeroFactura || inv.id}
-                              </td>
-                              <td className="py-4 pr-4">
-                                <span className="text-xs font-semibold text-foreground uppercase">
-                                  {inv.clientName || inv.clienteNombre || "Cliente"}
-                                </span>
-                              </td>
-                              <td className="py-4 pr-4">
-                                <span className="text-xs text-muted-foreground">{formattedEmision}</span>
-                              </td>
-                              <td className="py-4 pr-4 text-center">
-                                <Badge variant="outline" className="text-[9px] font-bold border-muted text-muted-foreground px-2 py-0.5 rounded-md">
-                                  {inv.diasCredito ?? 30} días
-                                </Badge>
-                              </td>
-                              <td className="py-4 pr-4">
-                                <span className="text-xs font-bold text-rose-500">{inv.fechaVencimientoStr}</span>
-                              </td>
-                              <td className="py-4 pr-4 text-center">
-                                <span className="text-xs font-black text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-md">
-                                  {inv.diasVencidos} días
-                                </span>
-                              </td>
-                              <td className="py-4 pr-4 text-right">
-                                <span className="text-xs text-muted-foreground">
-                                  ${inv.totalFactura.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </span>
-                              </td>
-                              <td className="py-4 text-right">
-                                <span className="text-xs font-black text-rose-600">
-                                  ${inv.saldo.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    <div className="hidden print:block mb-6">
+                      <div className="header-title">LABORATORIO DEL DENIM ECUADOR</div>
+                      <div className="header-subtitle">Reporte de Facturas Vencidas de Cobro</div>
+                      <div className="meta-info">
+                        <p>Fecha de emisión: {fechaGenerada}</p>
+                        <p>Total facturas vencidas: {overdueInvoices.length} | Saldo total vencido: ${totalOverdueSaldo.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="border-b border-border/80 text-[9px] font-black uppercase text-muted-foreground tracking-widest text-left">
+                            <th className="pb-4 pr-4">Nº Factura</th>
+                            <th className="pb-4 pr-4">Cliente</th>
+                            <th className="pb-4 pr-4">Emisión</th>
+                            <th className="pb-4 pr-4 text-center">Plazo Crédito</th>
+                            <th className="pb-4 pr-4">Vencimiento</th>
+                            <th className="pb-4 pr-4 text-center">Días Vencidos</th>
+                            <th className="pb-4 pr-4 text-right">Total Factura</th>
+                            <th className="pb-4 text-right">Saldo Pendiente</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {overdueInvoices.map((inv) => {
+                            const dateObj = toDate(inv.fechaFactura || inv.createdAt);
+                            const formattedEmision = dateObj ? format(dateObj, "yyyy-MM-dd") : "S/F";
+
+                            return (
+                              <tr key={inv.id} className="border-b border-border/40 hover:bg-muted/10 transition-colors">
+                                <td className="py-4 pr-4 font-black text-xs text-primary uppercase">
+                                  {inv.numeroFactura || inv.id}
+                                </td>
+                                <td className="py-4 pr-4">
+                                  <span className="text-xs font-semibold text-foreground uppercase">
+                                    {inv.clientName || inv.clienteNombre || "Cliente"}
+                                  </span>
+                                </td>
+                                <td className="py-4 pr-4">
+                                  <span className="text-xs text-muted-foreground">{formattedEmision}</span>
+                                </td>
+                                <td className="py-4 pr-4 text-center">
+                                  <Badge variant="outline" className="text-[9px] font-bold border-muted text-muted-foreground px-2 py-0.5 rounded-md">
+                                    {inv.diasCredito ?? 30} días
+                                  </Badge>
+                                </td>
+                                <td className="py-4 pr-4">
+                                  <span className="text-xs font-bold text-rose-500">{inv.fechaVencimientoStr}</span>
+                                </td>
+                                <td className="py-4 pr-4 text-center">
+                                  <span className="text-xs font-black text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-md">
+                                    {inv.diasVencidos} días
+                                  </span>
+                                </td>
+                                <td className="py-4 pr-4 text-right">
+                                  <span className="text-xs text-muted-foreground tabular-nums">
+                                    ${inv.totalFactura.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </td>
+                                <td className="py-4 text-right">
+                                  <span className="text-xs font-black text-rose-600 tabular-nums">
+                                    ${inv.saldo.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-border font-black text-xs text-foreground bg-muted/20">
+                            <td colSpan={6} className="py-3 px-4 uppercase text-[10px] tracking-wider text-right font-black">
+                              TOTAL VENCIDO:
+                            </td>
+                            <td className="py-3 pr-4 text-right font-black tabular-nums">
+                              ${totalOverdueFacturado.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-3 text-right font-black text-rose-600 tabular-nums">
+                              ${totalOverdueSaldo.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
                 )}
               </CardContent>

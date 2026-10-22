@@ -3,7 +3,8 @@
 import React, { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Printer, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
+import { Printer, ArrowUp, ArrowDown, ChevronsUpDown, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { calculateClientAccountingMetrics } from "@/lib/accounting-motor";
 import { toDate } from "@/lib/toDate";
 import { formatClientName } from "@/lib/format-name";
@@ -21,6 +22,21 @@ type SortKey = "name" | "saldoAnterior" | "facturacion" | "nd" | "nc" | "retenci
 export function StatementOfAccountsReport({ clients, invoices, payments, dateFrom, dateTo }: StatementOfAccountsReportProps) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportReportToPdf("statement-accounts-report-area", {
+        filename: `estado-cuentas-corte-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF estado de cuentas corte:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const groups = [
     { id: "nacional", label: "CLIENTE NACIONAL" },
@@ -120,12 +136,25 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
   return (
     <div className="space-y-8 animate-in fade-in duration-500 print:hidden">
       <div className="flex justify-end">
-        <Button onClick={handlePrint} className="bg-primary hover:bg-primary/90 text-white font-black uppercase text-[10px] tracking-widest px-8 h-11 rounded-xl gap-2 shadow-lg shadow-primary/20">
-          <Printer className="h-4 w-4" /> Imprimir Reporte Contable
+        <Button 
+          variant="outline" 
+          onClick={handlePrint} 
+          className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-6 rounded-xl gap-2 text-[10px] uppercase tracking-widest mr-3"
+        >
+          <Printer className="h-4 w-4" /> Imprimir (Ventana)
+        </Button>
+        <Button 
+          onClick={handleExportPdf} 
+          disabled={isExporting} 
+          className="bg-primary hover:bg-primary/90 text-white font-black uppercase text-[10px] tracking-widest px-8 h-11 rounded-xl gap-2 shadow-lg shadow-primary/20"
+        >
+          {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExporting ? "Generando PDF..." : "Guardar Reporte en PDF"}
+
         </Button>
       </div>
 
-      <div className="space-y-12">
+      <div id="statement-accounts-report-area" className="space-y-12">
         {reportData.map((group) => (
           group.clients.length > 0 && (
             <div key={group.id} className="space-y-4">

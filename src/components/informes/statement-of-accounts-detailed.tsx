@@ -4,7 +4,8 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Printer, Copy, Check, MessageSquare, Send, User } from "lucide-react";
+import { Printer, Copy, Check, MessageSquare, Send, User, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { toDate } from "@/lib/toDate";
 import { calculateClientAccountingMetrics } from "@/lib/accounting-motor";
 import { formatClientName } from "@/lib/format-name";
@@ -47,6 +48,22 @@ export function StatementOfAccountsDetailed({
   const { toast } = useToast();
   const [fechaGenerada, setFechaGenerada] = useState("");
   const [copied, setCopied] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      const clientSlug = client?.name ? String(client.name).replace(/\s+/g, '-') + '-' : '';
+      await exportReportToPdf("weekly-statement-print", {
+        filename: `estado-cuenta-${clientSlug}${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: false,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF estado de cuenta:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString("es-EC", {
@@ -538,11 +555,21 @@ export function StatementOfAccountsDetailed({
           </Button>
 
           <Button
+            variant="outline"
             onClick={() => window.print()}
-            className="h-10 px-5 text-xs font-bold gap-2 bg-slate-900 text-white hover:bg-slate-800 shadow-md"
+            className="hidden md:flex h-10 px-4 text-xs font-bold gap-2 border-border text-muted-foreground hover:bg-muted"
           >
             <Printer className="h-4 w-4" />
-            Imprimir Hoja de Cuenta
+            Imprimir
+          </Button>
+
+          <Button
+            onClick={handleExportPdf}
+            disabled={isExporting}
+            className="h-10 px-5 text-xs font-bold gap-2 bg-slate-900 text-white hover:bg-slate-800 shadow-md"
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExporting ? "Generando..." : "Guardar como PDF"}
           </Button>
         </div>
       </div>

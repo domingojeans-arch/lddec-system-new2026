@@ -3,7 +3,8 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Printer, TrendingUp, Zap, Layers } from "lucide-react";
+import { Printer, TrendingUp, Zap, Layers, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { toDate } from "@/lib/toDate";
 
@@ -15,6 +16,21 @@ interface ManualWorksDetailedReportProps {
 
 export function ManualWorksDetailedReport({ manualWorks, dateFrom, dateTo }: ManualWorksDetailedReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportReportToPdf("manual-works-report", {
+        filename: `trazabilidad-manualidades-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF manualidades:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
@@ -82,9 +98,23 @@ export function ManualWorksDetailedReport({ manualWorks, dateFrom, dateTo }: Man
 
       <div className="flex items-center justify-between border-b border-border pb-4 print-hidden">
         <h2 className="text-xl font-black uppercase tracking-tight">Trazabilidad de Manualidades</h2>
-        <Button onClick={() => window.print()} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg">
-          <Printer className="h-4 w-4" /> Imprimir Reporte
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            variant="outline" 
+            onClick={() => window.print()} 
+            className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-6 rounded-xl gap-2"
+          >
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+          <Button 
+            onClick={handleExportPdf} 
+            disabled={isExporting} 
+            className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-lg"
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExporting ? "Generando PDF..." : "Guardar PDF"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print-hidden">

@@ -4,7 +4,8 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Printer, CheckCircle2, Zap, History, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
+import { Printer, CheckCircle2, Zap, History, ArrowUp, ArrowDown, ChevronsUpDown, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import { writeBatch, doc } from "firebase/firestore";
@@ -19,6 +20,21 @@ interface OperatorPayoutReportProps {
 
 export function OperatorPayoutReport({ manualWorks, dateFrom, dateTo, selectedOperator }: OperatorPayoutReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportReportToPdf("operator-payout-report", {
+        filename: `liquidacion-operarios-${selectedOperator ? selectedOperator.replace(/\s+/g, '-') + '-' : ''}${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: false,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF liquidación:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
   const [sortKey, setSortKey] = useState<string>("fecha");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -120,8 +136,21 @@ export function OperatorPayoutReport({ manualWorks, dateFrom, dateTo, selectedOp
       <div className="flex items-center justify-between border-b border-border pb-4 print-hidden">
         <h2 className="text-xl font-black uppercase tracking-tight">Liquidación de Operarios</h2>
         <div className="flex gap-3">
-          <Button onClick={() => window.print()} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg">
-            <Printer className="h-4 w-4" /> Imprimir Nómina
+          <Button 
+            variant="outline" 
+            onClick={() => window.print()} 
+            className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-6 rounded-xl gap-2"
+          >
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+          <Button 
+            onClick={handleExportPdf} 
+            disabled={isExporting} 
+            className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-lg"
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExporting ? "Generando PDF..." : "Guardar PDF"}
+
           </Button>
         </div>
       </div>

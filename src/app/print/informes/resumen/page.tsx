@@ -2,11 +2,30 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Printer, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 
 function PrintContent() {
   const searchParams = useSearchParams();
   const [fechaGenerada, setFechaGenerada] = useState('');
   const [monthlyData, setMonthlyData] = useState<any>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      const targetId = mode === "mensual" ? "print-area-mensual" : "print-area-general";
+      await exportReportToPdf(targetId, {
+        filename: mode === "mensual" ? "desglose-mensual-inventario.pdf" : "resumen-inventario.pdf",
+        landscape: false,
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const mode = searchParams.get("mode");
 
@@ -55,7 +74,16 @@ function PrintContent() {
 
   if (mode === "mensual" && monthlyData) {
     return (
-      <div className="print-container-mensual">
+      <div id="print-area-mensual" className="print-container-mensual relative">
+        <div className="fixed top-4 right-4 z-50 flex gap-2 print:hidden bg-white/95 backdrop-blur p-2 rounded-xl shadow-lg border border-slate-300">
+          <Button onClick={() => window.print()} variant="outline" className="text-xs h-9 gap-1.5 font-bold">
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+          <Button onClick={handleExportPdf} disabled={isExporting} className="text-xs h-9 gap-1.5 bg-primary text-white font-bold">
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExporting ? "Generando..." : "Guardar como PDF"}
+          </Button>
+        </div>
         <style>{`
           @page {
             size: A4;
@@ -238,7 +266,16 @@ function PrintContent() {
   }
 
   return (
-    <div className="print-page">
+    <div id="print-area-general" className="print-page relative">
+      <div className="fixed top-4 right-4 z-50 flex gap-2 print:hidden bg-white/95 backdrop-blur p-2 rounded-xl shadow-lg border border-slate-300">
+        <Button onClick={() => window.print()} variant="outline" className="text-xs h-9 gap-1.5 font-bold">
+          <Printer className="h-4 w-4" /> Imprimir
+        </Button>
+        <Button onClick={handleExportPdf} disabled={isExporting} className="text-xs h-9 gap-1.5 bg-primary text-white font-bold">
+          {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExporting ? "Generando..." : "Guardar como PDF"}
+        </Button>
+      </div>
       <style>{`
         @page {
           size: A4;

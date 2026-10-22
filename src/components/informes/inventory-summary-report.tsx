@@ -3,7 +3,8 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Printer, Calendar } from "lucide-react";
+import { BarChart3, Printer, Calendar, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InventoryMetrics, calculateInventorySummary } from "@/lib/inventoryEngine";
 import { format } from "date-fns";
@@ -26,6 +27,35 @@ export function InventorySummaryReport({
   allInvoices = []
 }: InventorySummaryReportProps) {
   const [activeTab, setActiveTab] = useState<"general" | "mensual">("general");
+  const [isExporting, setIsExporting] = useState<string | null>(null);
+
+  const handleExportPdfGeneral = async () => {
+    setIsExporting("general");
+    try {
+      await exportReportToPdf("inventory-summary-general", {
+        filename: `resumen-inventario-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: false,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF inventario:", err);
+    } finally {
+      setIsExporting(null);
+    }
+  };
+
+  const handleExportPdfMensual = async () => {
+    setIsExporting("mensual");
+    try {
+      await exportReportToPdf("inventory-summary-monthly", {
+        filename: `desglose-mensual-inventario-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: false,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF mensual:", err);
+    } finally {
+      setIsExporting(null);
+    }
+  };
   
   const formatNum = (val: number) => {
     return Math.floor(val).toLocaleString('es-ES');
@@ -135,18 +165,27 @@ export function InventorySummaryReport({
       </div>
 
       {activeTab === "general" ? (
-        <Card className="max-w-4xl mx-auto border-border shadow-sm rounded-3xl overflow-hidden bg-card">
+        <Card id="inventory-summary-general" className="max-w-4xl mx-auto border-border shadow-sm rounded-3xl overflow-hidden bg-card">
           <div className="p-8 border-b border-border flex items-center justify-between bg-muted/10">
             <div className="flex items-center gap-3">
               <BarChart3 className="h-6 w-6 text-primary" />
               <h2 className="text-xl font-black uppercase tracking-tight">Resumen de Inventario</h2>
             </div>
             <Button 
+              variant="outline"
               onClick={handlePrint}
-              className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg shadow-primary/20"
+              className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-5 rounded-xl gap-2 mr-2"
             >
               <Printer className="h-4 w-4" />
-              Imprimir Reporte Gerencial
+              Imprimir
+            </Button>
+            <Button 
+              onClick={handleExportPdfGeneral}
+              disabled={isExporting === "general"}
+              className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-lg shadow-primary/20"
+            >
+              {isExporting === "general" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExporting === "general" ? "Generando..." : "Guardar PDF"}
             </Button>
           </div>
 
@@ -230,15 +269,24 @@ export function InventorySummaryReport({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-10">
+        <div id="inventory-summary-monthly" className="space-y-10">
           <div className="max-w-4xl mx-auto flex justify-between items-center">
             <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">Desglose Mensual de Operaciones</h3>
             <Button
+              variant="outline"
               onClick={handlePrintMensual}
-              className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg shadow-primary/20"
+              className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-5 rounded-xl gap-2 mr-2"
             >
               <Printer className="h-4 w-4" />
-              Imprimir Todo (PDF)
+              Imprimir
+            </Button>
+            <Button
+              onClick={handleExportPdfMensual}
+              disabled={isExporting === "mensual"}
+              className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-lg shadow-primary/20"
+            >
+              {isExporting === "mensual" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExporting === "mensual" ? "Generando..." : "Guardar Todo en PDF"}
             </Button>
           </div>
 

@@ -4,7 +4,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Printer, TrendingUp, ArrowUpCircle, Package } from "lucide-react";
+import { Printer, TrendingUp, ArrowUpCircle, Package, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toDate } from "@/lib/toDate";
 
@@ -94,6 +95,21 @@ function getFechaVisible(item: any): string {
 
 export function OutputsDetailedReport({ prodOutputs, sampleOutputs, dateFrom, dateTo }: OutputsDetailedReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportReportToPdf("outputs-report-area", {
+        filename: `reporte-salidas-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: false,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
@@ -273,8 +289,21 @@ export function OutputsDetailedReport({ prodOutputs, sampleOutputs, dateFrom, da
       </div>
 
       <div className="flex justify-end print-hidden">
-        <Button onClick={() => window.print()} className="bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.2em] px-12 h-14 rounded-2xl shadow-xl shadow-primary/20">
-          <Printer className="h-5 w-5 mr-3" /> Imprimir Reporte de Salidas
+        <Button 
+          variant="outline" 
+          onClick={() => window.print()} 
+          className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-12 px-6 rounded-2xl gap-2 mr-3"
+        >
+          <Printer className="h-4 w-4" /> Imprimir (Navegador)
+        </Button>
+        <Button 
+          onClick={handleExportPdf} 
+          disabled={isExporting}
+          className="bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.15em] px-8 sm:px-12 h-12 sm:h-14 rounded-2xl shadow-xl shadow-primary/20 gap-3"
+        >
+          {isExporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}
+          {isExporting ? "Generando PDF..." : "Guardar Reporte en PDF"}
+
         </Button>
       </div>
     </div>

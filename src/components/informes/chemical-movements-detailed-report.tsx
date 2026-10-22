@@ -4,7 +4,8 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Printer, Beaker, TrendingUp, TrendingDown, Package, FileSpreadsheet, ShieldAlert, AlertTriangle, CheckCircle2, BarChart3, Database } from "lucide-react";
+import { Printer, Beaker, TrendingUp, TrendingDown, Package, FileSpreadsheet, ShieldAlert, AlertTriangle, CheckCircle2, BarChart3, Database, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { format } from "date-fns";
 import { toDate } from "@/lib/toDate";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,21 @@ const normalizeSustancia = (s: string) =>
 
 export function ChemicalMovementsDetailedReport({ movements, chemicals, dateFrom, dateTo, selectedSubstance }: ChemicalMovementsDetailedReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportReportToPdf("chemical-report-area", {
+        filename: `auditoria-quimicos-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF quimicos:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
@@ -194,8 +210,21 @@ export function ChemicalMovementsDetailedReport({ movements, chemicals, dateFrom
           <Button onClick={handleExportExcel} variant="outline" className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 font-bold h-11 px-6 rounded-xl gap-2">
             <FileSpreadsheet className="h-4 w-4" /> Exportar a Excel
           </Button>
-          <Button onClick={() => window.print()} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg">
-            <Printer className="h-4 w-4" /> Imprimir Auditoría
+          <Button 
+            variant="outline" 
+            onClick={() => window.print()} 
+            className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-6 rounded-xl gap-2"
+          >
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+          <Button 
+            onClick={handleExportPdf} 
+            disabled={isExporting} 
+            className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-lg"
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExporting ? "Generando PDF..." : "Guardar PDF"}
+
           </Button>
         </div>
       </div>

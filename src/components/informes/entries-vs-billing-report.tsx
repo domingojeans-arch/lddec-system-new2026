@@ -20,6 +20,7 @@ import {
   Search,
   Download
 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { cn } from "@/lib/utils";
 import { toDate } from "@/lib/toDate";
 import { getEntryTotalPrendas } from "@/lib/entryUtils";
@@ -390,6 +391,41 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo, cl
     }, 150);
   };
 
+  const [isExportingPdf, setIsExportingPdf] = useState<string | null>(null);
+
+  const handleExportPdfOnlyPending = async () => {
+    setIsExportingPdf('pending');
+    setIsPrintingOnlyPending(true);
+    try {
+      await new Promise(r => setTimeout(r, 120));
+      await exportReportToPdf("entries-billing-report", {
+        filename: `ingresos-vs-facturacion-pendientes-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF pendientes:", err);
+    } finally {
+      setIsPrintingOnlyPending(false);
+      setIsExportingPdf(null);
+    }
+  };
+
+  const handleExportPdfAll = async () => {
+    setIsExportingPdf('all');
+    setIsPrintingOnlyPending(false);
+    try {
+      await new Promise(r => setTimeout(r, 120));
+      await exportReportToPdf("entries-billing-report", {
+        filename: `ingresos-vs-facturacion-auditoria-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF auditoria:", err);
+    } finally {
+      setIsExportingPdf(null);
+    }
+  };
+
   const handlePrintOnlyPending = () => {
     setIsPrintingOnlyPending(true);
     setTimeout(() => {
@@ -473,16 +509,20 @@ export function EntriesVsBillingReport({ entries, invoices, dateFrom, dateTo, cl
           <Receipt className="h-4 w-4" /> Control de Facturación Pendiente
         </Button>
         <Button 
-          onClick={handlePrintOnlyPending} 
+          onClick={handleExportPdfOnlyPending}
+          disabled={!!isExportingPdf} 
           className="bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[10px] tracking-widest h-11 px-8 rounded-xl gap-2 shadow-lg shadow-amber-600/20"
         >
-          <FileWarning className="h-4 w-4" /> Imprimir Pendientes
+          {isExportingPdf === 'pending' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExportingPdf === 'pending' ? "Generando..." : "Guardar Pendientes (PDF)"}
         </Button>
         <Button 
-          onClick={handlePrintAll} 
+          onClick={handleExportPdfAll}
+          disabled={!!isExportingPdf} 
           className="bg-primary hover:bg-primary/90 text-white font-black uppercase text-[10px] tracking-widest h-11 px-8 rounded-xl gap-2 shadow-lg shadow-primary/20"
         >
-          <Printer className="h-4 w-4" /> Imprimir Auditoría
+          {isExportingPdf === 'all' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExportingPdf === 'all' ? "Generando PDF..." : "Guardar Auditoría en PDF"}
         </Button>
       </div>
 

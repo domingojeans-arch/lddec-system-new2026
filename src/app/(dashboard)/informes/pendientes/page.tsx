@@ -16,6 +16,7 @@ import {
   Download,
   ArrowLeft
 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { cn } from "@/lib/utils";
 import { toDate } from "@/lib/toDate";
 import { db } from "@/lib/firebase";
@@ -241,6 +242,22 @@ function PendientesContent() {
     });
   };
 
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      await exportReportToPdf("pending-billing-report", {
+        filename: `control-facturacion-pendiente-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF pendientes:", err);
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   // IMPRESIÓN
   const handlePrintPendingReport = () => {
     setIsPrintingOnlyPendingReport(true);
@@ -323,10 +340,19 @@ function PendientesContent() {
               <Download className="h-4 w-4" /> Exportar a Excel
             </Button>
             <Button
+              variant="outline"
               onClick={handlePrintPendingReport}
-              className="bg-primary hover:bg-primary/95 text-white font-black uppercase text-[10px] tracking-widest h-11 px-8 rounded-xl gap-2 shadow-lg shadow-primary/20"
+              className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-5 rounded-xl gap-2 text-[10px] uppercase tracking-widest"
             >
-              <Printer className="h-4 w-4" /> Imprimir Reporte
+              <Printer className="h-4 w-4" /> Imprimir
+            </Button>
+            <Button
+              onClick={handleExportPdf}
+              disabled={isExportingPdf}
+              className="bg-primary hover:bg-primary/95 text-white font-black uppercase text-[10px] tracking-widest h-11 px-6 rounded-xl gap-2 shadow-lg shadow-primary/20"
+            >
+              {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExportingPdf ? "Generando..." : "Guardar como PDF"}
             </Button>
           </div>
         </div>

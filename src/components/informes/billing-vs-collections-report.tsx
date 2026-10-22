@@ -4,7 +4,8 @@ import React, { useMemo, useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Printer, FileText } from "lucide-react";
+import { Printer, FileText, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { cn } from "@/lib/utils";
 import { toDate } from "@/lib/toDate";
 
@@ -25,6 +26,24 @@ export function BillingVsCollectionsReport({
 }: BillingVsCollectionsReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
   const [printFilter, setPrintFilter] = useState<'ALL' | 'FALTANTES' | 'MUESTRAS'>('ALL');
+  const [isExportingFilter, setIsExportingFilter] = useState<string | null>(null);
+
+  const handleExportPdf = async (filter: 'ALL' | 'FALTANTES' | 'MUESTRAS') => {
+    setIsExportingFilter(filter);
+    setPrintFilter(filter);
+    try {
+      await new Promise(r => setTimeout(r, 120));
+      const suffix = filter === 'FALTANTES' ? '-faltantes' : (filter === 'MUESTRAS' ? '-muestras' : '');
+      await exportReportToPdf("billing-report-area", {
+        filename: `facturacion-vs-cobranzas${suffix}-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: true,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF:", err);
+    } finally {
+      setIsExportingFilter(null);
+    }
+  };
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
@@ -227,14 +246,39 @@ export function BillingVsCollectionsReport({
       `}</style>
 
       <div className="flex flex-wrap justify-end gap-3 print-hidden">
-        <Button onClick={() => { setPrintFilter('FALTANTES'); setTimeout(() => window.print(), 200); }} variant="outline" className="text-amber-600 border-amber-600 hover:bg-amber-50 hover:text-amber-700 font-bold h-11 px-6 rounded-xl gap-2 shadow-sm">
-          <FileText className="h-4 w-4" /> Imprimir Solo Faltantes por Cobrar
+        <Button 
+          onClick={() => handleExportPdf('FALTANTES')} 
+          disabled={!!isExportingFilter}
+          variant="outline" 
+          className="text-amber-600 border-amber-600 hover:bg-amber-50 hover:text-amber-700 font-bold h-11 px-5 rounded-xl gap-2 shadow-sm"
+        >
+          {isExportingFilter === 'FALTANTES' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExportingFilter === 'FALTANTES' ? "Generando..." : "Guardar Faltantes (PDF)"}
         </Button>
-        <Button onClick={() => { setPrintFilter('MUESTRAS'); setTimeout(() => window.print(), 200); }} variant="outline" className="text-blue-600 border-blue-600 hover:bg-blue-50 hover:text-blue-700 font-bold h-11 px-6 rounded-xl gap-2 shadow-sm">
-          <FileText className="h-4 w-4" /> Imprimir Muestras por Cobrar
+        <Button 
+          onClick={() => handleExportPdf('MUESTRAS')} 
+          disabled={!!isExportingFilter}
+          variant="outline" 
+          className="text-blue-600 border-blue-600 hover:bg-blue-50 hover:text-blue-700 font-bold h-11 px-5 rounded-xl gap-2 shadow-sm"
+        >
+          {isExportingFilter === 'MUESTRAS' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExportingFilter === 'MUESTRAS' ? "Generando..." : "Guardar Muestras (PDF)"}
         </Button>
-        <Button onClick={() => { setPrintFilter('ALL'); setTimeout(() => window.print(), 200); }} className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-8 rounded-xl gap-2 shadow-lg">
-          <Printer className="h-4 w-4" /> Imprimir Informe
+        <Button 
+          variant="outline" 
+          onClick={() => { setPrintFilter('ALL'); setTimeout(() => window.print(), 200); }} 
+          className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-5 rounded-xl gap-2"
+        >
+          <Printer className="h-4 w-4" /> Imprimir
+        </Button>
+        <Button 
+          onClick={() => handleExportPdf('ALL')} 
+          disabled={!!isExportingFilter}
+          className="bg-primary hover:bg-primary/90 text-white font-bold h-11 px-6 rounded-xl gap-2 shadow-lg"
+        >
+          {isExportingFilter === 'ALL' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExportingFilter === 'ALL' ? "Generando PDF..." : "Guardar Informe en PDF"}
+
         </Button>
       </div>
 

@@ -3,7 +3,8 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Printer } from "lucide-react";
+import { Printer, Download, Loader2 } from "lucide-react";
+import { exportReportToPdf } from "@/lib/pdfExport";
 import { toDate } from "@/lib/toDate";
 import { formatClientName } from "@/lib/format-name";
 
@@ -16,6 +17,21 @@ interface CollectionsDetailedReportProps {
 
 export function CollectionsDetailedReport({ collections, dateFrom, dateTo, client }: CollectionsDetailedReportProps) {
   const [fechaGenerada, setFechaGenerada] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    setIsExporting(true);
+    try {
+      await exportReportToPdf("statement-report", {
+        filename: `detalle-cobranzas-${dateFrom || 'inicio'}-al-${dateTo || 'fin'}.pdf`,
+        landscape: false,
+      });
+    } catch (err) {
+      console.error("Error al exportar PDF cobranzas:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   useEffect(() => {
     setFechaGenerada(new Date().toLocaleString('es-EC'));
@@ -174,9 +190,23 @@ export function CollectionsDetailedReport({ collections, dateFrom, dateTo, clien
       {/* --- BOTONES Y ENCABEZADO UI --- */}
       <div className="flex items-center justify-between border-b border-border pb-4 print-hidden">
         <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900">Detalle de Cobranzas</h2>
-        <Button onClick={() => window.print()} className="bg-slate-900 hover:bg-slate-800 text-white font-semibold h-11 px-8 rounded-xl gap-2 shadow-lg">
-          <Printer className="h-4 w-4" /> EJECUTAR IMPRESIÓN
-        </Button>
+        <div className="flex gap-3">
+          <Button 
+            variant="outline" 
+            onClick={() => window.print()} 
+            className="hidden md:flex border-border text-muted-foreground hover:bg-muted font-bold h-11 px-6 rounded-xl gap-2"
+          >
+            <Printer className="h-4 w-4" /> Imprimir
+          </Button>
+          <Button 
+            onClick={handleExportPdf} 
+            disabled={isExporting} 
+            className="bg-slate-900 hover:bg-slate-800 text-white font-semibold h-11 px-6 rounded-xl gap-2 shadow-lg"
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExporting ? "Generando PDF..." : "Guardar PDF"}
+          </Button>
+        </div>
       </div>
 
       {/* --- TABLA HTML (UI NORMAL) --- */}
