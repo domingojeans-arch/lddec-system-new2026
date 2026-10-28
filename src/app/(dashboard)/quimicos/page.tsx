@@ -183,6 +183,14 @@ export default function ChemicalInventoryPage() {
   const [tempInitialValue, setTempInitialValue] = useState<string>("");
   const [isSavingInitial, setIsSavingInitial] = useState(false);
 
+  // Estados de control de Cupo Anual
+  const [balanceViewTab, setBalanceViewTab] = useState<"mensual" | "anual">("mensual");
+  const [annualKardex, setAnnualKardex] = useState<any[]>([]);
+  const [loadingAnnual, setLoadingAnnual] = useState(false);
+  const [editingCupoId, setEditingCupoId] = useState<string | null>(null);
+  const [tempCupoValue, setTempCupoValue] = useState<string>("");
+  const [isSavingCupo, setIsSavingCupo] = useState(false);
+
   // Estados para gestión de catálogo
   const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
   const [newChemicalName, setNewChemicalName] = useState("");
@@ -221,6 +229,7 @@ export default function ChemicalInventoryPage() {
   const [pesadaItems, setPesadaItems] = useState<PesadaItem[]>([
     { id: Math.random().toString(36).substr(2, 9), chemicalId: "", procesoTecnico: "", quantity: "", unit: "g" }
   ]);
+  const [mixMultiplier, setMixMultiplier] = useState<number>(1);
   const [processing, setProcessing] = useState(false);
 
 
@@ -431,6 +440,70 @@ export default function ChemicalInventoryPage() {
       }).sort((a, b) => a.name.localeCompare(b.name));
   }, [chemicals, kardex, selectedYear, selectedMonth]);
 
+  const loadAnnualData = useCallback(async () => {
+    if (!db) return;
+    setLoadingAnnual(true);
+    try {
+      const y = parseInt(selectedYear);
+      const yStart = Timestamp.fromDate(new Date(y, 0, 1, 0, 0, 0));
+      const yEnd = Timestamp.fromDate(new Date(y, 11, 31, 23, 59, 59));
+      const qYear = query(
+        collection(db, "quimicos_kardex"),
+        where("fecha", ">=", yStart),
+        where("fecha", "<=", yEnd)
+      );
+      const snap = await getDocs(qYear);
+      setAnnualKardex(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.error("Error cargando kardex anual:", e);
+    } finally {
+      setLoadingAnnual(false);
+    }
+  }, [selectedYear]);
+
+  useEffect(() => {
+    loadAnnualData();
+  }, [selectedYear, loadAnnualData]);
+
+  // 4. Resúmenes anuales para control de cupos autorizados
+  const annualSummaries = useMemo(() => {
+    if (chemicals.length === 0) return [];
+    
+    return chemicals
+      .filter(c => c.active !== false)
+      .map(chem => {
+        const chemName = (chem.chemicalName || "").trim().toUpperCase();
+        const yearMovements = annualKardex.filter(m => (m.quimico || "").trim().toUpperCase() === chemName);
+
+        const getSumGrams = (mList: any[], types: string[]) => 
+          mList.filter(m => types.includes(m.tipo))
+               .reduce((acc, m) => {
+                 const val = Number(m.cant || 0);
+                 const valG = (m.unit === "kg" || m.unit === "kilogramos") ? val * 1000 : val;
+                 return acc + valG;
+               }, 0);
+
+        const compraAnualG = getSumGrams(yearMovements, ["INGRESO", "INGRESO_AJUSTE"]);
+        const consumoAnualG = getSumGrams(yearMovements, ["SALIDA", "SALIDA_AJUSTE"]);
+        
+        const cupoAnualKg = Number(chem.cuposAnuales?.[selectedYear] ?? chem.cupoAnualKg ?? 0);
+        const consumoAnualKg = consumoAnualG / 1000;
+        const compraAnualKg = compraAnualG / 1000;
+        const cupoDisponibleKg = cupoAnualKg > 0 ? (cupoAnualKg - consumoAnualKg) : 0;
+        const porcentajeUso = cupoAnualKg > 0 ? Math.min(Math.round((consumoAnualKg / cupoAnualKg) * 100), 999) : 0;
+
+        return { 
+          id: chem.id, 
+          name: chemName, 
+          cupoAnualKg, 
+          compraAnualKg, 
+          consumoAnualKg, 
+          cupoDisponibleKg,
+          porcentajeUso
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+  }, [chemicals, annualKardex, selectedYear]);
+
   const generateAutoID = async (type: "LAVADO_MAQUINA" | "MUESTRA") => {
     const prefix = type === "LAVADO_MAQUINA" ? "LAV-MAQ-" : "MUE-";
     try {
@@ -445,11 +518,16 @@ export default function ChemicalInventoryPage() {
 
   const handleOrderTypeChange = async (type: string) => {
     let newHeader = { ...pesadaHeader, orderType: type, order: "", clientRef: "", lotSearch: "", lotQty: 0 };
-    if (type === "LAVADO_MAQUINA" || type === "MUESTRA") {
-      const autoId = await generateAutoID(type as any);
+    if (type === "LAVADO_MAQUINA") {
+      newHeader.order = "";
+      newHeader.clientRef = "LABORATORIO DEL DENIM";
+      newHeader.lotSearch = "LAVADO";
+      setLotFound(true);
+    } else if (type === "MUESTRA") {
+      const autoId = await generateAutoID("MUESTRA");
       newHeader.order = autoId;
       newHeader.clientRef = "LABORATORIO DEL DENIM";
-      newHeader.lotSearch = type === "LAVADO_MAQUINA" ? "LAVADO" : "MUESTRA";
+      newHeader.lotSearch = "MUESTRA";
       setLotFound(true);
     } else if (type === "REPROCESO") {
       newHeader.clientRef = "REPROCESO";
@@ -481,6 +559,30 @@ export default function ChemicalInventoryPage() {
       toast({ variant: "destructive", title: "Error al actualizar" });
     } finally {
       setIsSavingInitial(false);
+    }
+  };
+
+  const handleStartEditCupo = (id: string, currentKg: number) => {
+    if (isReadOnly) return;
+    setEditingCupoId(id);
+    setTempCupoValue(currentKg > 0 ? currentKg.toString() : "");
+  };
+
+  const handleSaveCupo = async (id: string) => {
+    const valKg = parseFloat(tempCupoValue);
+    if (isNaN(valKg) || valKg < 0) return;
+    setIsSavingCupo(true);
+    try {
+      await updateDoc(doc(db, "quimicos_stock", id), {
+        [`cuposAnuales.${selectedYear}`]: valKg,
+        cupoAnualKg: valKg
+      });
+      toast({ title: "Cupo Anual Guardado", description: `Cupo de ${valKg} kg registrado para el año ${selectedYear}.` });
+      setEditingCupoId(null);
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error al guardar cupo" });
+    } finally {
+      setIsSavingCupo(false);
     }
   };
 
@@ -587,6 +689,7 @@ export default function ChemicalInventoryPage() {
       toast({ title: "Compra Registrada" });
       setPurchaseData({ ...purchaseData, qty: "", invoice: "" });
       loadKardexData();
+      loadAnnualData();
     } catch (e) {
       toast({ variant: "destructive", title: "Error al registrar" });
     } finally {
@@ -635,7 +738,7 @@ export default function ChemicalInventoryPage() {
     setProcessing(true);
     
     try {
-      if (!editingKardexId) {
+      if (!editingKardexId && pesadaHeader.orderType === "NORMAL") {
         const qDup = query(collection(db, "quimicos_kardex"), where("order", "==", currentOrder));
         const snapDup = await getDocs(qDup);
         if (!snapDup.empty) {
@@ -650,7 +753,7 @@ export default function ChemicalInventoryPage() {
       if (editingKardexId) {
         const item = pesadaItems[0];
         const targetChem = chemicals.find(c => c.id === item.chemicalId);
-        const qtyRaw = parseFloat(item.quantity);
+        const qtyRaw = (parseFloat(item.quantity) || 0) * (mixMultiplier || 1);
         const qtyGrams = item.unit === "kg" ? qtyRaw * 1000 : qtyRaw;
 
         await updateDoc(doc(db, "quimicos_kardex", editingKardexId), {
@@ -664,6 +767,8 @@ export default function ChemicalInventoryPage() {
           pesoOrden: parseFloat(pesadaHeader.orderWeight) || 0,
           cant: qtyGrams,
           unit: "g",
+          multiplicador: mixMultiplier || 1,
+          baseQuantity: parseFloat(item.quantity) || 0,
           lote: pesadaHeader.lotSearch.toUpperCase(),
           clientName: pesadaHeader.clientRef,
           updatedAt: serverTimestamp(),
@@ -673,7 +778,7 @@ export default function ChemicalInventoryPage() {
         // Si se agregaron más químicos a la mezcla durante la edición, guardarlos como salidas adicionales del mismo lote/orden
         if (pesadaItems.length > 1) {
           for (const addItem of pesadaItems.slice(1)) {
-            const addQtyRaw = parseFloat(addItem.quantity) || 0;
+            const addQtyRaw = (parseFloat(addItem.quantity) || 0) * (mixMultiplier || 1);
             const addQtyGrams = addItem.unit === "kg" ? addQtyRaw * 1000 : addQtyRaw;
             const addTargetChem = chemicals.find(c => c.id === addItem.chemicalId);
 
@@ -689,6 +794,8 @@ export default function ChemicalInventoryPage() {
               pesoOrden: parseFloat(pesadaHeader.orderWeight) || 0,
               cant: addQtyGrams,
               unit: "g",
+              multiplicador: mixMultiplier || 1,
+              baseQuantity: parseFloat(addItem.quantity) || 0,
               lote: pesadaHeader.lotSearch.toUpperCase(),
               clientName: pesadaHeader.clientRef,
               createdAt: serverTimestamp(),
@@ -703,7 +810,7 @@ export default function ChemicalInventoryPage() {
         handleCancelEdit();
       } else {
         for (const item of pesadaItems) {
-          const qtyRaw = parseFloat(item.quantity) || 0;
+          const qtyRaw = (parseFloat(item.quantity) || 0) * (mixMultiplier || 1);
           const qtyGrams = item.unit === "kg" ? qtyRaw * 1000 : qtyRaw;
           const targetChem = chemicals.find(c => c.id === item.chemicalId);
           
@@ -719,6 +826,8 @@ export default function ChemicalInventoryPage() {
             pesoOrden: parseFloat(pesadaHeader.orderWeight) || 0, 
             cant: qtyGrams, 
             unit: "g", 
+            multiplicador: mixMultiplier || 1,
+            baseQuantity: parseFloat(item.quantity) || 0,
             lote: pesadaHeader.lotSearch.toUpperCase(), 
             clientName: pesadaHeader.clientRef,
             createdAt: serverTimestamp(), 
@@ -729,8 +838,10 @@ export default function ChemicalInventoryPage() {
         setPesadaHeader({ orderType: "NORMAL", order: "", lotSearch: "", clientRef: "", lotQty: 0, orderWeight: "", fecha: new Date().toISOString().split('T')[0] });
         setPesadaItems([{ id: Math.random().toString(36).substr(2, 9), chemicalId: "", procesoTecnico: "", quantity: "", unit: "g" }]);
         setLotFound(false);
+        setMixMultiplier(1);
       }
       loadKardexData();
+      loadAnnualData();
     } catch (e: any) {
       console.error("Error al registrar pesada:", e);
       toast({ 
@@ -746,6 +857,7 @@ export default function ChemicalInventoryPage() {
   const handleEditKardex = (item: any) => {
     if (isReadOnly) return;
     setEditingKardexId(item.id);
+    setMixMultiplier(1);
     setPesadaHeader({ orderType: item.orderType || "NORMAL", order: item.order || "", lotSearch: item.lote || "", clientRef: item.clientName || "SOCIO", lotQty: item.lotQty || 0, orderWeight: String(item.pesoOrden || ""), fecha: item.fecha ? normalizeDate(item.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0] });
     setPesadaItems([{ id: Math.random().toString(36).substr(2, 9), chemicalId: item.chemicalId, procesoTecnico: item.procesoTecnico || "", quantity: String(item.cant), unit: "g" }]);
     setLotFound(true);
@@ -757,6 +869,7 @@ export default function ChemicalInventoryPage() {
     setPesadaHeader({ orderType: "NORMAL", order: "", lotSearch: "", clientRef: "", lotQty: 0, orderWeight: "", fecha: new Date().toISOString().split('T')[0] });
     setPesadaItems([{ id: Math.random().toString(36).substr(2, 9), chemicalId: "", procesoTecnico: "", quantity: "", unit: "g" }]);
     setLotFound(false);
+    setMixMultiplier(1);
   };
   
   const handleDeleteKardex = async () => {
@@ -768,6 +881,7 @@ export default function ChemicalInventoryPage() {
       setIsDeleteKardexOpen(false);
       setKardexToDelete(null);
       loadKardexData();
+      loadAnnualData();
     } catch (e) {
       toast({ variant: "destructive", title: "Error al eliminar" });
     } finally {
@@ -970,7 +1084,13 @@ export default function ChemicalInventoryPage() {
                   </div>
                   <div className={cn("space-y-1.5", pesadaHeader.orderType === "REPROCESO" ? "xl:col-span-5" : "xl:col-span-2")}>
                     <Label className="text-[10px] font-black uppercase text-primary ml-1">N° ORDEN / CONTROL</Label>
-                    <Input className="erp-input h-11 font-black" value={pesadaHeader.order} onChange={e => setPesadaHeader({...pesadaHeader, order: e.target.value.toUpperCase()})} readOnly={pesadaHeader.orderType === "LAVADO_MAQUINA" || pesadaHeader.orderType === "MUESTRA"} />
+                    <Input 
+                      className="erp-input h-11 font-black" 
+                      placeholder={pesadaHeader.orderType === "LAVADO_MAQUINA" ? "N° DE ORDEN" : ""}
+                      value={pesadaHeader.order} 
+                      onChange={e => setPesadaHeader({...pesadaHeader, order: e.target.value.toUpperCase()})} 
+                      readOnly={pesadaHeader.orderType === "MUESTRA"} 
+                    />
                   </div>
                   {pesadaHeader.orderType !== "REPROCESO" && (
                     <div className="space-y-1.5 xl:col-span-3">
@@ -1017,9 +1137,56 @@ export default function ChemicalInventoryPage() {
                 )}
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between border-b pb-2">
-                    <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Insumos de la Mezcla</Label>
+                  <div className="flex flex-wrap items-center justify-between border-b pb-3 gap-3">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Insumos de la Mezcla</Label>
+                      {mixMultiplier > 1 && (
+                        <Badge className="bg-amber-500 text-white font-black text-[9px] px-2 py-0.5 rounded-full border-none">
+                          x{mixMultiplier} ACTIVO
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-xl border border-border">
+                      <span className="text-[10px] font-black uppercase text-muted-foreground px-2 hidden sm:inline-block">Multiplicar por:</span>
+                      {[1, 2, 3, 4].map((mult) => (
+                        <Button
+                          key={mult}
+                          type="button"
+                          size="sm"
+                          variant={mixMultiplier === mult ? "default" : "ghost"}
+                          onClick={() => setMixMultiplier(mult)}
+                          className={cn(
+                            "h-7 px-3 text-xs font-black rounded-lg transition-all",
+                            mixMultiplier === mult
+                              ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {mult === 1 ? "1x (Normal)" : `x${mult}`}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
+
+                  {mixMultiplier > 1 && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 px-4 py-2.5 rounded-2xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 animate-in fade-in slide-in-from-top-1">
+                      <div className="flex items-center gap-2 font-bold">
+                        <Zap className="h-4 w-4 text-amber-600 shrink-0" />
+                        <span>Escala x{mixMultiplier} activa: todas las cantidades base de la mezcla se guardarán multiplicadas por {mixMultiplier} al confirmar.</span>
+                      </div>
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setMixMultiplier(1)} 
+                        className="h-6 px-2 text-[10px] font-black uppercase text-amber-700 hover:bg-amber-500/20 rounded-lg shrink-0"
+                      >
+                        Restablecer 1x
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                     {pesadaItems.map((item) => {
                       const rawProcesses = item.chemicalId ? (processesByChemicalId[item.chemicalId] || []) : [];
@@ -1027,10 +1194,16 @@ export default function ChemicalInventoryPage() {
                         ...rawProcesses,
                         ...(item.procesoTecnico ? [item.procesoTecnico] : [])
                       ]));
+                      const baseQty = parseFloat(item.quantity) || 0;
+                      const totalQty = baseQty * mixMultiplier;
+                      const formattedTotal = totalQty > 0
+                        ? (Number.isInteger(totalQty) ? totalQty.toString() : parseFloat(totalQty.toFixed(2)).toString())
+                        : "0";
+
                       return (
                         <div key={item.id} className="p-5 md:p-6 bg-muted/10 rounded-[1.5rem] border border-border/80 space-y-4 animate-in slide-in-from-right-2">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 lg:gap-6 items-end">
-                            <div className="lg:col-span-5 xl:col-span-4 space-y-1.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4 items-end">
+                            <div className="sm:col-span-2 lg:col-span-4 xl:col-span-3 space-y-1.5">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Sustancia</Label>
                               <div className="relative">
                                 <select 
@@ -1064,7 +1237,7 @@ export default function ChemicalInventoryPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="lg:col-span-4 xl:col-span-4 space-y-1.5">
+                            <div className="sm:col-span-2 lg:col-span-4 xl:col-span-3 space-y-1.5">
                               <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Proceso Técnico</Label>
                               <div className="relative">
                                 <select 
@@ -1081,12 +1254,13 @@ export default function ChemicalInventoryPage() {
                                 </div>
                               </div>
                             </div>
-                            <div className="lg:col-span-3 xl:col-span-4 flex gap-3">
+                            <div className="sm:col-span-1 lg:col-span-4 xl:col-span-3 flex gap-2">
                               <div className="flex-1 space-y-1.5">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Cant. ({item.unit})</Label>
+                                <Label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Cant. Base ({item.unit})</Label>
                                 <Input 
                                   type="number" 
                                   step="0.01" 
+                                  placeholder="0"
                                   value={item.quantity} 
                                   onFocus={(e) => {
                                     try {
@@ -1104,6 +1278,28 @@ export default function ChemicalInventoryPage() {
                                   <SelectContent className="rounded-2xl"><SelectItem value="kg">kg</SelectItem><SelectItem value="g">g</SelectItem></SelectContent>
                                 </Select>
                               </div>
+                            </div>
+
+                            {/* Tarjetita con el resultado ya multiplicado */}
+                            <div className="sm:col-span-1 lg:col-span-12 xl:col-span-3 flex items-end gap-2">
+                              <div className="flex-1 space-y-1.5">
+                                <div className="flex items-center justify-between ml-1">
+                                  <Label className="text-[9px] font-black uppercase text-amber-600 flex items-center gap-1">
+                                    C. Total {mixMultiplier > 1 && <span className="bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full">x{mixMultiplier}</span>}
+                                  </Label>
+                                  <span className="text-[8px] font-bold text-muted-foreground">a guardar</span>
+                                </div>
+                                <div className={cn(
+                                  "h-11 px-3.5 rounded-xl border flex items-center justify-between font-black text-xs transition-all shadow-sm",
+                                  mixMultiplier > 1 
+                                    ? "bg-amber-500/15 border-amber-500/50 text-amber-700 dark:text-amber-300 font-extrabold" 
+                                    : "bg-muted/30 border-border text-foreground"
+                                )} title={`Cantidad total multiplicada por ${mixMultiplier}`}>
+                                  <span className="text-sm font-black tracking-tight">{formattedTotal}</span>
+                                  <span className="text-[10px] font-black uppercase text-muted-foreground">{item.unit}</span>
+                                </div>
+                              </div>
+
                               {(!editingKardexId || pesadaItems.length > 1) && (
                                 <div className="space-y-1.5">
                                   <Label className="text-[9px] font-black uppercase text-transparent ml-1">.</Label>
@@ -1133,31 +1329,249 @@ export default function ChemicalInventoryPage() {
       )}
 
       <div className="space-y-6 pt-4">
-        <div className="flex items-center gap-3 px-2"><Database className="h-5 w-5 text-primary" /><h2 className="text-xl font-black uppercase tracking-tight">Balance Mensual: {activeMonthTab}</h2></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {monthlySummaries.map((m) => (
-            <Card key={m.id} className="rounded-3xl border border-border bg-card overflow-hidden shadow-premium group">
-              <div className="p-6 space-y-6">
-                <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em] truncate">{m.name}</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-muted/30 p-3 rounded-2xl border border-border/50 text-center relative group/edit">
-                    <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Saldo Inicial</p>
-                    {editingInitialId === m.id ? (
-                      <div className="flex items-center gap-1 justify-center"><Input type="number" step="0.1" value={tempInitialValue} onChange={e => setTempInitialValue(e.target.value)} className="h-7 w-20 text-center font-black p-1 text-xs border-primary bg-background" autoFocus /><button onClick={() => handleSaveInitialBalance(m.id)} disabled={isSavingInitial} className="text-emerald-600">{isSavingInitial ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}</button></div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-2"><p className="text-xl font-black">{m.saldoInicialMesKg.toFixed(1)} <span className="text-[10px]">kg</span></p><button onClick={() => handleStartEditInitial(m.id, m.saldoInicialMesKg)} className="opacity-0 group-hover/edit:opacity-100 transition-opacity"><Edit3 className="h-3 w-3" /></button></div>
-                    )}
-                  </div>
-                  <div className="bg-primary/5 p-3 rounded-2xl border border-primary/10 text-center"><p className="text-[8px] font-black text-primary uppercase tracking-widest mb-1">Disponible</p><p className={cn("text-2xl font-black", m.disponibleMesKg < 10 ? "text-red-600" : "text-primary")}>{m.disponibleMesKg.toFixed(1)} <span className="text-[10px]">kg</span></p></div>
-                </div>
-                <div className="pt-4 border-t border-border/50 flex justify-between text-right">
-                  <div className="text-left"><p className="text-[8px] font-bold text-muted-foreground uppercase">Compra</p><p className="text-xs font-black text-emerald-600">+{m.compraMesKg.toFixed(1)} kg</p></div>
-                  <div><p className="text-[8px] font-bold text-muted-foreground uppercase">Consumo</p><p className="text-xs font-black text-amber-600">-{m.consumoMesKg.toFixed(1)} kg</p></div>
-                </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
+          <div className="flex items-center gap-3">
+            <Database className="h-5 w-5 text-primary" />
+            <div>
+              <h2 className="text-xl font-black uppercase tracking-tight">
+                {balanceViewTab === "mensual" ? `Balance Mensual: ${activeMonthTab}` : `Control de Cupo Anual: Año ${selectedYear}`}
+              </h2>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                {balanceViewTab === "mensual" 
+                  ? "Saldo y consumos del mes operativo" 
+                  : "Límite legal anual de sustancias fiscalizadas y prevención de multas"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {balanceViewTab === "anual" && (
+              <div className="flex items-center gap-1.5 bg-muted/40 px-3 py-1 rounded-xl border border-border">
+                <span className="text-[10px] font-black uppercase text-muted-foreground">Año:</span>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger className="h-7 border-none bg-transparent text-xs font-black shadow-none p-0 focus:ring-0 w-16">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    {years.map(y => <SelectItem key={y} value={y} className="text-xs font-bold">{y}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
-            </Card>
-          ))}
+            )}
+
+            <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-2xl border border-border">
+              <Button
+                type="button"
+                size="sm"
+                variant={balanceViewTab === "mensual" ? "default" : "ghost"}
+                onClick={() => setBalanceViewTab("mensual")}
+                className={cn(
+                  "h-8 px-4 text-xs font-black uppercase rounded-xl transition-all",
+                  balanceViewTab === "mensual"
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Mensual
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={balanceViewTab === "anual" ? "default" : "ghost"}
+                onClick={() => setBalanceViewTab("anual")}
+                className={cn(
+                  "h-8 px-4 text-xs font-black uppercase rounded-xl transition-all",
+                  balanceViewTab === "anual"
+                    ? "bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Anual (Cupo)
+              </Button>
+            </div>
+          </div>
         </div>
+
+        {balanceViewTab === "mensual" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {monthlySummaries.map((m) => (
+              <Card key={m.id} className="rounded-3xl border border-border bg-card overflow-hidden shadow-premium group">
+                <div className="p-6 space-y-6">
+                  <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em] truncate">{m.name}</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-muted/30 p-3 rounded-2xl border border-border/50 text-center relative group/edit">
+                      <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Saldo Inicial</p>
+                      {editingInitialId === m.id ? (
+                        <div className="flex items-center gap-1 justify-center"><Input type="number" step="0.1" value={tempInitialValue} onChange={e => setTempInitialValue(e.target.value)} className="h-7 w-20 text-center font-black p-1 text-xs border-primary bg-background" autoFocus /><button onClick={() => handleSaveInitialBalance(m.id)} disabled={isSavingInitial} className="text-emerald-600">{isSavingInitial ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}</button></div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2"><p className="text-xl font-black">{m.saldoInicialMesKg.toFixed(1)} <span className="text-[10px]">kg</span></p><button onClick={() => handleStartEditInitial(m.id, m.saldoInicialMesKg)} className="opacity-0 group-hover/edit:opacity-100 transition-opacity"><Edit3 className="h-3 w-3" /></button></div>
+                      )}
+                    </div>
+                    <div className="bg-primary/5 p-3 rounded-2xl border border-primary/10 text-center"><p className="text-[8px] font-black text-primary uppercase tracking-widest mb-1">Disponible</p><p className={cn("text-2xl font-black", m.disponibleMesKg < 10 ? "text-red-600" : "text-primary")}>{m.disponibleMesKg.toFixed(1)} <span className="text-[10px]">kg</span></p></div>
+                  </div>
+                  <div className="pt-4 border-t border-border/50 flex justify-between text-right">
+                    <div className="text-left"><p className="text-[8px] font-bold text-muted-foreground uppercase">Compra</p><p className="text-xs font-black text-emerald-600">+{m.compraMesKg.toFixed(1)} kg</p></div>
+                    <div><p className="text-[8px] font-bold text-muted-foreground uppercase">Consumo</p><p className="text-xs font-black text-amber-600">-{m.consumoMesKg.toFixed(1)} kg</p></div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {loadingAnnual ? (
+              <div className="h-48 flex flex-col items-center justify-center gap-3 bg-card rounded-3xl border border-border">
+                <Loader2 className="h-7 w-7 animate-spin text-amber-500" />
+                <p className="text-xs font-black uppercase text-muted-foreground tracking-widest">Calculando acumulados anuales y cupos...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {annualSummaries.map((m) => {
+                  const isExceeded = m.cupoAnualKg > 0 && m.cupoDisponibleKg <= 0;
+                  const isWarning = m.cupoAnualKg > 0 && m.porcentajeUso >= 85 && !isExceeded;
+                  const hasNoQuota = m.cupoAnualKg <= 0;
+
+                  return (
+                    <Card 
+                      key={m.id} 
+                      className={cn(
+                        "rounded-3xl border bg-card overflow-hidden shadow-premium group transition-all",
+                        isExceeded ? "border-red-500/70 shadow-red-500/10" : (isWarning ? "border-amber-500/70 shadow-amber-500/10" : "border-border")
+                      )}
+                    >
+                      <div className="p-6 space-y-5">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-[11px] font-black text-primary uppercase tracking-[0.15em] truncate">{m.name}</p>
+                          {isExceeded ? (
+                            <Badge className="bg-red-600 text-white font-black text-[8px] px-2 py-0.5 rounded-full border-none shrink-0 animate-pulse">
+                              ¡MULTA!
+                            </Badge>
+                          ) : isWarning ? (
+                            <Badge className="bg-amber-500 text-white font-black text-[8px] px-2 py-0.5 rounded-full border-none shrink-0">
+                              ALERTA
+                            </Badge>
+                          ) : hasNoQuota ? (
+                            <Badge variant="outline" className="text-[8px] font-bold text-muted-foreground border-border px-1.5 py-0.5 rounded-full shrink-0">
+                              Sin Cupo
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[8px] font-black text-emerald-600 bg-emerald-500/10 border-none px-2 py-0.5 rounded-full shrink-0">
+                              DENTRO DEL CUPO
+                            </Badge>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-muted/30 p-3 rounded-2xl border border-border/50 text-center relative group/edit">
+                            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-1">Cupo Anual</p>
+                            {editingCupoId === m.id ? (
+                              <div className="flex items-center gap-1 justify-center">
+                                <Input 
+                                  type="number" 
+                                  step="1" 
+                                  placeholder="kg"
+                                  value={tempCupoValue} 
+                                  onChange={e => setTempCupoValue(e.target.value)} 
+                                  className="h-7 w-20 text-center font-black p-1 text-xs border-primary bg-background" 
+                                  autoFocus 
+                                />
+                                <button onClick={() => handleSaveCupo(m.id)} disabled={isSavingCupo} className="text-emerald-600">
+                                  {isSavingCupo ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <p className="text-lg font-black">
+                                  {m.cupoAnualKg > 0 ? m.cupoAnualKg.toLocaleString() : "---"} <span className="text-[10px]">kg</span>
+                                </p>
+                                <button 
+                                  onClick={() => handleStartEditCupo(m.id, m.cupoAnualKg)} 
+                                  className="opacity-0 group-hover/edit:opacity-100 transition-opacity p-0.5 rounded hover:bg-muted"
+                                  title="Editar cupo anual"
+                                >
+                                  <Edit3 className="h-3 w-3 text-muted-foreground hover:text-primary" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className={cn(
+                            "p-3 rounded-2xl border text-center transition-all",
+                            isExceeded 
+                              ? "bg-red-500/10 border-red-500/30 text-red-600" 
+                              : (isWarning ? "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400" : "bg-primary/5 border-primary/10 text-primary")
+                          )}>
+                            <p className="text-[8px] font-black uppercase tracking-widest mb-1 text-muted-foreground">Cupo Disp.</p>
+                            <p className={cn("text-xl font-black", isExceeded && "text-red-600 font-extrabold", isWarning && "text-amber-600")}>
+                              {m.cupoAnualKg > 0 ? m.cupoDisponibleKg.toFixed(1) : "---"} <span className="text-[10px]">kg</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Barra de progreso de uso del cupo */}
+                        {m.cupoAnualKg > 0 ? (
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex justify-between items-center text-[9px]">
+                              <span className="font-bold text-muted-foreground uppercase">Uso de Cupo</span>
+                              <span className={cn(
+                                "font-black",
+                                isExceeded ? "text-red-600" : (isWarning ? "text-amber-600" : "text-emerald-600")
+                              )}>
+                                {m.porcentajeUso}% ({m.consumoAnualKg.toFixed(1)} / {m.cupoAnualKg} kg)
+                              </span>
+                            </div>
+                            <div className="w-full h-2 bg-muted/60 rounded-full overflow-hidden border border-border/40">
+                              <div 
+                                className={cn(
+                                  "h-full rounded-full transition-all duration-500",
+                                  isExceeded ? "bg-red-600" : (isWarning ? "bg-amber-500" : "bg-emerald-500")
+                                )}
+                                style={{ width: `${Math.min(m.porcentajeUso, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="pt-1">
+                            <button 
+                              type="button" 
+                              onClick={() => handleStartEditCupo(m.id, 0)} 
+                              className="w-full py-1.5 text-[9px] font-bold text-amber-600 bg-amber-500/10 hover:bg-amber-500/20 border border-dashed border-amber-500/30 rounded-xl transition-colors"
+                            >
+                              + Asignar Cupo Anual
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Alertas específicas de multa o cupo agotado */}
+                        {isExceeded && (
+                          <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-xl text-[9px] font-black text-red-600 text-center leading-tight">
+                            🚨 ¡Cupo excedido en {Math.abs(m.cupoDisponibleKg).toFixed(1)} kg! Riesgo inminente de sanción / multa fiscal.
+                          </div>
+                        )}
+                        {isWarning && (
+                          <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[9px] font-bold text-amber-700 dark:text-amber-400 text-center leading-tight">
+                            ⚠️ Te quedan solo {m.cupoDisponibleKg.toFixed(1)} kg antes de agotar el cupo anual.
+                          </div>
+                        )}
+
+                        <div className="pt-3 border-t border-border/50 flex justify-between text-right">
+                          <div className="text-left">
+                            <p className="text-[8px] font-bold text-muted-foreground uppercase">Comprado Año</p>
+                            <p className="text-xs font-black text-emerald-600">+{m.compraAnualKg.toFixed(1)} kg</p>
+                          </div>
+                          <div>
+                            <p className="text-[8px] font-bold text-muted-foreground uppercase">Consumido Año</p>
+                            <p className="text-xs font-black text-amber-600">-{m.consumoAnualKg.toFixed(1)} kg</p>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <Card className="bg-card p-8 rounded-[3rem] border border-border shadow-premium space-y-8">
@@ -1210,7 +1624,16 @@ export default function ChemicalInventoryPage() {
                     <TableCell><div className="flex flex-col"><span className="font-black text-xs text-primary uppercase">{item.order || "---"}</span><span className="text-[9px] font-bold text-muted-foreground uppercase">Ref: {item.lote}</span></div></TableCell>
                     <TableCell className="text-xs font-bold text-muted-foreground">{item.pesoOrden ? `${item.pesoOrden} kg` : "---"}</TableCell>
                     <TableCell className="font-bold text-xs uppercase">{item.quimico}</TableCell>
-                    <TableCell className="text-center font-black text-sm">{item.tipo.includes("INGRESO") ? "+" : "-"}{item.cant} g</TableCell>
+                    <TableCell className="text-center font-black text-sm">
+                      <div className="flex flex-col items-center">
+                        <span>{item.tipo.includes("INGRESO") ? "+" : "-"}{item.cant} g</span>
+                        {item.multiplicador && item.multiplicador > 1 && (
+                          <span className="text-[9px] font-bold text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-md mt-0.5" title={`Multiplicado por ${item.multiplicador} (Base: ${item.baseQuantity || (item.cant / item.multiplicador)}g)`}>
+                            x{item.multiplicador} ({item.baseQuantity || (item.cant / item.multiplicador)}g)
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right"><span className="text-xs font-black text-foreground">{runningBalancesMap[item.id] !== undefined ? `${runningBalancesMap[item.id].toFixed(0)} g` : "---"}</span></TableCell>
                     <TableCell className="text-right pr-8">
                       <div className="flex items-center justify-end gap-2">
