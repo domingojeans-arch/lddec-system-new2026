@@ -470,6 +470,7 @@ export default function FaltantesPage() {
           clientName: clientName,
           clienteNombre: clientName,
           containedClientNames: [clientName],
+          containedLotNames: [lotId.toUpperCase()],
           isClientDelivered: false,
           itemsDispatched: [{
             lotNumber: lotId,

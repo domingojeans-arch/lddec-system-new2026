@@ -370,6 +370,90 @@ export default function SalidasPage() {
     return list;
   }, [recentOutputs, tableSearch]);
 
+  const getLotDispatchHistory = async (lotTerm: string, clientName?: string, currentEditingId?: string) => {
+    const termUpper = lotTerm.trim().toUpperCase();
+    const matchedDocsMap = new Map<string, any>();
+
+    // 1. Consulta por array indexado de lotes en outputs
+    try {
+      const qLot = query(collection(db, "outputs"), where("containedLotNames", "array-contains", termUpper));
+      const snapLot = await getDocs(qLot);
+      snapLot.docs.forEach(d => matchedDocsMap.set(d.id, { id: d.id, ...d.data() }));
+    } catch (err) {
+      console.warn("containedLotNames query error:", err);
+    }
+
+    // 2. Consulta por cliente si existe (para guías históricas sin containedLotNames)
+    if (clientName) {
+      try {
+        const qClient = query(collection(db, "outputs"), where("containedClientNames", "array-contains", clientName.trim().toUpperCase()));
+        const snapClient = await getDocs(qClient);
+        snapClient.docs.forEach(d => matchedDocsMap.set(d.id, { id: d.id, ...d.data() }));
+      } catch (err) {
+        console.warn("containedClientNames query error:", err);
+      }
+    }
+
+    // 3. Consulta global en colecciones outputs, salidas y muestras para garantizar integridad histórica completa
+    try {
+      const [outsSnap, salsSnap, muesSnap] = await Promise.all([
+        getDocs(collection(db, "outputs")),
+        getDocs(collection(db, "salidas")),
+        getDocs(collection(db, "muestras"))
+      ]);
+      outsSnap.docs.forEach(d => matchedDocsMap.set(d.id, { id: d.id, ...d.data() }));
+      salsSnap.docs.forEach(d => matchedDocsMap.set(d.id, { id: d.id, ...d.data() }));
+      muesSnap.docs.forEach(d => matchedDocsMap.set(d.id, { id: d.id, ...d.data() }));
+    } catch (err) {
+      console.warn("Fallback query error:", err);
+    }
+
+    let totalDispatched = 0;
+    const dispatchedByType: Record<string, number> = {};
+    const guidesList: { guideNumber: string; date: any; quantity: number }[] = [];
+
+    matchedDocsMap.forEach((out: any) => {
+      const guideNum = (out.numeroSalida || out.numeroGuia || out.outputNumber || out.id || "").toString().toUpperCase();
+      if (currentEditingId && (guideNum === currentEditingId.toUpperCase() || out.id === currentEditingId)) {
+        return;
+      }
+
+      const items = out.itemsDispatched || out.lotes || out.raw?.itemsDispatched || [];
+      const lotItems = items.filter((it: any) => getVisibleLotName(it) === termUpper);
+
+      lotItems.forEach((it: any) => {
+        const prendas = it.prendas || [];
+        const itemQty = Number(it.quantityToDispatch || it.cantidad || it.quantity || 0);
+        let guideItemQty = 0;
+
+        if (prendas.length > 0) {
+          prendas.forEach((p: any) => {
+            const typeUpper = (p.garmentType || p.tipo || "VARIOS").toUpperCase();
+            const pQty = Number(p.quantityToDispatch || p.cantidad || p.quantity || 0);
+            totalDispatched += pQty;
+            guideItemQty += pQty;
+            dispatchedByType[typeUpper] = (dispatchedByType[typeUpper] || 0) + pQty;
+          });
+        } else {
+          const typeUpper = (it.garmentType || it.tipo || "VARIOS").toUpperCase();
+          totalDispatched += itemQty;
+          guideItemQty += itemQty;
+          dispatchedByType[typeUpper] = (dispatchedByType[typeUpper] || 0) + itemQty;
+        }
+
+        if (guideItemQty > 0) {
+          guidesList.push({
+            guideNumber: guideNum || "S/N",
+            date: out.date || out.fechaSalida || out.fecha || out.createdAt,
+            quantity: guideItemQty
+          });
+        }
+      });
+    });
+
+    return { totalDispatched, dispatchedByType, guidesList };
+  };
+
   const handleSearchLote = async () => {
     if (isReadOnly) return;
     const term = searchLote.trim().toUpperCase();
@@ -425,53 +509,29 @@ export default function SalidasPage() {
         ? garmentsSource.reduce((acc: number, g: any) => acc + (Number(g.cantidadConfirmada || g.quantity || 0)), 0)
         : Number(lot.cantidadConfirmada || lot.quantity || lot.cantidad || 0);
 
-      // Calcular cuánto se ha despachado en el historial cargado (outputsRaw, salidasRaw)
-      const getHistoricalDispatched = (tUpper?: string) => {
-        let historicalTotal = 0;
-        const allLocalHistory = [...outputsRaw, ...salidasRaw, ...muestrasRaw];
-        
-        allLocalHistory.forEach((out: any) => {
-          // Evitar contar si estamos editando la misma guía
-          if (editingDoc && (editingDoc.id === out.numeroSalida || editingDoc.id === out.id)) return;
-          
-          const items = out.itemsDispatched || out.raw?.itemsDispatched || [];
-          const lotItems = items.filter((it: any) => getVisibleLotName(it) === term);
-          
-          lotItems.forEach((it: any) => {
-            if (tUpper) {
-              const prendas = it.prendas || [];
-              const prendasOfType = prendas.filter((p: any) => (p.garmentType || p.tipo || "").toUpperCase() === tUpper);
-              const sumPrendas = prendasOfType.reduce((acc: number, p: any) => acc + (Number(p.quantityToDispatch || p.cantidad || p.quantity || 0)), 0);
-              
-              if (prendas.length > 0) {
-                historicalTotal += sumPrendas;
-              } else if ((it.garmentType || "").toUpperCase() === tUpper) {
-                historicalTotal += Number(it.quantityToDispatch || it.cantidad || it.quantity || 0);
-              }
-            } else {
-              historicalTotal += Number(it.quantityToDispatch || it.cantidad || it.quantity || 0);
-            }
-          });
-        });
-        return historicalTotal;
-      };
+      const clientName = (entryData.clientName || entryData.clienteNombre || "SOCIO").toUpperCase();
 
-      // Sumar lo que ya existe agregado en la guía para este lote
+      // Consultar historial real completo en Firestore (todas las guías históricas)
+      const editingId = editingDoc?.id;
+      const history = await getLotDispatchHistory(term, clientName, editingId);
+
+      // Sumar lo que ya existe agregado en la guía actual para este lote
       const existingQtyInGuide = itemsToDispatch
         .filter((it: any) => getVisibleLotName(it) === term)
         .reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
 
-      const existingQtyHistorical = getHistoricalDispatched();
-      const totalAlreadyUsed = existingQtyInGuide + existingQtyHistorical;
-
+      const totalAlreadyUsed = existingQtyInGuide + history.totalDispatched;
       const isResolved = !!(lot.isNoveltyResolved || lot.fallaLavado);
 
-      // Bloquear si el lote ya está despachado por completo (historia + actual)
+      // Bloquear si el lote ya está completamente despachado
       if (!isResolved && totalAlreadyUsed >= originalTotalQty) {
+        const guidesDesc = history.guidesList.length > 0
+          ? ` en las guías: ${history.guidesList.map(g => `${g.guideNumber} (+${g.quantity})`).join(", ")}`
+          : "";
         toast({
           variant: "destructive",
-          title: "Acción Bloqueada",
-          description: "El lote ya fue despachado en su totalidad o ya está agregado por completo en esta u otra guía."
+          title: "Lote Ya Despachado Totalmente",
+          description: `El lote ${term} ya fue despachado en su totalidad (${history.totalDispatched} de ${originalTotalQty} prendas)${guidesDesc}. No quedan unidades disponibles.`
         });
         setSearching(false);
         return;
@@ -481,48 +541,53 @@ export default function SalidasPage() {
       const breakdown = garmentsSource.map((g: any) => {
         const typeUpper = (g.garmentType || g.tipo || "VARIOS").toUpperCase();
         
-        // Calcular cuánto se ha despachado de este tipo específico en la guía actual
-        const alreadyDispatchedInGuide = itemsToDispatch
+        // Cantidad agregada en la guía actual para este tipo
+        const alreadyInGuide = itemsToDispatch
           .filter((it: any) => getVisibleLotName(it) === term)
           .flatMap((it: any) => it.prendas || [])
           .filter((p: any) => (p.garmentType || p.tipo || "").toUpperCase() === typeUpper)
           .reduce((sum: number, p: any) => sum + (Number(p.quantityToDispatch || p.cantidad || p.quantity || 0)), 0);
 
-        const alreadyDispatchedHist = getHistoricalDispatched(typeUpper);
+        // Cantidad despachada históricamente para este tipo
+        const histForType = history.dispatchedByType[typeUpper] || 0;
         
         const originalVal = Number(g.quantity || g.cantidad || 0);
         const confirmedVal = Number(g.cantidadConfirmada !== undefined ? g.cantidadConfirmada : originalVal);
         
-        const remaining = isResolved ? 0 : Math.max(0, confirmedVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
+        const available = isResolved ? 0 : Math.max(0, confirmedVal - alreadyInGuide - histForType);
 
         return { 
           id: g.id || Math.random().toString(36).substr(2, 9), 
           type: typeUpper, 
           original: originalVal, 
           confirmed: confirmedVal,
-          toDispatch: remaining 
+          alreadyDispatched: histForType + alreadyInGuide,
+          available: available,
+          toDispatch: available 
         };
       });
 
       if (breakdown.length === 0) {
         const typeUpper = (lot.garmentType || "VARIOS").toUpperCase();
-        const alreadyDispatchedInGuide = itemsToDispatch
+        const alreadyInGuide = itemsToDispatch
           .filter((it: any) => getVisibleLotName(it) === term)
           .reduce((sum: number, it: any) => sum + (Number(it.quantityToDispatch || it.cantidad || it.quantity || 0)), 0);
 
-        const alreadyDispatchedHist = getHistoricalDispatched(typeUpper);
+        const histForType = history.dispatchedByType[typeUpper] || 0;
         
         const originalVal = Number(lot.quantity || lot.cantidad || 0);
         const confirmedVal = Number(lot.cantidadConfirmada !== undefined ? lot.cantidadConfirmada : originalVal);
         
-        const remaining = isResolved ? 0 : Math.max(0, confirmedVal - alreadyDispatchedInGuide - alreadyDispatchedHist);
+        const available = isResolved ? 0 : Math.max(0, confirmedVal - alreadyInGuide - histForType);
 
         breakdown.push({
           id: "legacy",
           type: typeUpper,
           original: originalVal,
           confirmed: confirmedVal,
-          toDispatch: remaining
+          alreadyDispatched: histForType + alreadyInGuide,
+          available: available,
+          toDispatch: available
         });
       }
 
@@ -530,11 +595,15 @@ export default function SalidasPage() {
         lotNumber: term, 
         entryId: entryDoc.id, 
         entryNumber: entryData.entryNumber || entryDoc.id,
-        clientName: (entryData.clientName || entryData.clienteNombre || "SOCIO").toUpperCase(), 
+        clientName: clientName, 
         process: (lot.process || lot.proceso || "S/D").toUpperCase(),
         breakdown, 
         isReviewed: true,
-        reportarFaltante: false
+        reportarFaltante: false,
+        originalTotalQty,
+        historicalTotal: history.totalDispatched,
+        dispatchedByType: history.dispatchedByType,
+        guidesList: history.guidesList
       });
       setIsQtyModalOpen(true);
     } catch (e) { 
@@ -569,19 +638,21 @@ export default function SalidasPage() {
       }
     }
 
-    // Calcular cuánto ya hay agregado en la guía para este lote
+    // Calcular cuánto ya hay agregado en la guía actual para este lote
     const existingQty = itemsToDispatch
       .filter((it: any) => getVisibleLotName(it) === foundLotResult.lotNumber)
       .reduce((acc: number, it: any) => acc + (Number(it.quantityToDispatch) || 0), 0);
 
-    const originalTotalQty = foundLotResult.breakdown.reduce((acc: number, g: any) => acc + (Number(g.original) || 0), 0);
+    const historicalTotal = foundLotResult.historicalTotal || 0;
+    const originalTotalQty = foundLotResult.originalTotalQty || foundLotResult.breakdown.reduce((acc: number, g: any) => acc + (Number(g.confirmed !== undefined ? g.confirmed : g.original) || 0), 0);
+    const maxAvailableOverall = Math.max(0, originalTotalQty - historicalTotal - existingQty);
 
-    // 1. Validar si ya está al límite
-    if (existingQty >= originalTotalQty) {
+    // 1. Validar si ya no hay saldo disponible
+    if (maxAvailableOverall <= 0) {
       toast({
         variant: "destructive",
         title: "Acción Bloqueada",
-        description: "El lote ya se encuentra agregado en esta guía o no tiene cantidades pendientes por despachar"
+        description: `El lote no tiene saldo pendiente por despachar (${historicalTotal} ya despachadas de ${originalTotalQty}).`
       });
       setIsQtyModalOpen(false);
       setFoundLotResult(null);
@@ -589,12 +660,12 @@ export default function SalidasPage() {
       return;
     }
 
-    // 2. Validar si la cantidad total supera el límite
-    if (existingQty + totalQty > originalTotalQty) {
+    // 2. Validar si la cantidad total supera el límite disponible
+    if (totalQty > maxAvailableOverall) {
       toast({
         variant: "destructive",
         title: "Cantidad Excedida",
-        description: "El lote ya se encuentra agregado en esta guía o no tiene cantidades pendientes por despachar"
+        description: `Solo quedan ${maxAvailableOverall} prendas disponibles para despachar de este lote (${historicalTotal} despachadas previamente en otras salidas).`
       });
       return;
     }
@@ -602,17 +673,21 @@ export default function SalidasPage() {
     // 3. Validar límites por tipo de prenda individual
     for (const g of foundLotResult.breakdown) {
       const typeUpper = g.type.toUpperCase();
-      const alreadyDispatched = itemsToDispatch
+      const histForType = foundLotResult.dispatchedByType?.[typeUpper] || 0;
+      const alreadyDispatchedInGuide = itemsToDispatch
         .filter((it: any) => getVisibleLotName(it) === foundLotResult.lotNumber)
         .flatMap((it: any) => it.prendas || [])
         .filter((p: any) => (p.garmentType || p.tipo || "").toUpperCase() === typeUpper)
         .reduce((sum: number, p: any) => sum + (Number(p.quantityToDispatch || p.cantidad || p.quantity || 0)), 0);
 
-      if (alreadyDispatched + Number(g.toDispatch) > g.original) {
+      const confirmedForType = Number(g.confirmed !== undefined ? g.confirmed : g.original);
+      const maxAvailableForType = Math.max(0, confirmedForType - histForType - alreadyDispatchedInGuide);
+
+      if (Number(g.toDispatch) > maxAvailableForType) {
         toast({
           variant: "destructive",
-          title: "Cantidad Excedida",
-          description: `La cantidad de ${g.type} supera el límite disponible en el lote.`
+          title: "Cantidad Excedida en " + g.type,
+          description: `La cantidad de ${g.type} (${g.toDispatch}) supera el saldo disponible (${maxAvailableForType} disponibles).`
         });
         return;
       }
@@ -803,7 +878,47 @@ export default function SalidasPage() {
 
     setIsSaving(true);
     try {
-      const clientNames = Array.from(new Set(itemsToDispatch.map(it => it.clientName)));
+      // 1. Verificación de integridad en servidor: Validar que ningún lote supere su saldo disponible real
+      for (const item of itemsToDispatch) {
+        if (item.isManual) continue;
+        const lotTerm = getVisibleLotName(item);
+        const qtyToSave = Number(item.quantityToDispatch || 0);
+
+        try {
+          const qEntry = query(collection(db, "entries"), where("loteIdList", "array-contains", lotTerm), limit(1));
+          const snapEntry = await getDocs(qEntry);
+          if (!snapEntry.empty) {
+            const entryData = snapEntry.docs[0].data();
+            const entryLot = (entryData.lotes || []).find((l: any) => getVisibleLotName(l) === lotTerm);
+            if (entryLot && !entryLot.isNoveltyResolved && !entryLot.fallaLavado) {
+              const garmentsSrc = entryLot.garments || entryLot.prendas || [];
+              const originalTotal = garmentsSrc.length > 0
+                ? garmentsSrc.reduce((acc: number, g: any) => acc + (Number(g.cantidadConfirmada || g.quantity || 0)), 0)
+                : Number(entryLot.cantidadConfirmada || entryLot.quantity || entryLot.cantidad || 0);
+
+              const currentEditId = editingDoc?.id || term;
+              const hist = await getLotDispatchHistory(lotTerm, entryData.clientName, currentEditId);
+              const maxAllowed = Math.max(0, originalTotal - hist.totalDispatched);
+
+              if (qtyToSave > maxAllowed) {
+                setIsSaving(false);
+                setIsSampleModalOpen(false);
+                toast({
+                  variant: "destructive",
+                  title: "Bloqueo por Saldo Insuficiente",
+                  description: `El lote ${lotTerm} solo tiene ${maxAllowed} prendas disponibles (${hist.totalDispatched} ya despachadas de ${originalTotal}). No es posible despachar ${qtyToSave}.`
+                });
+                return;
+              }
+            }
+          }
+        } catch (vErr) {
+          console.warn("Validación de lote previa a guardar:", vErr);
+        }
+      }
+
+      const clientNames = Array.from(new Set(itemsToDispatch.map(it => it.clientName).filter(Boolean)));
+      const lotNames = Array.from(new Set(itemsToDispatch.map(it => getVisibleLotName(it).toUpperCase()).filter(n => n && n !== "S/L")));
       const now = serverTimestamp();
       
       const payload = { 
@@ -812,6 +927,7 @@ export default function SalidasPage() {
         date: guideInfo.fecha ? Timestamp.fromDate(new Date(guideInfo.fecha + "T12:00:00")) : serverTimestamp(), 
         itemsDispatched: itemsToDispatch, 
         containedClientNames: clientNames,
+        containedLotNames: lotNames,
         status: "completed", 
         numeroMuestras: Number(numeroMuestrasTemp), 
         updatedAt: now,
@@ -1347,9 +1463,30 @@ export default function SalidasPage() {
             )}
           </div>
           <div className="p-6 space-y-6">
+            {foundLotResult?.historicalTotal > 0 && (
+              <div className="flex items-start gap-2.5 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-700 text-xs font-bold animate-in fade-in">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-black uppercase tracking-tight text-[11px]">Despacho Previo Detectado</p>
+                  <p className="text-[10px] font-medium leading-relaxed">
+                    Ya se han despachado <strong>{foundLotResult.historicalTotal}</strong> prendas de este lote en guías anteriores
+                    {foundLotResult.guidesList?.length > 0 && ` (${foundLotResult.guidesList.map((gl: any) => `${gl.guideNumber}: +${gl.quantity}`).join(", ")})`}.
+                    Saldo disponible para esta salida: <strong>{Math.max(0, foundLotResult.originalTotalQty - foundLotResult.historicalTotal)}</strong> prendas.
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="rounded-xl border border-border overflow-hidden bg-background">
               <Table>
-                <TableHeader className="bg-muted/50"><TableRow><TableHead className="text-[9px] font-black uppercase py-3 pl-4">Prenda</TableHead><TableHead className="text-[9px] font-black uppercase text-center">Físico</TableHead><TableHead className="text-[9px] font-black uppercase text-right pr-4">A Despachar</TableHead></TableRow></TableHeader>
+                <TableHeader className="bg-muted/50">
+                  <TableRow>
+                    <TableHead className="text-[9px] font-black uppercase py-3 pl-4">Prenda</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-center">Total</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-center">Despachado</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-center">Disponible</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-right pr-4">A Despachar</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {foundLotResult?.breakdown.map((g: any, i: number) => (
                     <TableRow key={i} className="border-border">
@@ -1362,13 +1499,26 @@ export default function SalidasPage() {
                           </span>
                         )}
                       </TableCell>
+                      <TableCell className="text-center font-bold text-xs text-amber-600">
+                        {g.alreadyDispatched || 0}
+                      </TableCell>
+                      <TableCell className="text-center font-black text-xs text-emerald-600">
+                        {g.available ?? g.confirmed}
+                      </TableCell>
                       <TableCell className="text-right pr-4">
-                        <Input type="number" className="h-9 w-20 ml-auto text-center font-black text-primary border-primary/20 bg-primary/5 rounded-lg" value={g.toDispatch} onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          const newBreakdown = [...foundLotResult.breakdown];
-                          newBreakdown[i].toDispatch = val;
-                          setFoundLotResult({...foundLotResult, breakdown: newBreakdown});
-                        }} />
+                        <Input 
+                          type="number" 
+                          min={1}
+                          max={g.available ?? g.confirmed}
+                          className="h-9 w-20 ml-auto text-center font-black text-primary border-primary/20 bg-primary/5 rounded-lg" 
+                          value={g.toDispatch} 
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            const newBreakdown = [...foundLotResult.breakdown];
+                            newBreakdown[i].toDispatch = val;
+                            setFoundLotResult({...foundLotResult, breakdown: newBreakdown});
+                          }} 
+                        />
                       </TableCell>
                     </TableRow>
                   ))}
