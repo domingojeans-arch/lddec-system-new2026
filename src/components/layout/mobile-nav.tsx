@@ -28,6 +28,11 @@ export function MobileNav() {
 
   // Filtrar por rol de forma segura
   const allowedItems = navItems.filter(item => {
+    // 0. Exclusividad estricta de Control Financiero Privado solo para admin
+    if (item.path === "/control-financiero-privado") {
+      return user?.role === "admin";
+    }
+
     // 1. Exclusividad estricta de Mantenimiento solo para EDGAR ADMIN
     if (item.title === "Mantenimiento") {
       return user?.role === "admin" || user?.displayName === "EDGAR ADMIN" || user?.email === "ugeofly@hotmail.com";

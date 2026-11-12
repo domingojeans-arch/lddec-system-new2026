@@ -169,6 +169,17 @@ service cloud.firestore {
       allow write: if isAdmin() || hasRole('facturacion') || hasRole('contador') || hasRole('financiero');
     }
 
+    // CONTROL FINANCIERO PRIVADO (Exclusivo Administrador)
+    match /private_financial_movements/{docId} {
+      allow read, write: if isAdmin();
+    }
+    match /private_financial_contacts/{docId} {
+      allow read, write: if isAdmin();
+    }
+    match /private_financial_categories/{docId} {
+      allow read, write: if isAdmin();
+    }
+
     // REGLA GENERAL DE SEGURIDAD
     match /{document=**} {
       allow read, write: if isAdmin();

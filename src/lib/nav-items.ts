@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, CircleArrowDown, ClipboardCheck, 
   Cog, Zap, Beaker, CircleArrowUp, Truck, Receipt, 
   Wallet, Building, History, FileText, 
-  AlertTriangle, PackageSearch, Wrench, Calendar, Store
+  AlertTriangle, PackageSearch, Wrench, Calendar, Store, Landmark
 } from "lucide-react";
 import { SystemRole } from "@/types/lddec";
 
@@ -112,9 +112,9 @@ export const navItems: NavItem[] = [
     allowedRoles: ["admin", "facturacion", "socio", "bodega"] 
   },
   { 
-    title: "Agenda Pagos", 
-    path: "/agenda-pagos", 
-    icon: Calendar, 
+    title: "Control Financiero Privado", 
+    path: "/control-financiero-privado", 
+    icon: Landmark, 
     allowedRoles: ["admin"] 
   },
   { 

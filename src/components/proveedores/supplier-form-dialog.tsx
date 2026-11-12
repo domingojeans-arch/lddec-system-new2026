@@ -11,7 +11,7 @@ import { Supplier, PURCHASE_CATEGORIES, CREDIT_DAYS_OPTIONS } from "@/types/prov
 import { db } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Store, Building2, Phone, Mail, MapPin, CalendarClock, Trash2 } from "lucide-react";
+import { Loader2, Store, Building2, Phone, Mail, MapPin, CalendarClock, Trash2, DollarSign, AlertCircle, BadgeAlert } from "lucide-react";
 
 interface SupplierFormDialogProps {
   isOpen: boolean;
@@ -40,6 +40,9 @@ export function SupplierFormDialog({
   const [categoriaPrincipal, setCategoriaPrincipal] = useState<string>("QUIMICOS");
   const [diasCreditoHabitual, setDiasCreditoHabitual] = useState<number>(30);
   const [notas, setNotas] = useState("");
+  const [saldoInicial, setSaldoInicial] = useState<string>("");
+  const [fechaSaldoInicial, setFechaSaldoInicial] = useState<string>("");
+  const [notasSaldoInicial, setNotasSaldoInicial] = useState<string>("");
 
   useEffect(() => {
     if (supplierToEdit) {
@@ -52,6 +55,9 @@ export function SupplierFormDialog({
       setCategoriaPrincipal(supplierToEdit.categoriaPrincipal || "QUIMICOS");
       setDiasCreditoHabitual(supplierToEdit.diasCreditoHabitual || 30);
       setNotas(supplierToEdit.notas || "");
+      setSaldoInicial(supplierToEdit.saldoInicial !== undefined ? String(supplierToEdit.saldoInicial) : "");
+      setFechaSaldoInicial(supplierToEdit.fechaSaldoInicial || "");
+      setNotasSaldoInicial(supplierToEdit.notasSaldoInicial || "");
     } else {
       setNombre("");
       setRuc("");
@@ -62,6 +68,9 @@ export function SupplierFormDialog({
       setCategoriaPrincipal("QUIMICOS");
       setDiasCreditoHabitual(30);
       setNotas("");
+      setSaldoInicial("");
+      setFechaSaldoInicial("");
+      setNotasSaldoInicial("");
     }
   }, [supplierToEdit, isOpen]);
 
@@ -84,6 +93,9 @@ export function SupplierFormDialog({
         categoriaPrincipal,
         diasCreditoHabitual: Number(diasCreditoHabitual) || 30,
         notas: notas.trim(),
+        saldoInicial: parseFloat(saldoInicial) || 0,
+        fechaSaldoInicial: fechaSaldoInicial.trim() || undefined,
+        notasSaldoInicial: notasSaldoInicial.trim() || undefined,
         updatedAt: serverTimestamp(),
       };
 
@@ -243,6 +255,51 @@ export function SupplierFormDialog({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* SECCIÓN: SALDO ANTERIOR ARRASTRADO */}
+            <div className="sm:col-span-2 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+              <div className="flex items-center gap-2">
+                <BadgeAlert className="h-4 w-4 text-amber-600" />
+                <span className="text-xs font-black uppercase text-amber-700 dark:text-amber-300">
+                  Saldo Anterior Arrastrado (Deuda que se debía antes de este mes)
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground font-medium">
+                Ingresa aquí el saldo que venías arrastrando con este proveedor antes de habilitar esta pestaña. Se sumará automáticamente a las facturas para reflejar la deuda total real.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Saldo Anterior ($)</Label>
+                  <Input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={saldoInicial}
+                    onChange={(e) => setSaldoInicial(e.target.value)}
+                    className="h-10 text-base font-black text-amber-600 erp-input"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-muted-foreground">Fecha de Corte</Label>
+                  <Input 
+                    type="date"
+                    value={fechaSaldoInicial}
+                    onChange={(e) => setFechaSaldoInicial(e.target.value)}
+                    className="h-10 text-xs font-bold erp-input"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase text-muted-foreground">Detalle o Referencia del Saldo Arrastrado</Label>
+                <Input 
+                  placeholder="Ej: Saldo pendiente corte al 30 de septiembre 2026..."
+                  value={notasSaldoInicial}
+                  onChange={(e) => setNotasSaldoInicial(e.target.value)}
+                  className="h-10 text-xs font-bold erp-input"
+                />
+              </div>
             </div>
 
             <div className="space-y-1.5 sm:col-span-2">

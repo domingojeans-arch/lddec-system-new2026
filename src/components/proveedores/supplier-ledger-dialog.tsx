@@ -18,7 +18,8 @@ import {
   AlertCircle,
   Clock,
   Calendar,
-  Trash2
+  Trash2,
+  BadgeAlert
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -47,10 +48,19 @@ export function SupplierLedgerDialog({
   // Filtrar facturas de este proveedor
   const supplierInvoices = invoices.filter((inv) => inv.proveedorId === supplier.id);
 
+  // Métricas de Saldo Arrastrado
+  const saldoInicialArrastrado = Number(supplier.saldoInicial) || 0;
+  const saldoInicialAbonado = Number(supplier.saldoInicialAbonado) || 0;
+  const saldoArrastradoPendiente = Math.max(0, saldoInicialArrastrado - saldoInicialAbonado);
+
   // Calcular métricas
-  const totalComprado = supplierInvoices.reduce((sum, inv) => sum + (inv.montoTotal || 0), 0);
-  const totalPagado = supplierInvoices.reduce((sum, inv) => sum + (inv.totalAbonado || 0), 0);
-  const saldoPendiente = supplierInvoices.reduce((sum, inv) => sum + (inv.saldoPendiente || 0), 0);
+  const totalFacturasComprado = supplierInvoices.reduce((sum, inv) => sum + (inv.montoTotal || 0), 0);
+  const totalFacturasPagado = supplierInvoices.reduce((sum, inv) => sum + (inv.totalAbonado || 0), 0);
+  const totalFacturasPendiente = supplierInvoices.reduce((sum, inv) => sum + (inv.saldoPendiente || 0), 0);
+
+  const totalComprado = totalFacturasComprado + saldoInicialArrastrado;
+  const totalPagado = totalFacturasPagado + saldoInicialAbonado;
+  const saldoPendiente = totalFacturasPendiente + saldoArrastradoPendiente;
 
   // Extraer todos los pagos realizados a este proveedor
   const allPayments = supplierInvoices.flatMap((inv) =>
@@ -130,6 +140,29 @@ export function SupplierLedgerDialog({
             </span>
           </div>
         </div>
+
+        {/* ALERTA DE SALDO ANTERIOR ARRASTRADO */}
+        {saldoInicialArrastrado > 0 && (
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 my-1">
+            <div className="space-y-0.5">
+              <span className="text-xs font-black uppercase text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+                <BadgeAlert className="h-4 w-4" /> Deuda Anterior Arrastrada
+              </span>
+              <p className="text-[11px] text-muted-foreground font-medium">
+                {supplier.notasSaldoInicial || "Saldo pendiente acumulado antes de la apertura del módulo"}
+                {supplier.fechaSaldoInicial ? ` • Corte: ${supplier.fechaSaldoInicial}` : ""}
+              </p>
+            </div>
+            <div className="text-left sm:text-right shrink-0">
+              <span className="text-lg font-black text-amber-600 block">
+                ${saldoArrastradoPendiente.toFixed(2)}
+              </span>
+              <span className="text-[10px] text-muted-foreground font-bold">
+                (Inicial: ${saldoInicialArrastrado.toFixed(2)} {saldoInicialAbonado > 0 ? `• Abonado: $${saldoInicialAbonado.toFixed(2)}` : ""})
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* TABS DE FACTURAS Y PAGOS */}
         <Tabs defaultValue="facturas" className="w-full mt-2">

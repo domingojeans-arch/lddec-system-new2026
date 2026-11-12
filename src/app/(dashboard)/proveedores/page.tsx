@@ -254,8 +254,13 @@ export default function ProveedoresPage() {
   }, [weeklyPayments]);
 
   const totalGlobalPendingBalance = useMemo(() => {
-    return invoices.reduce((sum, inv) => sum + (inv.saldoPendiente || 0), 0);
-  }, [invoices]);
+    const facturasPending = invoices.reduce((sum, inv) => sum + (inv.saldoPendiente || 0), 0);
+    const arrastradoPending = suppliers.reduce((sum, sup) => {
+      const arrastrado = Math.max(0, (Number(sup.saldoInicial) || 0) - (Number(sup.saldoInicialAbonado) || 0));
+      return sum + arrastrado;
+    }, 0);
+    return facturasPending + arrastradoPending;
+  }, [invoices, suppliers]);
 
   const overdueInvoices = useMemo(() => {
     const today = startOfDay(new Date());
@@ -339,18 +344,45 @@ export default function ProveedoresPage() {
     });
   }, [suppliers, supplierSearchTerm]);
 
-  // Saldos calculados por proveedor
+  // Saldos calculados por proveedor (incluyendo saldo arrastrado)
   const supplierBalances = useMemo(() => {
-    const balances: Record<string, { saldo: number; totalFacturas: number }> = {};
+    const balances: Record<string, { 
+      saldoFacturas: number; 
+      totalFacturas: number; 
+      saldoArrastrado: number; 
+      saldoTotal: number;
+      saldo: number;
+    }> = {};
+
+    suppliers.forEach((sup) => {
+      const arrastrado = Math.max(0, (Number(sup.saldoInicial) || 0) - (Number(sup.saldoInicialAbonado) || 0));
+      balances[sup.id] = { 
+        saldoFacturas: 0, 
+        totalFacturas: 0, 
+        saldoArrastrado: arrastrado, 
+        saldoTotal: arrastrado,
+        saldo: arrastrado
+      };
+    });
+
     invoices.forEach((inv) => {
       if (!balances[inv.proveedorId]) {
-        balances[inv.proveedorId] = { saldo: 0, totalFacturas: 0 };
+        balances[inv.proveedorId] = { 
+          saldoFacturas: 0, 
+          totalFacturas: 0, 
+          saldoArrastrado: 0, 
+          saldoTotal: 0,
+          saldo: 0
+        };
       }
-      balances[inv.proveedorId].saldo += inv.saldoPendiente || 0;
+      balances[inv.proveedorId].saldoFacturas += inv.saldoPendiente || 0;
       balances[inv.proveedorId].totalFacturas += 1;
+      balances[inv.proveedorId].saldoTotal += inv.saldoPendiente || 0;
+      balances[inv.proveedorId].saldo = balances[inv.proveedorId].saldoTotal;
     });
+
     return balances;
-  }, [invoices]);
+  }, [invoices, suppliers]);
 
   // Manejador para eliminar un pago / abono y recalcular saldos
   const handleDeletePayment = async (p: any, targetInv?: PurchaseInvoice) => {
@@ -1203,16 +1235,27 @@ export default function ProveedoresPage() {
 
                       <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-muted/40 text-xs">
                         <div>
-                          <span className="text-[10px] font-bold text-muted-foreground block uppercase">Facturas</span>
+                          <span className="text-[10px] font-bold text-muted-foreground block uppercase">Facturas Mes</span>
                           <span className="font-black text-foreground">{bal.totalFacturas} regist.</span>
                         </div>
                         <div>
-                          <span className="text-[10px] font-bold text-muted-foreground block uppercase">Saldo por pagar</span>
-                          <span className={`font-black ${bal.saldo > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
-                            ${bal.saldo.toFixed(2)}
+                          <span className="text-[10px] font-bold text-muted-foreground block uppercase">Saldo Total por Pagar</span>
+                          <span className={`font-black ${bal.saldoTotal > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                            ${bal.saldoTotal.toFixed(2)}
                           </span>
                         </div>
                       </div>
+
+                      {bal.saldoArrastrado > 0 && (
+                        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs">
+                          <span className="text-[10px] font-black text-amber-700 dark:text-amber-300 uppercase flex items-center gap-1">
+                            <BadgeAlert className="h-3.5 w-3.5" /> Deuda Anterior Arrastrada:
+                          </span>
+                          <span className="font-black text-amber-700 dark:text-amber-300">
+                            ${bal.saldoArrastrado.toFixed(2)}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="space-y-1 text-xs text-muted-foreground">
                         {sup.contacto && (

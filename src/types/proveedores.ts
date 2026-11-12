@@ -83,6 +83,10 @@ export interface Supplier {
   categoriaPrincipal?: PurchaseCategory | string;
   diasCreditoHabitual?: number;
   notas?: string;
+  saldoInicial?: number; // Saldo que veníamos arrastrando (deuda anterior)
+  fechaSaldoInicial?: string; // Fecha de corte del saldo arrastrado
+  notasSaldoInicial?: string; // Observaciones del saldo arrastrado
+  saldoInicialAbonado?: number; // Total abonado a esta deuda arrastrada
   createdAt?: any;
   updatedAt?: any;
 }

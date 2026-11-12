@@ -7,6 +7,7 @@ import {
   persistentMultipleTabManager, 
   Firestore 
 } from "firebase/firestore";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 // Configuración oficial LDDEC Manager
@@ -22,11 +23,17 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let storage: FirebaseStorage;
 
 try {
   // Inicialización limpia y segura
   app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   auth = getAuth(app);
+  try {
+    storage = getStorage(app);
+  } catch (errStorage) {
+    console.warn("Firebase Storage init:", errStorage);
+  }
 
   if (typeof window !== "undefined") {
     try {
@@ -61,4 +68,4 @@ try {
   db = null as any;
 }
 
-export { auth, db };
+export { auth, db, storage };
