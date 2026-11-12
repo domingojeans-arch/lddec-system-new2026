@@ -11,8 +11,7 @@ import {
   onSnapshot,
   Timestamp
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { db, storage } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { 
   PrivateMovement, 
   PrivateContact, 
@@ -23,51 +22,6 @@ import {
 const MOVEMENTS_COL = "private_financial_movements";
 const CONTACTS_COL = "private_financial_contacts";
 const CATEGORIES_COL = "private_financial_categories";
-
-/**
- * Sube un archivo a Firebase Storage en la ruta privada específica del módulo.
- * Si Storage falla o no está configurado, convierte a Base64 como fallback.
- */
-export async function uploadPrivateVoucher(file: File): Promise<{ url: string; name: string; type: string }> {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const fileName = `${Date.now()}_${safeName}`;
-  const storagePath = `private_financial/comprobantes/${fileName}`;
-
-  try {
-    if (storage) {
-      const storageRef = ref(storage, storagePath);
-      const snapshot = await uploadBytes(storageRef, file, {
-        contentType: file.type || "application/octet-stream"
-      });
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      return {
-        url: downloadUrl,
-        name: file.name,
-        type: file.type
-      };
-    }
-  } catch (err) {
-    console.warn("Storage upload failed, attempting fallback to base64:", err);
-  }
-
-  // Fallback: Si el archivo es menor a 2.5MB, guardarlo como Data URL Base64
-  return new Promise((resolve, reject) => {
-    if (file.size > 2.5 * 1024 * 1024) {
-      reject(new Error("El archivo supera el límite de 2.5MB permitido para almacenamiento directo."));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve({
-        url: reader.result as string,
-        name: file.name,
-        type: file.type
-      });
-    };
-    reader.onerror = (e) => reject(e);
-    reader.readAsDataURL(file);
-  });
-}
 
 /**
  * Verifica si ya existe un movimiento idéntico para evitar duplicados.
@@ -100,6 +54,26 @@ export function findPotentialDuplicate(
   return match || null;
 }
 
+function removeUndefinedFields<T extends Record<string, any>>(obj: T): T {
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === "object" && !(value instanceof Date) && !(value instanceof Timestamp)) {
+        if (Array.isArray(value)) {
+          cleaned[key] = value.filter(v => v !== undefined);
+        } else if (value.constructor === Object) {
+          cleaned[key] = removeUndefinedFields(value);
+        } else {
+          cleaned[key] = value;
+        }
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned;
+}
+
 /**
  * Guarda o actualiza un movimiento en la colección privada.
  */
@@ -112,36 +86,54 @@ export async function savePrivateMovement(
     ? doc(db, MOVEMENTS_COL, movement.id!) 
     : doc(collection(db, MOVEMENTS_COL));
 
+  const safeEmail = userEmail || "admin";
+
   const payload: any = {
-    ...movement,
     id: docRef.id,
-    contactName: movement.contactName.trim().toUpperCase(),
-    concept: movement.concept.trim(),
+    type: movement.type,
+    date: movement.date || new Date().toISOString().split("T")[0],
+    contactName: (movement.contactName || "").trim().toUpperCase(),
+    concept: (movement.concept || "").trim(),
     amount: Number(movement.amount) || 0,
-    reference: (movement.reference || "").trim().toUpperCase(),
-    notes: (movement.notes || "").trim(),
+    paymentMethod: movement.paymentMethod || "Transferencia Bancaria",
     dateTimeMs: movement.date ? new Date(movement.date + "T12:00:00").getTime() : Date.now(),
     updatedAt: serverTimestamp(),
-    updatedBy: userEmail
+    updatedBy: safeEmail
   };
+
+  if (movement.bank && movement.bank.trim()) {
+    payload.bank = movement.bank.trim();
+  }
+  if (movement.reference && movement.reference.trim()) {
+    payload.reference = movement.reference.trim().toUpperCase();
+  }
+  if (movement.notes && movement.notes.trim()) {
+    payload.notes = movement.notes.trim();
+  }
+  if (movement.type === "gasto_general" && movement.category) {
+    payload.category = movement.category;
+  }
 
   if (!isUpdate) {
     payload.createdAt = serverTimestamp();
-    payload.createdBy = userEmail;
+    payload.createdBy = safeEmail;
     payload.status = "ACTIVO";
   }
 
-  await setDoc(docRef, payload, { merge: true });
+  // Sanitizar absolutamente cualquier campo undefined antes de pasar a setDoc
+  const sanitized = removeUndefinedFields(payload);
+
+  await setDoc(docRef, sanitized, { merge: true });
 
   // Guardar contacto en catálogo si no existe
   if (movement.contactName) {
     const contactType = movement.type === "cobro_cliente" ? "cliente" : "proveedor";
-    await addPrivateContact(movement.contactName, contactType, userEmail).catch(() => {});
+    await addPrivateContact(movement.contactName, contactType, safeEmail).catch(() => {});
   }
 
   // Guardar categoría si es gasto general y no existe
   if (movement.type === "gasto_general" && movement.category) {
-    await addPrivateCategory(movement.category, userEmail).catch(() => {});
+    await addPrivateCategory(movement.category, safeEmail).catch(() => {});
   }
 
   return docRef.id;
@@ -155,14 +147,15 @@ export async function annulPrivateMovement(
   reason: string, 
   userEmail: string
 ): Promise<void> {
+  const safeEmail = userEmail || "admin";
   const docRef = doc(db, MOVEMENTS_COL, movementId);
   await updateDoc(docRef, {
     status: "ANULADO",
     annulReason: reason.trim(),
     annulledAt: serverTimestamp(),
-    annulledBy: userEmail,
+    annulledBy: safeEmail,
     updatedAt: serverTimestamp(),
-    updatedBy: userEmail
+    updatedBy: safeEmail
   });
 }
 
@@ -173,6 +166,7 @@ export async function addPrivateContact(name: string, type: "cliente" | "proveed
   const cleanName = name.trim().toUpperCase();
   if (!cleanName) return;
 
+  const safeEmail = userEmail || "admin";
   const contactId = `${type}_${cleanName.replace(/[^a-zA-Z0-9]/g, "_")}`;
   const docRef = doc(db, CONTACTS_COL, contactId);
 
@@ -181,7 +175,7 @@ export async function addPrivateContact(name: string, type: "cliente" | "proveed
     name: cleanName,
     type,
     createdAt: serverTimestamp(),
-    createdBy: userEmail
+    createdBy: safeEmail
   }, { merge: true });
 }
 
@@ -192,6 +186,7 @@ export async function addPrivateCategory(name: string, userEmail: string): Promi
   const cleanName = name.trim();
   if (!cleanName) return;
 
+  const safeEmail = userEmail || "admin";
   const catId = cleanName.toLowerCase().replace(/[^a-z0-9]/g, "_");
   const docRef = doc(db, CATEGORIES_COL, catId);
 
@@ -199,7 +194,7 @@ export async function addPrivateCategory(name: string, userEmail: string): Promi
     id: catId,
     name: cleanName,
     createdAt: serverTimestamp(),
-    createdBy: userEmail
+    createdBy: safeEmail
   }, { merge: true });
 }
 

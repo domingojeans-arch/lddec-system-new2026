@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
   DollarSign, 
@@ -17,13 +17,11 @@ import {
   Trash2, 
   AlertTriangle, 
   CheckCircle2, 
-  Upload, 
   X, 
   Calendar, 
   Building2, 
   Users, 
   Tag, 
-  Paperclip, 
   Lock, 
   RefreshCcw, 
   ChevronRight, 
@@ -103,7 +101,6 @@ import {
 import { 
   savePrivateMovement, 
   annulPrivateMovement, 
-  uploadPrivateVoucher, 
   findPotentialDuplicate, 
   seedInitialCategories,
   addPrivateCategory,
@@ -158,7 +155,6 @@ export default function ControlFinancieroPrivadoPage() {
   const [annullingMovement, setAnnullingMovement] = useState<PrivateMovement | null>(null);
   const [annulReason, setAnnulReason] = useState("");
   const [duplicateWarning, setDuplicateWarning] = useState<{ match: PrivateMovement; pendingPayload: any } | null>(null);
-  const [viewingVoucher, setViewingVoucher] = useState<{ url: string; name: string; type?: string } | null>(null);
 
   // Estados del formulario de registro
   const [formType, setFormType] = useState<MovementType>("cobro_cliente");
@@ -171,8 +167,6 @@ export default function ControlFinancieroPrivadoPage() {
   const [formBank, setFormBank] = useState("");
   const [formReference, setFormReference] = useState("");
   const [formNotes, setFormNotes] = useState("");
-  const [formVoucher, setFormVoucher] = useState<{ url: string; name: string; type?: string } | null>(null);
-  const [uploadingFile, setUploadingFile] = useState(false);
   const [savingRecord, setSavingRecord] = useState(false);
 
   // Estado para nueva categoría rápida
@@ -186,8 +180,6 @@ export default function ControlFinancieroPrivadoPage() {
   // Pestaña activa principal
   const [activeTab, setActiveTab] = useState("movimientos");
 
-  // File input ref
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Carga reactiva de datos desde Firestore
   useEffect(() => {
@@ -407,9 +399,7 @@ export default function ControlFinancieroPrivadoPage() {
     setFormBank("");
     setFormReference("");
     setFormNotes("");
-    setFormVoucher(null);
     setEditingMovement(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // Abrir modal para crear
@@ -432,30 +422,7 @@ export default function ControlFinancieroPrivadoPage() {
     setFormBank(m.bank || "");
     setFormReference(m.reference || "");
     setFormNotes(m.notes || "");
-    setFormVoucher(m.voucherUrl ? { url: m.voucherUrl, name: m.voucherName || "Comprobante", type: m.voucherType } : null);
     setIsRegisterOpen(true);
-  };
-
-  // Subir archivo adjunto
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploadingFile(true);
-    try {
-      const uploaded = await uploadPrivateVoucher(file);
-      setFormVoucher(uploaded);
-      toast({ title: "Comprobante Cargado", description: file.name });
-    } catch (err: any) {
-      console.error(err);
-      toast({ 
-        variant: "destructive", 
-        title: "Error al cargar archivo", 
-        description: err.message || "No se pudo subir el archivo." 
-      });
-    } finally {
-      setUploadingFile(false);
-    }
   };
 
   // Procesar guardado con verificación de duplicados
@@ -481,14 +448,12 @@ export default function ControlFinancieroPrivadoPage() {
       concept: formConcept.trim(),
       amount: amountNum,
       paymentMethod: formMethod,
-      bank: formBank.trim() || undefined,
-      reference: formReference.trim() || undefined,
-      category: formType === "gasto_general" ? formCategory : undefined,
-      notes: formNotes.trim() || undefined,
-      voucherUrl: formVoucher?.url || undefined,
-      voucherName: formVoucher?.name || undefined,
-      voucherType: formVoucher?.type || undefined
     };
+
+    if (formBank.trim()) payload.bank = formBank.trim();
+    if (formReference.trim()) payload.reference = formReference.trim().toUpperCase();
+    if (formType === "gasto_general" && formCategory) payload.category = formCategory;
+    if (formNotes.trim()) payload.notes = formNotes.trim();
 
     if (editingMovement) {
       payload.id = editingMovement.id;
@@ -891,7 +856,6 @@ export default function ControlFinancieroPrivadoPage() {
                       <TableHead className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Concepto</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Forma Pago / Banco</TableHead>
                       <TableHead className="text-right text-[10px] font-black uppercase text-muted-foreground tracking-wider">Valor ($)</TableHead>
-                      <TableHead className="text-center text-[10px] font-black uppercase text-muted-foreground tracking-wider">Comprobante</TableHead>
                       <TableHead className="text-right pr-6 text-[10px] font-black uppercase text-muted-foreground tracking-wider">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -963,24 +927,6 @@ export default function ControlFinancieroPrivadoPage() {
                             m.type === "cobro_cliente" ? "text-emerald-600" : "text-red-600"
                           }`}>
                             {m.type === "cobro_cliente" ? "+" : "-"}${Number(m.amount).toFixed(2)}
-                          </TableCell>
-
-                          {/* Comprobante */}
-                          <TableCell className="text-center">
-                            {m.voucherUrl ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setViewingVoucher({ url: m.voucherUrl!, name: m.voucherName || "Comprobante", type: m.voucherType })}
-                                className="h-8 px-2.5 rounded-lg text-primary hover:bg-primary/10 font-bold text-[10px] gap-1.5"
-                                title="Ver Comprobante"
-                              >
-                                <Paperclip className="h-3.5 w-3.5" />
-                                <span>Ver</span>
-                              </Button>
-                            ) : (
-                              <span className="text-[10px] text-muted-foreground/40 font-bold">-</span>
-                            )}
                           </TableCell>
 
                           {/* Acciones */}
@@ -1257,7 +1203,6 @@ export default function ControlFinancieroPrivadoPage() {
                         <TableHead className="text-[10px] font-black uppercase">Método / Banco</TableHead>
                         <TableHead className="text-[10px] font-black uppercase">Referencia</TableHead>
                         <TableHead className="text-right text-[10px] font-black uppercase">Valor ($)</TableHead>
-                        <TableHead className="text-center text-[10px] font-black uppercase">Comprobante</TableHead>
                         <TableHead className="text-right pr-6 text-[10px] font-black uppercase">Estado</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1276,18 +1221,6 @@ export default function ControlFinancieroPrivadoPage() {
                           }`}>
                             ${Number(m.amount).toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-center">
-                            {m.voucherUrl ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setViewingVoucher({ url: m.voucherUrl!, name: m.voucherName || "Comprobante", type: m.voucherType })}
-                                className="h-7 px-2 text-primary text-[10px] font-bold"
-                              >
-                                Ver
-                              </Button>
-                            ) : "-"}
-                          </TableCell>
                           <TableCell className="text-right pr-6">
                             <Badge className={`text-[9px] font-black uppercase ${
                               m.status === "ACTIVO" 
@@ -1301,7 +1234,7 @@ export default function ControlFinancieroPrivadoPage() {
                       ))}
                       {contactConsultMovements.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-6 text-xs text-muted-foreground font-bold">
+                          <TableCell colSpan={6} className="text-center py-6 text-xs text-muted-foreground font-bold">
                             No hay movimientos registrados para este contacto.
                           </TableCell>
                         </TableRow>
@@ -1613,67 +1546,6 @@ export default function ControlFinancieroPrivadoPage() {
                 className="w-full p-3 rounded-xl bg-background border border-border font-medium text-xs erp-input resize-none focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
-
-            {/* Adjuntar Comprobante */}
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-muted-foreground">Comprobante Adjunto (Foto, PDF o Captura)</Label>
-              <input 
-                ref={fileInputRef}
-                type="file" 
-                accept="image/*,application/pdf"
-                onChange={handleFileChange}
-                className="hidden" 
-              />
-
-              {formVoucher ? (
-                <div className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/20">
-                  <div className="flex items-center gap-2 truncate">
-                    <Paperclip className="h-4 w-4 text-primary shrink-0" />
-                    <span className="text-xs font-black text-foreground truncate max-w-xs">{formVoucher.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setViewingVoucher(formVoucher)}
-                      className="h-7 text-xs font-bold text-primary"
-                    >
-                      Ver
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => { setFormVoucher(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                      className="h-7 text-xs font-bold text-red-600 hover:text-red-700"
-                    >
-                      Quitar
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={uploadingFile}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-12 rounded-xl border-dashed border-border font-bold text-xs uppercase gap-2 hover:bg-muted/30"
-                >
-                  {uploadingFile ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      <span>Subiendo archivo a Firebase...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 text-muted-foreground" />
-                      <span>Subir Foto de Transferencia, Factura o Recibo PDF</span>
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
           </div>
 
           {/* Footer */}
@@ -1687,7 +1559,7 @@ export default function ControlFinancieroPrivadoPage() {
               Cancelar
             </Button>
             <Button
-              disabled={savingRecord || uploadingFile}
+              disabled={savingRecord}
               onClick={() => handleSubmitRecord()}
               className="flex-1 rounded-xl h-11 bg-primary text-white font-black text-xs uppercase tracking-wide gap-2 shadow-lg"
             >
@@ -1790,53 +1662,6 @@ export default function ControlFinancieroPrivadoPage() {
               className="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-xl h-10 font-black text-xs uppercase"
             >
               Confirmar Anulación
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* ============================================================== */}
-      {/* MODAL: VER COMPROBANTE ADJUNTO */}
-      {/* ============================================================== */}
-      <Dialog open={!!viewingVoucher} onOpenChange={() => setViewingVoucher(null)}>
-        <DialogContent className="max-w-2xl p-6 rounded-3xl bg-card border-none shadow-2xl space-y-4">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <div className="flex items-center gap-2">
-              <Paperclip className="h-4 w-4 text-primary" />
-              <DialogTitle className="text-sm font-black uppercase text-foreground truncate max-w-sm">
-                {viewingVoucher?.name}
-              </DialogTitle>
-            </div>
-            <a 
-              href={viewingVoucher?.url} 
-              target="_blank" 
-              rel="noreferrer" 
-              className="text-xs font-black uppercase text-primary hover:underline flex items-center gap-1"
-            >
-              <span>Abrir Completo</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </a>
-          </div>
-
-          <div className="max-h-[65vh] overflow-auto rounded-2xl bg-muted/20 border border-border p-2 flex items-center justify-center">
-            {viewingVoucher?.url.startsWith("data:application/pdf") || viewingVoucher?.name?.toLowerCase().endsWith(".pdf") ? (
-              <iframe src={viewingVoucher.url} className="w-full h-96 rounded-xl border-none" />
-            ) : (
-              <img 
-                src={viewingVoucher?.url} 
-                alt="Comprobante" 
-                className="max-h-[60vh] max-w-full rounded-xl object-contain shadow-md" 
-              />
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setViewingVoucher(null)}
-              className="w-full rounded-xl h-10 font-bold text-xs uppercase"
-            >
-              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>
