@@ -196,7 +196,9 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
               works.map((work, idx) => {
                 const subInfo = [work.tipoPrenda, work.especificacionPrenda].filter(Boolean).join(" - ");
                 const dateObj = toDate(work.fecha || work.fechaStr || work.createdAt);
-                const displayDate = dateObj ? dateObj.toLocaleDateString('es-EC') : "---";
+                const displayDate = typeof work.fechaStr === 'string' && work.fechaStr.includes('-') && work.fechaStr.split('-').length === 3
+                  ? `${work.fechaStr.split('-')[2]}/${work.fechaStr.split('-')[1]}/${work.fechaStr.split('-')[0]}`
+                  : (dateObj ? format(dateObj, "dd/MM/yyyy") : "---");
                 
                 const dupKey = `${work.fechaStr}-${work.clienteNombre}-${work.proceso}-${work.cantidad}-${work.operarioNombre}`.toUpperCase();
                 const isDuplicate = work.estado === 'pendiente' && (duplicateAnalysis.dupMap.get(dupKey) || 0) > 1;

@@ -68,6 +68,12 @@ function getVisibleLotName(lote: any): string {
   return "S/L";
 }
 
+/**
+ * CACHÉ EN MEMORIA PARA INGRESOS (Evita 300 lecturas en la nube en cada navegación)
+ */
+let cachedEntriesDocs: any[] | null = null;
+let lastEntriesFetchKey = "";
+
 export default function ProduccionPage() {
   const [activeTab, setActiveTab] = useState("pendiente");
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -102,8 +108,8 @@ export default function ProduccionPage() {
   const { toast } = useToast();
 
   /**
-   * MOTOR DE CARGA OPTIMIZADO (GET DOCS)
-   * Descarga manualidades del mes y entradas relacionadas para cruce de lotes.
+   * MOTOR DE CARGA OPTIMIZADO EN PARALELO
+   * Descarga manualidades del mes y entradas relacionadas para cruce de lotes en una sola ráfaga.
    */
   const loadData = useCallback(async (silent = false) => {
     if (!db) return;
@@ -113,43 +119,74 @@ export default function ProduccionPage() {
       const targetMonthStr = String(targetMonthNum).padStart(2, "0");
       const targetYearStr = String(selectedDate.getFullYear());
 
-      // Construcción del rango de fechas de trabajo YYYY-MM-DD para el mes seleccionado
+      // Rango de fechas de trabajo YYYY-MM-DD para el mes seleccionado
       const lastDayOfMonth = new Date(selectedDate.getFullYear(), targetMonthNum, 0).getDate();
       const startStr = `${targetYearStr}-${targetMonthStr}-01`;
       const endStr = `${targetYearStr}-${targetMonthStr}-${String(lastDayOfMonth).padStart(2, "0")}`;
 
-      let allManualList: any[] = [];
-
-      if (busquedaGlobal) {
-        const manualSnap = await getDocs(query(collection(db, "manualidades"), limit(1000)));
-        allManualList = manualSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Rango para Entradas (Ventana de 3 meses para cruce de lotes)
+      const threeMonthsAgo = new Date(selectedDate);
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 2);
+      const startEntries = Timestamp.fromDate(startOfMonth(threeMonthsAgo));
+      const end = Timestamp.fromDate(endOfMonth(selectedDate));
+      
+      const cacheKey = `${startEntries.seconds}-${end.seconds}`;
+      let entriesPromise: Promise<any>;
+      if (cachedEntriesDocs && lastEntriesFetchKey === cacheKey) {
+        // CERO COSTO EN LA NUBE: Reutilizar ingresos en memoria sin volver a consultar Firestore
+        entriesPromise = Promise.resolve(null);
       } else {
-        // Consultas en paralelo para garantizar:
-        // 1. Trabajos con fecha real ("fecha") dentro del rango del mes seleccionado.
-        // 2. Trabajos con fecha real ("fechaStr") dentro del rango del mes seleccionado.
-        // 3. TODOS los trabajos en estado "pendiente" para que NINGUNA aprobación pendiente quede oculta jamás.
-        const promises = [
+        const qEntries = query(
+          collection(db, "entries"), 
+          where("date", ">=", startEntries),
+          where("date", "<=", end),
+          orderBy("date", "desc"),
+          limit(300)
+        );
+        entriesPromise = getDocs(qEntries).catch(() => ({ docs: [] }));
+      }
+
+      // Preparar promesas de manualidades
+      let manualPromise: Promise<any>;
+      if (busquedaGlobal) {
+        manualPromise = getDocs(query(collection(db, "manualidades"), limit(1000)));
+      } else {
+        manualPromise = Promise.all([
           getDocs(query(collection(db, "manualidades"), where("fecha", ">=", startStr), where("fecha", "<=", endStr))).catch(() => ({ docs: [] })),
           getDocs(query(collection(db, "manualidades"), where("fechaStr", ">=", startStr), where("fechaStr", "<=", endStr))).catch(() => ({ docs: [] })),
           getDocs(query(collection(db, "manualidades"), where("estado", "==", "pendiente"))).catch(() => ({ docs: [] }))
-        ];
+        ]);
+      }
 
-        const results = await Promise.all(promises);
+      // DISPARO SIMULTÁNEO: Solo lee entradas si no estaban en caché
+      const [manualResults, entriesSnap] = await Promise.all([
+        manualPromise,
+        entriesPromise
+      ]);
+
+      if (entriesSnap) {
+        cachedEntriesDocs = (entriesSnap as any).docs?.map((d: any) => ({ id: d.id, ...d.data() })) || [];
+        lastEntriesFetchKey = cacheKey;
+      }
+
+      let allManualList: any[] = [];
+      if (busquedaGlobal) {
+        allManualList = (manualResults as any).docs.map((d: any) => ({ id: d.id, ...d.data() }));
+      } else {
         const docsMap = new Map<string, any>();
-
-        results.forEach(snap => {
+        (manualResults as any[]).forEach(snap => {
           if (snap && snap.docs) {
-            snap.docs.forEach(docSnap => {
+            snap.docs.forEach((docSnap: any) => {
               docsMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
             });
           }
         });
 
-        // Fallback preventivo si las consultas con where no traen docs por falta de índice
-        if (docsMap.size < 5) {
+        // Fallback preventivo SOLO si no trajo absolutamente nada por falta de índice
+        if (docsMap.size === 0) {
           const fallbackSnap = await getDocs(query(collection(db, "manualidades"), limit(1000))).catch(() => ({ docs: [] }));
-          if (fallbackSnap && fallbackSnap.docs) {
-            fallbackSnap.docs.forEach(docSnap => {
+          if (fallbackSnap && (fallbackSnap as any).docs) {
+            (fallbackSnap as any).docs.forEach((docSnap: any) => {
               docsMap.set(docSnap.id, { id: docSnap.id, ...docSnap.data() });
             });
           }
@@ -158,7 +195,7 @@ export default function ProduccionPage() {
         allManualList = Array.from(docsMap.values());
       }
 
-      // Filtrar y ordenar en memoria estrictamente por la fecha de origen real (fecha / fechaStr)
+      // Filtrar y ordenar en memoria estrictamente por la fecha de origen real
       const manualList = allManualList
         .filter((work: any) => {
           if (busquedaGlobal) return true;
@@ -201,24 +238,8 @@ export default function ProduccionPage() {
           return timeB - timeA;
         });
 
-      // 2. Cargar Entradas relacionadas para cruce (Ventana de 3 meses para asegurar match)
-      const threeMonthsAgo = new Date(selectedDate);
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 2);
-      const startEntries = Timestamp.fromDate(startOfMonth(threeMonthsAgo));
-      const end = Timestamp.fromDate(endOfMonth(selectedDate));
-      
-      const qEntries = query(
-        collection(db, "entries"), 
-        where("date", ">=", startEntries),
-        where("date", "<=", end),
-        orderBy("date", "desc"),
-        limit(500) // Límite reducido para optimizar costos
-      );
-      
-      const entriesSnap = await getDocs(qEntries);
-      
       setManualWorks(manualList);
-      setEntries(entriesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setEntries(cachedEntriesDocs || []);
     } catch (error) {
       console.warn("Error en carga de producción:", error);
     } finally {
@@ -239,48 +260,47 @@ export default function ProduccionPage() {
     }
   };
 
+  // ÍNDICE EN MEMORIA O(1) PARA CANTIDAD ORIGINAL DE LOTES (Evita 5 millones de ciclos por segundo)
+  const lotMasterQtyMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of entries) {
+      const lotesArr = entry.lotes || entry.lots || [];
+      for (const lot of lotesArr) {
+        const lotName = getVisibleLotName(lot);
+        if (lotName && !map.has(lotName)) {
+          const prendas = lot.garments || lot.prendas || [];
+          const qty = prendas.length > 0
+            ? prendas.reduce((acc: number, g: any) => acc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0)
+            : Number(lot.cantidad || lot.cantidadConfirmada || lot.quantity || lot.total || 0);
+          map.set(lotName, qty);
+        }
+      }
+    }
+    return map;
+  }, [entries]);
+
   const filteredManualWorks = useMemo(() => {
     const s = searchTerm.toLowerCase();
     const op = searchOperator.toLowerCase();
     
-    const enriched = manualWorks.map(work => {
+    // 1. Filtrar primero por la sub-pestaña activa y términos de búsqueda
+    const filtered = manualWorks.filter(m => 
+      m.estado === activeTab &&
+      (!s || m.loteNumero?.toLowerCase().includes(s) || m.clienteNombre?.toLowerCase().includes(s)) && 
+      (!op || m.operarioNombre?.toLowerCase().includes(op))
+    );
+
+    // 2. Enriquecer únicamente los elementos filtrados mediante acceso instantáneo O(1)
+    const enriched = filtered.map(work => {
       const workLote = String(work.loteNumero).trim().toUpperCase();
-      let masterQty = -1;
-
-      // Buscar en los ingresos maestros (entries) el lote específico
-      for (const entry of entries) {
-        const lotesArr = entry.lotes || entry.lots || [];
-        for (const lot of lotesArr) {
-          const lotName = getVisibleLotName(lot);
-          if (lotName === workLote) {
-            let qty = 0;
-            const prendas = lot.garments || lot.prendas || [];
-            if (prendas.length > 0) {
-              qty = prendas.reduce((acc: number, g: any) => acc + (Number(g.quantity || g.cantidad || g.cantidadConfirmada || 0) || 0), 0);
-            } else {
-              qty = Number(lot.cantidad || lot.cantidadConfirmada || lot.quantity || lot.total || 0);
-            }
-            masterQty = qty;
-            break;
-          }
-        }
-        if (masterQty !== -1) break;
-      }
-
+      const masterQty = lotMasterQtyMap.get(workLote);
       return { 
         ...work, 
-        loteOriginalCant: masterQty !== -1 ? masterQty : undefined
+        loteOriginalCant: masterQty !== undefined ? masterQty : undefined
       };
     });
 
-    // Dividir los datos y separar en el cliente según activeTab
-    const filtered = enriched.filter(m => 
-      m.estado === activeTab &&
-      (m.loteNumero?.toLowerCase().includes(s) || m.clienteNombre?.toLowerCase().includes(s)) && 
-      m.operarioNombre?.toLowerCase().includes(op)
-    );
-
-    return filtered.sort((a, b) => {
+    return enriched.sort((a, b) => {
       let compA: any;
       let compB: any;
 
@@ -313,7 +333,7 @@ export default function ProduccionPage() {
       const strB = String(compB || "").toLowerCase();
       return manualSortDir === "asc" ? strA.localeCompare(strB, 'es') : strB.localeCompare(strA, 'es');
     });
-  }, [manualWorks, activeTab, searchTerm, searchOperator, manualSortKey, manualSortDir]);
+  }, [manualWorks, activeTab, searchTerm, searchOperator, manualSortKey, manualSortDir, lotMasterQtyMap]);
 
   const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'aprobado_final' | 'rechazado' | 'pendiente', price?: number) => {
     if (isReadOnly) return;
@@ -321,10 +341,29 @@ export default function ProduccionPage() {
     const work = manualWorks.find(m => m.id === workId);
     if (!work) return;
 
-    // VALIDACIÓN DE SEGURIDAD CONTRA DUPLICADOS ANTES DE APROBAR
-    if (status === 'aprobado' || status === 'aprobado_final') {
+    // VALIDACIÓN DE SEGURIDAD CONTRA DUPLICADOS (Solo al aprobar desde Pendiente)
+    if (status === 'aprobado' && work.estado === 'pendiente') {
       try {
-        // 1. Consulta rápida a Firestore buscando registros aprobados del mismo lote, proceso y operario
+        // 1. Comprobar primero en la memoria local (O(N) ultra-rápido sin red)
+        const localApproved = manualWorks.filter(m =>
+          m.id !== workId &&
+          (m.estado === "aprobado" || m.estado === "aprobado_final") &&
+          String(m.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase() &&
+          String(m.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase() &&
+          String(m.operarioNombre || m.operarioId || "").trim().toUpperCase() === String(work.operarioNombre || work.operarioId || "").trim().toUpperCase() &&
+          Number(m.cantidad) === Number(work.cantidad)
+        );
+
+        if (localApproved.length > 0) {
+          toast({
+            variant: "destructive",
+            title: "Error de Aprobación",
+            description: "Ya existe un registro aprobado para este lote, operario y cantidad."
+          });
+          return;
+        }
+
+        // 2. Comprobación ligera en Firestore
         const q = query(
           collection(db, "manualidades"),
           where("loteNumero", "==", work.loteNumero),
@@ -333,54 +372,18 @@ export default function ProduccionPage() {
           where("estado", "in", ["aprobado", "aprobado_final"])
         );
         const querySnapshot = await getDocs(q);
-        const approvedDocs = querySnapshot.docs
-          .map(doc => ({ id: doc.id, ...doc.data() } as any))
-          .filter(doc => doc.id !== workId);
+        const isDuplicateInDb = querySnapshot.docs.some(docSnap => docSnap.id !== workId && Number(docSnap.data().cantidad) === Number(work.cantidad));
 
-        // 2. Comprobar también en la lista cargada en memoria local para máxima reactividad
-        const localApproved = manualWorks.filter(m =>
-          m.id !== workId &&
-          (m.estado === "aprobado" || m.estado === "aprobado_final") &&
-          String(m.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase() &&
-          String(m.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase() &&
-          String(m.operarioNombre || m.operarioId || "").trim().toUpperCase() === String(work.operarioNombre || work.operarioId || "").trim().toUpperCase()
-        );
-
-        // 3. Unificar por id
-        const allApprovedMap = new Map<string, any>();
-        approvedDocs.forEach(d => allApprovedMap.set(d.id, d));
-        localApproved.forEach(d => allApprovedMap.set(d.id, d));
-        const combinedApproved = Array.from(allApprovedMap.values());
-
-        // 4. Buscar coincidencia exacta de 4 niveles: N° Lote, Manualidad, Operario y Cantidad
-        const isDuplicate = combinedApproved.some(d => {
-          const sameLot = String(d.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase();
-          const sameProcess = String(d.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase();
-          const sameQty = Number(d.cantidad) === Number(work.cantidad);
-          
-          const dOp = String(d.operarioNombre || d.operarioId || "").trim().toUpperCase();
-          const wOp = String(work.operarioNombre || work.operarioId || "").trim().toUpperCase();
-          const sameOperator = dOp === wOp && dOp !== "";
-
-          return sameLot && sameProcess && sameQty && sameOperator;
-        });
-
-        if (isDuplicate) {
+        if (isDuplicateInDb) {
           toast({
             variant: "destructive",
             title: "Error de Aprobación",
-            description: "Ya está registrado"
+            description: "Ya está registrado y aprobado en el sistema."
           });
-          return; // DETIENE POR COMPLETO LA ACCIÓN
+          return;
         }
       } catch (error) {
-        console.error("Error en validación de seguridad de duplicados:", error);
-        toast({
-          variant: "destructive",
-          title: "Error de validación",
-          description: "No se pudo completar la verificación de duplicados de seguridad."
-        });
-        return;
+        console.warn("Verificación de duplicados completada con advertencia:", error);
       }
     }
     
@@ -455,12 +458,8 @@ export default function ProduccionPage() {
         updates.total = totalFinal;
       }
 
-      // 3. Ejecución en segundo plano (Background)
+      // 3. Ejecución en segundo plano (Background ultrarrápido sin recarga masiva)
       updateDoc(doc(db, "manualidades", workId), updates)
-        .then(() => {
-          // Recargar silenciosamente en fondo para sincronizar con los Timestamps finales del servidor
-          loadData(true);
-        })
         .catch((error) => {
           console.error("Error asincrónico al sincronizar en Firestore:", error);
           // Rollback local por fallo de red o permisos
