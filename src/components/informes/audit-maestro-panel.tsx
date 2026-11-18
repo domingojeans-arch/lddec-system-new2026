@@ -248,7 +248,7 @@ export function AuditMaestroPanel() {
                       <TableHead className="text-[10px] font-black uppercase text-center w-[120px]">Progreso</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-right">Ingreso</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-right">Salida</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-right pr-8">Guías Detectadas</TableHead>
+                      <TableHead className="text-xs font-black uppercase text-right pr-8">Guías Detectadas</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -263,11 +263,20 @@ export function AuditMaestroPanel() {
                         <TableCell className="text-right font-bold">{lot.original}</TableCell>
                         <TableCell className="text-right font-black text-emerald-600">{lot.despachado}</TableCell>
                         <TableCell className="text-right pr-8">
-                          <div className="flex flex-wrap justify-end gap-1">
+                          <div className="flex flex-wrap justify-end items-center gap-2">
                             {lot.outs.map((num: string, idx: number) => (
-                              <Badge key={idx} variant="outline" className="text-[8px] font-black border-muted-foreground/20 px-1.5 h-4 uppercase">{num}</Badge>
+                              <Badge 
+                                key={idx} 
+                                className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 font-black text-sm px-3.5 py-1.5 rounded-xl uppercase tracking-wider shadow-sm transition-all"
+                              >
+                                N° {num}
+                              </Badge>
                             ))}
-                            {lot.outs.length === 0 && <span className="text-[9px] font-bold text-muted-foreground/30 uppercase tracking-widest italic">PENDIENTE</span>}
+                            {lot.outs.length === 0 && (
+                              <Badge variant="outline" className="text-[10px] font-bold text-amber-600 bg-amber-500/10 border-amber-500/20 px-3 py-1 rounded-lg uppercase tracking-wider">
+                                Sin Guías (Pendiente)
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

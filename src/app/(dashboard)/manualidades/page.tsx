@@ -55,6 +55,7 @@ export default function ManualidadesPage() {
   const [loadingConfig, setLoadingLoadingConfig] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [showConfirm, setReverseShowConfirm] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   
   const [manualWorkers, setManualWorkers] = useState<string[]>([]);
@@ -194,11 +195,13 @@ export default function ManualidadesPage() {
   }, [formData.proceso, formData.tipoPrenda, formData.cantidad, tariffs]);
 
   const handleFinalSave = async () => {
+    if (isSaving) return;
     try {
       if (!formData.operarioNombre) {
         toast({ variant: "destructive", title: "Error", description: "Debe seleccionar un operario." });
         return;
       }
+      setIsSaving(true);
       const loteFormatted = formData.loteNumero.toUpperCase().trim();
       const operarioFormatted = formData.operarioNombre.toUpperCase().trim();
       const procesoFormatted = formData.proceso.toUpperCase().trim();
@@ -207,24 +210,31 @@ export default function ManualidadesPage() {
       // 1. Conservar siempre la fecha real seleccionada para el trabajo
       let finalFecha = formData.fecha || getLocalDateString();
 
-      // 2. Validación estricta de duplicados en Firestore
+      // 2. Validación de duplicados RÁPIDA con índice directo de lote (0.05s)
       const qDup = query(
         collection(db, "manualidades"),
         where("loteNumero", "==", loteFormatted),
-        where("operarioNombre", "==", operarioFormatted),
-        where("proceso", "==", procesoFormatted),
-        where("cantidad", "==", cantidadNum)
+        limit(50)
       );
       
       const dupSnap = await getDocs(qDup);
-      const activeDuplicates = dupSnap.docs.filter(docSnap => docSnap.data()?.estado !== "rechazado");
+      const isDuplicate = dupSnap.docs.some(docSnap => {
+        const d = docSnap.data();
+        if (d?.estado === "rechazado") return false;
+        return (
+          String(d.operarioNombre || "").trim().toUpperCase() === operarioFormatted &&
+          String(d.proceso || "").trim().toUpperCase() === procesoFormatted &&
+          Number(d.cantidad) === cantidadNum
+        );
+      });
 
-      if (activeDuplicates.length > 0) {
+      if (isDuplicate) {
         toast({ 
           variant: "destructive", 
           title: "Error: Este registro ya existe exactamente igual para este operario." 
         });
         setReverseShowConfirm(false);
+        setIsSaving(false);
         return;
       }
 
@@ -236,6 +246,8 @@ export default function ManualidadesPage() {
     } catch (error) { 
       console.error("Error al guardar:", error);
       toast({ variant: "destructive", title: "Error al guardar el registro" }); 
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -306,7 +318,7 @@ export default function ManualidadesPage() {
         </div>
       </div>
       <div className="space-y-6 pt-4"><h3 className="text-sm font-black text-muted-foreground uppercase text-center tracking-[0.3em]">ACTIVIDAD RECIENTE</h3><div className="rounded-[2rem] border border-border bg-card overflow-hidden shadow-premium"><Table><TableHeader className="bg-muted/50"><TableRow><TableHead className="text-[10px] font-black uppercase py-4 pl-8">HORA</TableHead><TableHead className="text-[10px] font-black uppercase">FECHA</TableHead><TableHead className="text-[10px] font-black uppercase">OPERARIO</TableHead><TableHead className="text-[10px] font-black uppercase">LOTE</TableHead><TableHead className="text-[10px] font-black uppercase">MANUALIDAD</TableHead><TableHead className="text-[10px] font-black uppercase text-center">CANT.</TableHead><TableHead className="text-[10px] font-black uppercase text-center pr-8">CATEGORÍA</TableHead></TableRow></TableHeader><TableBody>{recentActivity.map((item) => (<TableRow key={item.id} className="border-b border-border hover:bg-muted/5"><TableCell className="text-[11px] font-medium text-muted-foreground py-5 pl-8">{item.hora}</TableCell><TableCell className="text-[11px] font-medium text-muted-foreground">{item.fechaDisplay}</TableCell><TableCell className="text-xs font-bold uppercase">{item.operarioNombre}</TableCell><TableCell className="text-xs font-black text-primary uppercase">{item.loteNumero}</TableCell><TableCell className="text-xs font-medium uppercase">{item.proceso}</TableCell><TableCell className="text-sm font-black text-center">{item.cantidad}</TableCell><TableCell className="text-center pr-8"><Badge variant="outline" className={cn("text-[9px] font-black border-none px-3 py-1 rounded-full", item.tipoPrenda === 'Adulto' ? "bg-blue-500/10 text-blue-600" : "bg-purple-500/10 text-purple-600")}>{item.tipoPrenda === 'Adulto' ? 'Prenda Adulto / Prenda Grande' : item.tipoPrenda === 'Niño' ? 'Prenda Niño / Prenda Pequeña' : item.tipoPrenda}</Badge></TableCell></TableRow>))}</TableBody></Table></div></div>
-      <AlertDialog open={showConfirm} onOpenChange={setReverseShowConfirm}><AlertDialogContent className="rounded-[2.5rem] max-w-md border-none shadow-2xl bg-card p-10"><AlertDialogHeader className="items-center text-center"><AlertDialogTitle className="text-2xl font-black tracking-tight flex flex-col items-center gap-4"><CheckCircle2 className="h-14 w-14 text-primary" />Confirmar Registro</AlertDialogTitle><AlertDialogDescription asChild><div className="space-y-6 pt-4"><div className="bg-muted/30 p-8 rounded-[2rem] border border-border space-y-4 text-left"><div className="flex justify-between text-xs font-bold uppercase"><span className="text-muted-foreground">Operario:</span><span>{formData.operarioNombre}</span></div><div className="flex justify-between text-xs font-bold uppercase"><span className="text-muted-foreground">Lote:</span><span className="text-primary">{formData.loteNumero}</span></div><div className="flex justify-between text-xs font-bold uppercase"><span className="text-muted-foreground">Manualidad:</span><span>{formData.proceso}</span></div><div className="flex justify-between text-xs font-bold uppercase border-t border-border pt-2"><span className="text-muted-foreground">Cantidad:</span><span>{formData.cantidad} prendas</span></div></div></div></AlertDialogDescription></AlertDialogHeader><AlertDialogFooter className="flex gap-3 pt-6"><AlertDialogCancel className="flex-1 rounded-xl h-12 font-bold text-xs uppercase">Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleFinalSave} className="flex-1 bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-black text-xs uppercase shadow-lg">CONFIRMAR</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <AlertDialog open={showConfirm} onOpenChange={setReverseShowConfirm}><AlertDialogContent className="rounded-[2.5rem] max-w-md border-none shadow-2xl bg-card p-10"><AlertDialogHeader className="items-center text-center"><AlertDialogTitle className="text-2xl font-black tracking-tight flex flex-col items-center gap-4"><CheckCircle2 className="h-14 w-14 text-primary" />Confirmar Registro</AlertDialogTitle><AlertDialogDescription asChild><div className="space-y-6 pt-4"><div className="bg-muted/30 p-8 rounded-[2rem] border border-border space-y-4 text-left"><div className="flex justify-between text-xs font-bold uppercase"><span className="text-muted-foreground">Operario:</span><span>{formData.operarioNombre}</span></div><div className="flex justify-between text-xs font-bold uppercase"><span className="text-muted-foreground">Lote:</span><span className="text-primary">{formData.loteNumero}</span></div><div className="flex justify-between text-xs font-bold uppercase"><span className="text-muted-foreground">Manualidad:</span><span>{formData.proceso}</span></div><div className="flex justify-between text-xs font-bold uppercase border-t border-border pt-2"><span className="text-muted-foreground">Cantidad:</span><span>{formData.cantidad} prendas</span></div></div></div></AlertDialogDescription></AlertDialogHeader><AlertDialogFooter className="flex gap-3 pt-6"><AlertDialogCancel disabled={isSaving} className="flex-1 rounded-xl h-12 font-bold text-xs uppercase">Cancelar</AlertDialogCancel><Button disabled={isSaving} onClick={handleFinalSave} className="flex-1 bg-primary hover:bg-primary/90 text-white rounded-xl h-12 font-black text-xs uppercase shadow-lg gap-2">{isSaving && <Loader2 className="h-4 w-4 animate-spin" />}{isSaving ? "GUARDANDO..." : "CONFIRMAR"}</Button></AlertDialogFooter></AlertDialogContent></AlertDialog>
     </div>
   );
 }
