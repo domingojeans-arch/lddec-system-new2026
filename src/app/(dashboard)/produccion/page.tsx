@@ -695,18 +695,30 @@ export default function ProduccionPage() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-          <TabsList className="bg-card border border-border p-1 h-12 w-fit rounded-xl gap-2">
-            <TabsTrigger value="pendiente" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
-              <Clock className="h-3.5 w-3.5" /> Pendientes
+          <TabsList className="bg-muted/70 border border-border p-1.5 h-14 w-fit rounded-2xl gap-2 shadow-inner">
+            <TabsTrigger 
+              value="pendiente" 
+              className="px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider gap-2 text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-amber-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+            >
+              <Clock className="h-4 w-4" /> Pendientes
             </TabsTrigger>
-            <TabsTrigger value="aprobado" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Aprobados
+            <TabsTrigger 
+              value="aprobado" 
+              className="px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider gap-2 text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+            >
+              <CheckCircle2 className="h-4 w-4" /> Aprobados
             </TabsTrigger>
-            <TabsTrigger value="aprobado_final" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2 text-emerald-600 data-[state=active]:text-emerald-700">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> Aprobado Final
+            <TabsTrigger 
+              value="aprobado_final" 
+              className="px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider gap-2 text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+            >
+              <ShieldCheck className="h-4 w-4" /> Aprobado Final
             </TabsTrigger>
-            <TabsTrigger value="rechazado" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
-              <XCircle className="h-3.5 w-3.5" /> Rechazados
+            <TabsTrigger 
+              value="rechazado" 
+              className="px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider gap-2 text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-red-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+            >
+              <XCircle className="h-4 w-4" /> Rechazados
             </TabsTrigger>
           </TabsList>
 
