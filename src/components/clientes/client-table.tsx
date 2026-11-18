@@ -42,6 +42,7 @@ const classificationMap = {
   socio: { label: "Socio", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
   especial: { label: "Especial", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400" },
   moroso: { label: "Moroso", color: "bg-red-500/10 text-red-600 dark:text-red-400" },
+  temporal: { label: "Temporal / Muestra", color: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
 };
 
 export function ClientTable({ clients, onEdit, onView, onPrint, onDelete, hideFinancials = false, canDelete = true }: ClientTableProps) {

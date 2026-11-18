@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, List, Loader2, Edit3, X, Eye, Printer, Trash2, Calendar as CalendarIcon, DollarSign, RotateCcw } from "lucide-react";
+import { Search, List, Loader2, Edit3, X, Eye, Printer, Trash2, Calendar as CalendarIcon, DollarSign, RotateCcw, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -11,6 +11,7 @@ import { InvoiceTable } from "@/components/facturacion/invoice-table";
 import { InvoiceForm } from "@/components/facturacion/invoice-form";
 import { GroupedSamplesForm } from "@/components/facturacion/grouped-samples-form";
 import { ReopenClosedEntryDialog } from "@/components/facturacion/reopen-closed-entry-dialog";
+import { IncompleteDispatchesTab } from "@/components/facturacion/incomplete-dispatches-tab";
 import { useAuth } from "@/hooks/use-auth";
 import { db } from "@/lib/firebase";
 import { 
@@ -69,6 +70,7 @@ export default function FacturacionPage() {
   const isReadOnly = user?.role === "socio";
   const userRole = (user?.role || "").toLowerCase();
   const isAdmin = userRole === "admin" || userRole === "administrador" || userRole === "superadmin";
+  const canViewIncomplete = isAdmin || userRole === "facturacion";
 
   useEffect(() => {
     console.log("[Facturacion] Inicializando MutationObserver para control de overlays del body.");
@@ -489,6 +491,15 @@ export default function FacturacionPage() {
               <TabsList className="bg-muted/30 border border-border p-1 h-14 w-fit rounded-2xl gap-2">
                 <TabsTrigger value="individual" className="px-10 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all">Facturar Individual</TabsTrigger>
                 <TabsTrigger value="muestras" className="px-10 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all">Facturar Muestras</TabsTrigger>
+                {canViewIncomplete && (
+                  <TabsTrigger 
+                    value="incompletos" 
+                    className="px-8 h-full rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white font-black text-[10px] uppercase tracking-widest transition-all gap-2"
+                  >
+                    <Truck className="h-4 w-4" />
+                    Despachos Incompletos / Por Facturar
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {isAdmin && (
@@ -505,79 +516,86 @@ export default function FacturacionPage() {
             </div>
             <TabsContent value="individual" className="mt-0 outline-none"><InvoiceForm clients={clients} onSubmit={handleFormSubmit} onCancel={() => {}} isSubmitting={isSubmitting} /></TabsContent>
             <TabsContent value="muestras" className="mt-0 outline-none"><GroupedSamplesForm clients={clients} onSubmit={handleFormSubmit} onCancel={() => {}} isSubmitting={isSubmitting} /></TabsContent>
+            {canViewIncomplete && (
+              <TabsContent value="incompletos" className="mt-0 outline-none">
+                <IncompleteDispatchesTab invoices={invoices} />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       )}
 
-      <div className="max-w-[1600px] mx-auto pt-16 border-t border-border">
-        <Card className="rounded-[2.5rem] border border-border shadow-premium overflow-hidden bg-card">
-          <div className="p-10 space-y-10">
-            <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
-              <div className="flex items-center gap-4">
-                <div className="h-14 w-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary"><List className="h-7 w-7" /></div>
-                <div><h3 className="text-3xl font-black text-foreground tracking-tight uppercase">Historial de Facturas</h3></div>
-              </div>
-              
-              <div className="flex flex-col md:flex-row items-end gap-4">
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black uppercase text-muted-foreground ml-1">Desde</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full md:w-[150px] h-14 erp-input bg-background justify-start text-left font-bold text-xs">
-                        <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                        {dateFrom ? format(parseISO(dateFrom), "dd/MM/yyyy") : "Todas..."}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
-                      <Calendar mode="single" selected={dateFrom ? parseISO(dateFrom) : undefined} onSelect={(d) => setDateFrom(d ? format(d, "yyyy-MM-dd") : "")} locale={es} />
-                    </PopoverContent>
-                  </Popover>
+      {activeMode !== "incompletos" && (
+        <div className="max-w-[1600px] mx-auto pt-16 border-t border-border">
+          <Card className="rounded-[2.5rem] border border-border shadow-premium overflow-hidden bg-card">
+            <div className="p-10 space-y-10">
+              <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-14 w-14 bg-primary/10 rounded-2xl flex items-center justify-center text-primary"><List className="h-7 w-7" /></div>
+                  <div><h3 className="text-3xl font-black text-foreground tracking-tight uppercase">Historial de Facturas</h3></div>
                 </div>
                 
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black uppercase text-muted-foreground ml-1">Hasta</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full md:w-[150px] h-14 erp-input bg-background justify-start text-left font-bold text-xs">
-                        <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                        {dateTo ? format(parseISO(dateTo), "dd/MM/yyyy") : "Todas..."}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
-                      <Calendar mode="single" selected={dateTo ? parseISO(dateTo) : undefined} onSelect={(d) => setDateTo(d ? format(d, "yyyy-MM-dd") : "")} locale={es} />
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <div className="flex flex-col md:flex-row items-end gap-4">
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black uppercase text-muted-foreground ml-1">Desde</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full md:w-[150px] h-14 erp-input bg-background justify-start text-left font-bold text-xs">
+                          <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                          {dateFrom ? format(parseISO(dateFrom), "dd/MM/yyyy") : "Todas..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                        <Calendar mode="single" selected={dateFrom ? parseISO(dateFrom) : undefined} onSelect={(d) => setDateFrom(d ? format(d, "yyyy-MM-dd") : "")} locale={es} />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black uppercase text-muted-foreground ml-1">Hasta</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full md:w-[150px] h-14 erp-input bg-background justify-start text-left font-bold text-xs">
+                          <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
+                          {dateTo ? format(parseISO(dateTo), "dd/MM/yyyy") : "Todas..."}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                        <Calendar mode="single" selected={dateTo ? parseISO(dateTo) : undefined} onSelect={(d) => setDateTo(d ? format(d, "yyyy-MM-dd") : "")} locale={es} />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
 
-                <div className="relative w-full md:w-[280px] space-y-2">
-                  <span className="text-[10px] font-black uppercase text-muted-foreground ml-1">Búsqueda Rápida</span>
-                  <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input placeholder="Cliente, factura..." className="pl-12 erp-input h-14 rounded-2xl" value={inputSearch} onChange={e => setInputSearch(e.target.value)} />
+                  <div className="relative w-full md:w-[280px] space-y-2">
+                    <span className="text-[10px] font-black uppercase text-muted-foreground ml-1">Búsqueda Rápida</span>
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input placeholder="Cliente, factura..." className="pl-12 erp-input h-14 rounded-2xl" value={inputSearch} onChange={e => setInputSearch(e.target.value)} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="bg-primary/5 p-6 rounded-3xl border border-primary/20 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-primary/20 rounded-xl flex items-center justify-center"><DollarSign className="h-5 w-5 text-primary" /></div>
-                <p className="text-xs font-black text-primary uppercase tracking-widest">Total Facturado (Rango)</p>
+              
+              <div className="bg-primary/5 p-6 rounded-3xl border border-primary/20 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 bg-primary/20 rounded-xl flex items-center justify-center"><DollarSign className="h-5 w-5 text-primary" /></div>
+                  <p className="text-xs font-black text-primary uppercase tracking-widest">Total Facturado (Rango)</p>
+                </div>
+                <p className="text-3xl font-black text-primary">${totalFacturadoRango.toFixed(2)}</p>
               </div>
-              <p className="text-3xl font-black text-primary">${totalFacturadoRango.toFixed(2)}</p>
+              <InvoiceTable 
+                invoices={filteredInvoices} 
+                onView={(inv) => { setViewingInvoice(inv); setIsDetailOpen(true); }} 
+                onEdit={handleEdit} 
+                onDelete={handleDelete} 
+                onDeleteFully={handleDeleteFully}
+                onPrint={(inv) => { setViewingInvoice(inv); setIsDetailOpen(true); }} 
+                userRole={user?.role}
+              />
             </div>
-            <InvoiceTable 
-              invoices={filteredInvoices} 
-              onView={(inv) => { setViewingInvoice(inv); setIsDetailOpen(true); }} 
-              onEdit={handleEdit} 
-              onDelete={handleDelete} 
-              onDeleteFully={handleDeleteFully}
-              onPrint={(inv) => { setViewingInvoice(inv); setIsDetailOpen(true); }} 
-              userRole={user?.role}
-            />
-          </div>
-        </Card>
-      </div>
+          </Card>
+        </div>
+      )}
 
       <Dialog open={isDetailOpen} onOpenChange={(open) => {
         console.log(`[Facturacion] Detail Dialog onOpenChange: ${open}`);

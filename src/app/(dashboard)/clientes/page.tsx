@@ -28,11 +28,13 @@ import {
   query
 } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export default function ClientesPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"all" | "regular" | "temporal">("all");
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | undefined>(undefined);
   const { toast } = useToast();
@@ -50,9 +52,10 @@ export default function ClientesPage() {
         const data = doc.data();
         
         const rawClass = (data.classification || data.clasificacion || "nacional").toString().toLowerCase().trim();
-        let normalizedClass: "nacional" | "socio" | "especial" | "moroso" = "nacional";
+        let normalizedClass: "nacional" | "socio" | "especial" | "moroso" | "temporal" = "nacional";
 
-        if (rawClass.includes("moroso")) normalizedClass = "moroso";
+        if (rawClass.includes("temporal")) normalizedClass = "temporal";
+        else if (rawClass.includes("moroso")) normalizedClass = "moroso";
         else if (rawClass.includes("socio")) normalizedClass = "socio";
         else if (rawClass.includes("especial")) normalizedClass = "especial";
         else if (rawClass.includes("nacional")) normalizedClass = "nacional";
@@ -102,12 +105,24 @@ export default function ClientesPage() {
 
   const hideFinancials = isBodeguero;
 
+  const counts = useMemo(() => {
+    const temporal = clients.filter(c => c.classification === "temporal").length;
+    const regular = clients.length - temporal;
+    return { all: clients.length, regular, temporal };
+  }, [clients]);
+
   const filteredClients = useMemo(() => {
-    return clients.filter(c => 
-      (c.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
-      (c.idNumber || "").includes(searchTerm)
-    );
-  }, [clients, searchTerm]);
+    return clients.filter(c => {
+      const matchesSearch = 
+        (c.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (c.idNumber || "").includes(searchTerm);
+      if (!matchesSearch) return false;
+
+      if (typeFilter === "regular") return c.classification !== "temporal";
+      if (typeFilter === "temporal") return c.classification === "temporal";
+      return true;
+    });
+  }, [clients, searchTerm, typeFilter]);
 
   const handleOpenNew = () => {
     if (!canEdit) {
@@ -209,13 +224,54 @@ export default function ClientesPage() {
         </div>
       </div>
 
-      <div className="bg-card p-4 rounded-xl border border-border flex flex-col lg:flex-row items-center gap-4">
-        <div className="relative w-full lg:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por cédula o RUC..." className="pl-10 erp-input" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+      <div className="bg-card p-4 rounded-xl border border-border flex flex-col lg:flex-row items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Buscar por cédula o RUC..." className="pl-10 erp-input" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          </div>
+
+          <div className="flex items-center gap-1 p-1 bg-muted/40 rounded-xl border border-border w-full sm:w-auto justify-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTypeFilter("all")}
+              className={cn(
+                "h-8 px-3 text-xs font-bold rounded-lg transition-all",
+                typeFilter === "all" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Todos ({counts.all})
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTypeFilter("regular")}
+              className={cn(
+                "h-8 px-3 text-xs font-bold rounded-lg transition-all",
+                typeFilter === "regular" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Habituales / Socios ({counts.regular})
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTypeFilter("temporal")}
+              className={cn(
+                "h-8 px-3 text-xs font-bold rounded-lg transition-all",
+                typeFilter === "temporal" ? "bg-amber-600 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Temporales / Muestras ({counts.temporal})
+            </Button>
+          </div>
         </div>
-        <div className="flex-1" />
-        <div className="h-11 flex items-center px-4 bg-muted/30 border border-border rounded-lg text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+
+        <div className="h-11 flex items-center px-4 bg-muted/30 border border-border rounded-lg text-[10px] font-black uppercase tracking-widest text-muted-foreground self-end lg:self-auto">
           {loading ? (
             <Loader2 className="h-3 w-3 animate-spin mr-2" />
           ) : (

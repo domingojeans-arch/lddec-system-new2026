@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LotRowsEditor } from "./lot-rows-editor";
-import { Save, X, Calendar, User, AlertCircle, CheckCircle2, ClipboardCheck, Layers, Shirt } from "lucide-react";
+import { Save, X, Calendar, User, AlertCircle, CheckCircle2, ClipboardCheck, Layers, Shirt, GraduationCap } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Dialog,
@@ -31,11 +31,13 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Combobox } from "@/components/lddec/combobox";
+import { db } from "@/lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
 
 const entrySchema = z.object({
   entryNumber: z.string().min(1, "Número obligatorio"),
   isSample: z.boolean().default(false),
-  clientId: z.string().min(1, "Seleccione un cliente"),
+  clientId: z.string().optional(),
   entryDate: z.string().min(1, "Fecha obligatoria"),
   responsible: z.string().min(1, "Responsable obligatorio"),
   notes: z.string().optional(),
@@ -70,6 +72,14 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
   const [localError, setLocalError] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [pendingSubmitData, setPendingSubmitData] = useState<(EntryInput & { lots: EntryLot[] }) | null>(null);
+  const [isTemporalClient, setIsTemporalClient] = useState(false);
+  const [temporalData, setTemporalData] = useState({
+    name: "",
+    idNumber: "9999999999999",
+    phone: "",
+    institution: "",
+  });
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
   
   const form = useForm<z.infer<typeof entrySchema>>({
     resolver: zodResolver(entrySchema),
@@ -104,10 +114,14 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
   const isSample = form.watch("isSample");
 
   const clientOptions = React.useMemo(() => {
-    const opts = (clients || []).map(c => ({
-      label: (c?.name || c?.nombre || `${c?.firstName || ""} ${c?.lastName || ""}`).trim().toUpperCase(),
-      value: c?.id || ""
-    }));
+    const opts = (clients || []).map(c => {
+      const name = (c?.name || c?.nombre || `${c?.firstName || ""} ${c?.lastName || ""}`).trim().toUpperCase();
+      const isTemp = c?.classification === 'temporal';
+      return {
+        label: isTemp ? `${name} (TEMPORAL / MUESTRA)` : name,
+        value: c?.id || ""
+      };
+    });
     if (initialData && initialData.clientId && !opts.some(o => o.value === initialData.clientId)) {
       opts.push({
         label: (initialData.clientName || "Socio").trim().toUpperCase(),
@@ -125,6 +139,7 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
       form.setValue("entryNumber", `MUEST-${onlyNums}`);
     } else {
       form.setValue("entryNumber", onlyNums);
+      setIsTemporalClient(false);
     }
     form.setValue("isSample", checked);
   };
@@ -141,6 +156,19 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
 
   const handleFormSubmit = (values: z.infer<typeof entrySchema>) => {
     setLocalError(null);
+
+    const effectiveIsTemporal = Boolean(isSample && isTemporalClient);
+    if (effectiveIsTemporal) {
+      if (!temporalData.name.trim()) {
+        setLocalError("Por favor ingrese el nombre del cliente ocasional / estudiante.");
+        return;
+      }
+    } else {
+      if (!values.clientId) {
+        setLocalError("Por favor seleccione un cliente del catálogo.");
+        return;
+      }
+    }
 
     if (lots.length === 0) {
       setLocalError("Debes agregar al menos un lote.");
@@ -166,14 +194,54 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
     const client = clients.find(c => c.id === values.clientId);
     setPendingSubmitData({
       ...values,
-      clientName: client?.name || client?.nombre || initialData?.clientName || "Desconocido",
+      clientId: effectiveIsTemporal ? "temporal_pending" : (values.clientId || ""),
+      clientName: effectiveIsTemporal 
+        ? temporalData.name.trim().toUpperCase() 
+        : (client?.name || client?.nombre || initialData?.clientName || "Desconocido"),
       lots,
     });
     setIsConfirmOpen(true);
   };
 
-  const handleConfirmSave = () => {
+  const handleConfirmSave = async () => {
     if (!pendingSubmitData) return;
+
+    const effectiveIsTemporal = Boolean(isSample && isTemporalClient);
+    if (effectiveIsTemporal && !initialData) {
+      try {
+        setIsCreatingClient(true);
+        const newClientRef = await addDoc(collection(db, "clients"), {
+          firstName: temporalData.name.trim(),
+          lastName: "",
+          name: temporalData.name.trim().toUpperCase(),
+          idNumber: temporalData.idNumber.trim() || "9999999999999",
+          phone: temporalData.phone.trim() || "S/N",
+          address: temporalData.institution.trim() || "Cliente Temporal / Muestra",
+          classification: "temporal",
+          status: "active",
+          baseDebt: 0,
+          openingDate: new Date().toISOString().split('T')[0],
+          createdAt: new Date().toISOString(),
+          createdBy: user?.displayName || "Ingreso Muestra Express"
+        });
+
+        setIsConfirmOpen(false);
+        onSubmit({
+          ...pendingSubmitData,
+          clientId: newClientRef.id,
+          clientName: temporalData.name.trim().toUpperCase(),
+        });
+        return;
+      } catch (err) {
+        console.error("Error creating temporal client:", err);
+        setLocalError("No se pudo registrar el cliente ocasional en la base de datos.");
+        setIsConfirmOpen(false);
+        return;
+      } finally {
+        setIsCreatingClient(false);
+      }
+    }
+
     setIsConfirmOpen(false);
     onSubmit(pendingSubmitData);
   };
@@ -275,16 +343,83 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
                 name="clientId"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-2">Cliente / Socio</FormLabel>
-                    <FormControl>
-                      <Combobox
-                        options={clientOptions}
-                        value={field.value || ""}
-                        onSelect={field.onChange}
-                        placeholder="Seleccione un cliente"
-                        searchPlaceholder="Escriba para filtrar..."
-                      />
-                    </FormControl>
+                    <div className="flex items-center justify-between mb-2">
+                      <FormLabel className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                        Cliente / Socio
+                      </FormLabel>
+                      {!initialData && isSample && (
+                        <button
+                          type="button"
+                          onClick={() => setIsTemporalClient(!isTemporalClient)}
+                          className={cn(
+                            "text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-md transition-all flex items-center gap-1.5",
+                            isTemporalClient
+                              ? "bg-amber-500 text-white shadow-sm"
+                              : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                          )}
+                        >
+                          <GraduationCap className="h-3.5 w-3.5" />
+                          {isTemporalClient ? "Modo Ocasional Activo" : "¿Cliente Ocasional / Estudiante?"}
+                        </button>
+                      )}
+                    </div>
+                    {isSample && isTemporalClient ? (
+                      <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                            <GraduationCap className="h-4 w-4" /> Registro Express de Cliente Temporal / Muestra
+                          </span>
+                          <span className="text-[9px] font-bold text-muted-foreground bg-background px-2 py-0.5 rounded border border-border">
+                            Auto-crea cliente en base de datos
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div className="sm:col-span-1">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest block mb-1">
+                              Nombre / Institución *
+                            </label>
+                            <Input
+                              placeholder="Ej: Juan Pérez (Tesis Poli)"
+                              value={temporalData.name}
+                              onChange={(e) => setTemporalData(prev => ({ ...prev, name: e.target.value }))}
+                              className="erp-input h-9 text-xs font-bold bg-background"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest block mb-1">
+                              Cédula / RUC
+                            </label>
+                            <Input
+                              placeholder="9999999999999"
+                              value={temporalData.idNumber}
+                              onChange={(e) => setTemporalData(prev => ({ ...prev, idNumber: e.target.value }))}
+                              className="erp-input h-9 text-xs font-bold bg-background"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-black uppercase text-muted-foreground tracking-widest block mb-1">
+                              Teléfono / WhatsApp
+                            </label>
+                            <Input
+                              placeholder="Ej: 0991234567"
+                              value={temporalData.phone}
+                              onChange={(e) => setTemporalData(prev => ({ ...prev, phone: e.target.value }))}
+                              className="erp-input h-9 text-xs font-bold bg-background"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <FormControl>
+                        <Combobox
+                          options={clientOptions}
+                          value={field.value || ""}
+                          onSelect={field.onChange}
+                          placeholder="Seleccione un cliente"
+                          searchPlaceholder="Escriba para filtrar..."
+                        />
+                      </FormControl>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -457,6 +592,7 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
               <Button
                 type="button"
                 variant="outline"
+                disabled={isCreatingClient}
                 onClick={() => setIsConfirmOpen(false)}
                 className="flex-1 h-11 rounded-xl font-bold text-xs"
               >
@@ -465,11 +601,12 @@ export function EntryForm({ initialData, clients, garmentCatalog, processCatalog
               </Button>
               <Button
                 type="button"
+                disabled={isCreatingClient}
                 onClick={handleConfirmSave}
                 className="flex-1 h-11 rounded-xl bg-primary hover:bg-primary/90 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-primary/20 gap-1.5"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Guardar
+                {isCreatingClient ? "Creando Cliente..." : "Guardar"}
               </Button>
             </DialogFooter>
           </DialogContent>

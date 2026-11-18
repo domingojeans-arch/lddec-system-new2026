@@ -33,7 +33,7 @@ import { Calendar } from "@/components/ui/calendar";
 const clientSchema = z.object({
   firstName: z.string().min(1, "Nombres obligatorios"),
   lastName: z.string().min(1, "Apellidos obligatorios"),
-  classification: z.enum(["nacional", "socio", "especial", "moroso"]),
+  classification: z.enum(["nacional", "socio", "especial", "moroso", "temporal"]),
   idNumber: z.string().optional(),
   noId: z.boolean().default(false),
   baseDebt: z.coerce.number().min(0),
@@ -150,6 +150,7 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
                     <SelectItem value="socio">Socio</SelectItem>
                     <SelectItem value="especial">Cliente Especial</SelectItem>
                     <SelectItem value="moroso">Morosos</SelectItem>
+                    <SelectItem value="temporal">Temporal / Muestra / Estudiante</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

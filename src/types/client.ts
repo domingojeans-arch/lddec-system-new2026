@@ -1,5 +1,5 @@
 export type ClientStatus = 'active' | 'inactive';
-export type ClientClassification = 'nacional' | 'socio' | 'especial' | 'moroso';
+export type ClientClassification = 'nacional' | 'socio' | 'especial' | 'moroso' | 'temporal';
 
 export interface Client {
   id: string;
