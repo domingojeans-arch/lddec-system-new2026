@@ -68,7 +68,7 @@ export function OperatorPayoutReport({ manualWorks, dateFrom, dateTo, selectedOp
       const workDateStr = d.toISOString().split('T')[0];
       const matchesDate = workDateStr >= startStr && workDateStr <= endStr;
       
-      const isApproved = String(work.estado || "").toLowerCase() === 'aprobado';
+      const isApproved = ['aprobado', 'aprobado_final'].includes(String(work.estado || "").toLowerCase());
       const matchesOperator = selectedOperator === "all" || 
         String(work.operarioNombre || "").toUpperCase() === String(selectedOperator).toUpperCase();
       

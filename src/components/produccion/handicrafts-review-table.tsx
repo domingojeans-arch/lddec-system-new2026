@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, X, ClipboardList, Edit3, ArrowUp, ArrowDown, ChevronsUpDown, Save, Trash2, ChevronLeft, ChevronRight, Loader2, AlertTriangle, ShieldAlert, Clock } from "lucide-react";
+import { Check, X, ClipboardList, Edit3, ArrowUp, ArrowDown, ChevronsUpDown, Save, Trash2, ChevronLeft, ChevronRight, Loader2, AlertTriangle, ShieldAlert, Clock, CheckCheck, Undo2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toDate } from "@/lib/toDate";
@@ -40,7 +40,7 @@ import {
 
 interface HandicraftsReviewTableProps {
   works: any[];
-  onReview: (workId: string, status: 'aprobado' | 'rechazado' | 'pendiente', price?: number) => void;
+  onReview: (workId: string, status: 'aprobado' | 'aprobado_final' | 'rechazado' | 'pendiente', price?: number) => void;
   onUpdate?: (workId: string, data: any) => void;
   onDelete?: (workId: string) => void;
   isHistory?: boolean;
@@ -219,10 +219,59 @@ export function HandicraftsReviewTable({ works, onReview, onUpdate, onDelete, is
                     {!isReadOnly && (
                       <TableCell className="text-right pr-8">
                         <div className="flex items-center justify-end gap-2">
-                          {!isHistory && (
+                          {work.estado === 'pendiente' && (
                             <div className="flex gap-1 mr-2">
                               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-[10px] font-bold px-3 rounded-lg" onClick={() => onReview(work.id, 'aprobado')}>Aprobar</Button>
                               <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50 h-8 text-[10px] font-bold px-3 rounded-lg" onClick={() => onReview(work.id, 'rechazado')}>Rechazar</Button>
+                            </div>
+                          )}
+                          {work.estado === 'aprobado' && (
+                            <div className="flex gap-1.5 mr-1 shrink-0">
+                              <Button 
+                                size="sm" 
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-[10px] font-black uppercase px-3 rounded-lg flex items-center gap-1.5 shadow-sm transition-all"
+                                onClick={() => onReview(work.id, 'aprobado_final')}
+                                title="Cotejado con cuaderno físico: Enviar a Aprobado Final"
+                              >
+                                <CheckCheck className="h-3.5 w-3.5" />
+                                <span>Aprobado Final</span>
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="border-amber-200 text-amber-700 hover:bg-amber-50 h-8 text-[10px] font-bold px-2 rounded-lg flex items-center gap-1"
+                                onClick={() => handleVolverPendiente(work.id)}
+                                title="Devolver a Pendiente"
+                              >
+                                <Clock className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="border-red-200 text-red-600 hover:bg-red-50 h-8 text-[10px] font-bold px-2 rounded-lg flex items-center gap-1"
+                                onClick={() => onReview(work.id, 'rechazado')}
+                                title="Rechazar"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                          {work.estado === 'aprobado_final' && (
+                            <div className="flex items-center gap-2 mr-1 shrink-0">
+                              <Badge variant="outline" className="h-7 px-2.5 text-[9px] font-black uppercase border-emerald-500/30 text-emerald-700 bg-emerald-500/10 flex items-center gap-1">
+                                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                                <span>Verificado Cuaderno</span>
+                              </Badge>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="border-amber-300 text-amber-700 hover:bg-amber-100 hover:border-amber-400 h-8 text-[10px] font-bold px-2.5 rounded-lg flex items-center gap-1 transition-colors"
+                                onClick={() => handleVolverAprobar(work.id)}
+                                title="Revertir y devolver a la lista de Aprobados"
+                              >
+                                <Undo2 className="h-3.5 w-3.5" />
+                                <span>Revertir</span>
+                              </Button>
                             </div>
                           )}
                           {work.estado === 'rechazado' && (

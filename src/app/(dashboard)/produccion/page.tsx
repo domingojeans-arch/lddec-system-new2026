@@ -14,7 +14,8 @@ import {
   ChevronRight,
   CalendarDays,
   RefreshCcw,
-  Zap
+  Zap,
+  ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -314,14 +315,14 @@ export default function ProduccionPage() {
     });
   }, [manualWorks, activeTab, searchTerm, searchOperator, manualSortKey, manualSortDir]);
 
-  const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'rechazado' | 'pendiente', price?: number) => {
+  const handleReviewManualWork = async (workId: string, status: 'aprobado' | 'aprobado_final' | 'rechazado' | 'pendiente', price?: number) => {
     if (isReadOnly) return;
 
     const work = manualWorks.find(m => m.id === workId);
     if (!work) return;
 
     // VALIDACIÓN DE SEGURIDAD CONTRA DUPLICADOS ANTES DE APROBAR
-    if (status === 'aprobado') {
+    if (status === 'aprobado' || status === 'aprobado_final') {
       try {
         // 1. Consulta rápida a Firestore buscando registros aprobados del mismo lote, proceso y operario
         const q = query(
@@ -329,7 +330,7 @@ export default function ProduccionPage() {
           where("loteNumero", "==", work.loteNumero),
           where("proceso", "==", work.proceso),
           where("operarioNombre", "==", work.operarioNombre || work.operarioId || ""),
-          where("estado", "==", "aprobado")
+          where("estado", "in", ["aprobado", "aprobado_final"])
         );
         const querySnapshot = await getDocs(q);
         const approvedDocs = querySnapshot.docs
@@ -339,7 +340,7 @@ export default function ProduccionPage() {
         // 2. Comprobar también en la lista cargada en memoria local para máxima reactividad
         const localApproved = manualWorks.filter(m =>
           m.id !== workId &&
-          m.estado === "aprobado" &&
+          (m.estado === "aprobado" || m.estado === "aprobado_final") &&
           String(m.loteNumero).trim().toUpperCase() === String(work.loteNumero).trim().toUpperCase() &&
           String(m.proceso).trim().toUpperCase() === String(work.proceso).trim().toUpperCase() &&
           String(m.operarioNombre || m.operarioId || "").trim().toUpperCase() === String(work.operarioNombre || work.operarioId || "").trim().toUpperCase()
@@ -390,7 +391,7 @@ export default function ProduccionPage() {
     let precioFinal = price;
     let totalFinal = work?.total || 0;
 
-    if (status === 'aprobado' && price !== undefined) {
+    if ((status === 'aprobado' || status === 'aprobado_final') && price !== undefined) {
       totalFinal = price * (work?.cantidad || 0);
     }
 
@@ -403,14 +404,23 @@ export default function ProduccionPage() {
           precioUnitario: precioFinal !== undefined ? precioFinal : m.precioUnitario,
           total: precioFinal !== undefined ? totalFinal : m.total,
           reviewedBy: status !== 'pendiente' ? (user?.displayName || "Sistema") : null,
-          reviewedAt: status !== 'pendiente' ? new Date() : null
+          reviewedAt: status !== 'pendiente' ? new Date() : null,
+          aprobadoFinalBy: status === 'aprobado_final' ? (user?.displayName || "Sistema") : null,
+          aprobadoFinalAt: status === 'aprobado_final' ? new Date() : null
         };
       }
       return m;
     }));
 
     // Notificación inmediata al usuario
-    toast({ title: `Registro ${status.toUpperCase()}` });
+    const toastTitle = status === 'aprobado_final' 
+      ? "Lote enviado a Aprobado Final" 
+      : status === 'aprobado' 
+      ? "Lote Aprobado" 
+      : status === 'rechazado' 
+      ? "Lote Rechazado" 
+      : "Lote devuelto a Pendientes";
+    toast({ title: toastTitle });
 
     try {
       const updates: any = { 
@@ -418,17 +428,29 @@ export default function ProduccionPage() {
         updatedAt: serverTimestamp()
       };
 
-      if (status !== 'pendiente') {
+      if (status === 'aprobado_final') {
+        updates.aprobadoFinalBy = user?.displayName || "Sistema";
+        updates.aprobadoFinalAt = serverTimestamp();
+      } else if (status === 'aprobado') {
         updates.reviewedBy = user?.displayName || "Sistema";
         updates.reviewedAt = serverTimestamp();
         updates.fechaAprobacion = serverTimestamp();
-      } else {
+        updates.aprobadoFinalBy = null;
+        updates.aprobadoFinalAt = null;
+      } else if (status === 'pendiente') {
         updates.reviewedBy = null;
         updates.reviewedAt = null;
         updates.fechaAprobacion = null;
+        updates.aprobadoFinalBy = null;
+        updates.aprobadoFinalAt = null;
+      } else if (status === 'rechazado') {
+        updates.reviewedBy = user?.displayName || "Sistema";
+        updates.reviewedAt = serverTimestamp();
+        updates.aprobadoFinalBy = null;
+        updates.aprobadoFinalAt = null;
       }
 
-      if (status === 'aprobado' && price !== undefined) {
+      if ((status === 'aprobado' || status === 'aprobado_final') && price !== undefined) {
         updates.precioUnitario = price;
         updates.total = totalFinal;
       }
@@ -675,13 +697,16 @@ export default function ProduccionPage() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
           <TabsList className="bg-card border border-border p-1 h-12 w-fit rounded-xl gap-2">
-            <TabsTrigger value="pendiente" className="px-8 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
+            <TabsTrigger value="pendiente" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
               <Clock className="h-3.5 w-3.5" /> Pendientes
             </TabsTrigger>
-            <TabsTrigger value="aprobado" className="px-8 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
+            <TabsTrigger value="aprobado" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
               <CheckCircle2 className="h-3.5 w-3.5" /> Aprobados
             </TabsTrigger>
-            <TabsTrigger value="rechazado" className="px-8 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
+            <TabsTrigger value="aprobado_final" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2 text-emerald-600 data-[state=active]:text-emerald-700">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> Aprobado Final
+            </TabsTrigger>
+            <TabsTrigger value="rechazado" className="px-6 rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
               <XCircle className="h-3.5 w-3.5" /> Rechazados
             </TabsTrigger>
           </TabsList>
@@ -711,6 +736,26 @@ export default function ProduccionPage() {
               <div className="h-64 flex flex-col items-center justify-center space-y-4">
                 <Loader2 className="h-12 w-12 animate-spin text-primary/20" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Recuperando aprobados...</p>
+              </div>
+            ) : (
+              <HandicraftsReviewTable 
+                works={filteredManualWorks} 
+                onReview={handleReviewManualWork} 
+                onUpdate={handleUpdateManualWork}
+                onDelete={handleDeleteManualWork}
+                isHistory={true} 
+                sortKey={manualSortKey} 
+                sortDir={manualSortDir} 
+                onSort={handleSort} 
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="aprobado_final" className="m-0 outline-none">
+            {loading ? (
+              <div className="h-64 flex flex-col items-center justify-center space-y-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary/20" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Recuperando aprobados finales...</p>
               </div>
             ) : (
               <HandicraftsReviewTable 

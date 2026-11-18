@@ -375,8 +375,8 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
       }
 
       if (isManualidades) {
-        // 1. Consulta limpia a Firestore filtrando únicamente por estado 'aprobado'
-        const q = query(collection(db, "manualidades"), where("estado", "==", "aprobado"));
+        // 1. Consulta limpia a Firestore filtrando por lotes aprobados o con aprobación final
+        const q = query(collection(db, "manualidades"), where("estado", "in", ["aprobado", "aprobado_final"]));
         const snap = await getDocs(q);
         let allManualidades = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 

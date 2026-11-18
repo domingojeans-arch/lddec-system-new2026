@@ -755,7 +755,7 @@ export default function MantenimientoPage() {
       const allDocs = Array.from(docsMap.values());
       const filtered = allDocs.filter((work: any) => {
         if (purgeStateFilter === "aprobado_rechazado") {
-          if (work.estado !== "aprobado" && work.estado !== "rechazado") return false;
+          if (work.estado !== "aprobado" && work.estado !== "aprobado_final" && work.estado !== "rechazado") return false;
         } else if (purgeStateFilter === "pendiente") {
           if (work.estado !== "pendiente") return false;
         }
