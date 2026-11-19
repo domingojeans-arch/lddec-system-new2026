@@ -197,6 +197,30 @@ const normalizarSalida = (item: any, origen: string) => {
   return { id: item.id, numeroSalida, fecha: fechaDate, fechaMs, socioIndustrial, prendas, origenColeccion: origen, raw: item };
 };
 
+// Caché en memoria para colecciones históricas legadas (salidas, muestras) para evitar lecturas masivas redundantes
+let legacyDispatchesCache: { docs: any[]; timestamp: number } | null = null;
+
+async function getLegacyDispatches(): Promise<any[]> {
+  const now = Date.now();
+  if (legacyDispatchesCache && (now - legacyDispatchesCache.timestamp < 10 * 60 * 1000)) {
+    return legacyDispatchesCache.docs;
+  }
+  try {
+    const [salsSnap, muesSnap] = await Promise.all([
+      getDocs(collection(db, "salidas")),
+      getDocs(collection(db, "muestras"))
+    ]);
+    const docs: any[] = [];
+    salsSnap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    muesSnap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    legacyDispatchesCache = { docs, timestamp: now };
+    return docs;
+  } catch (err) {
+    console.warn("Error cargando caché de salidas históricas:", err);
+    return legacyDispatchesCache ? legacyDispatchesCache.docs : [];
+  }
+}
+
 export default function SalidasPage() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -374,7 +398,7 @@ export default function SalidasPage() {
     const termUpper = lotTerm.trim().toUpperCase();
     const matchedDocsMap = new Map<string, any>();
 
-    // 1. Consulta por array indexado de lotes en outputs
+    // 1. Consulta directa y rápida por lote indexado en outputs
     try {
       const qLot = query(collection(db, "outputs"), where("containedLotNames", "array-contains", termUpper));
       const snapLot = await getDocs(qLot);
@@ -383,8 +407,8 @@ export default function SalidasPage() {
       console.warn("containedLotNames query error:", err);
     }
 
-    // 2. Consulta por cliente si existe (para guías históricas sin containedLotNames)
-    if (clientName) {
+    // 2. Consulta por cliente solo si no se encontró por lote y existe clientName (guías antiguas sin containedLotNames)
+    if (matchedDocsMap.size === 0 && clientName) {
       try {
         const qClient = query(collection(db, "outputs"), where("containedClientNames", "array-contains", clientName.trim().toUpperCase()));
         const snapClient = await getDocs(qClient);
@@ -394,18 +418,18 @@ export default function SalidasPage() {
       }
     }
 
-    // 3. Consulta global en colecciones outputs, salidas y muestras para garantizar integridad histórica completa
+    // 3. Revisión de colecciones históricas legadas (salidas, muestras) usando memoria en caché (ultrarrápido, 0 costo)
     try {
-      const [outsSnap, salsSnap, muesSnap] = await Promise.all([
-        getDocs(collection(db, "outputs")),
-        getDocs(collection(db, "salidas")),
-        getDocs(collection(db, "muestras"))
-      ]);
-      outsSnap.docs.forEach(d => matchedDocsMap.set(d.id, { id: d.id, ...d.data() }));
-      salsSnap.docs.forEach(d => matchedDocsMap.set(d.id, { id: d.id, ...d.data() }));
-      muesSnap.docs.forEach(d => matchedDocsMap.set(d.id, { id: d.id, ...d.data() }));
+      const legacyDocs = await getLegacyDispatches();
+      legacyDocs.forEach(d => {
+        const items = d.itemsDispatched || d.lotes || d.raw?.itemsDispatched || [];
+        const hasLot = items.some((it: any) => getVisibleLotName(it) === termUpper);
+        if (hasLot) {
+          matchedDocsMap.set(d.id, d);
+        }
+      });
     } catch (err) {
-      console.warn("Fallback query error:", err);
+      console.warn("Legacy query cache error:", err);
     }
 
     let totalDispatched = 0;
@@ -878,9 +902,9 @@ export default function SalidasPage() {
 
     setIsSaving(true);
     try {
-      // 1. Verificación de integridad en servidor: Validar que ningún lote supere su saldo disponible real
-      for (const item of itemsToDispatch) {
-        if (item.isManual) continue;
+      // 1. Verificación de integridad en servidor en paralelo: Validar que ningún lote supere su saldo disponible real
+      const nonManualItems = itemsToDispatch.filter(it => !it.isManual);
+      const validationResults = await Promise.all(nonManualItems.map(async (item) => {
         const lotTerm = getVisibleLotName(item);
         const qtyToSave = Number(item.quantityToDispatch || 0);
 
@@ -901,20 +925,33 @@ export default function SalidasPage() {
               const maxAllowed = Math.max(0, originalTotal - hist.totalDispatched);
 
               if (qtyToSave > maxAllowed) {
-                setIsSaving(false);
-                setIsSampleModalOpen(false);
-                toast({
-                  variant: "destructive",
-                  title: "Bloqueo por Saldo Insuficiente",
-                  description: `El lote ${lotTerm} solo tiene ${maxAllowed} prendas disponibles (${hist.totalDispatched} ya despachadas de ${originalTotal}). No es posible despachar ${qtyToSave}.`
-                });
-                return;
+                return {
+                  invalid: true,
+                  lotTerm,
+                  maxAllowed,
+                  totalDispatched: hist.totalDispatched,
+                  originalTotal,
+                  qtyToSave
+                };
               }
             }
           }
         } catch (vErr) {
           console.warn("Validación de lote previa a guardar:", vErr);
         }
+        return { invalid: false, lotTerm: "", maxAllowed: 0, totalDispatched: 0, originalTotal: 0, qtyToSave: 0 };
+      }));
+
+      const invalidItem = validationResults.find(r => r.invalid);
+      if (invalidItem) {
+        setIsSaving(false);
+        setIsSampleModalOpen(false);
+        toast({
+          variant: "destructive",
+          title: "Bloqueo por Saldo Insuficiente",
+          description: `El lote ${invalidItem.lotTerm} solo tiene ${invalidItem.maxAllowed} prendas disponibles (${invalidItem.totalDispatched} ya despachadas de ${invalidItem.originalTotal}). No es posible despachar ${invalidItem.qtyToSave}.`
+        });
+        return;
       }
 
       const clientNames = Array.from(new Set(itemsToDispatch.map(it => it.clientName).filter(Boolean)));
@@ -985,9 +1022,26 @@ export default function SalidasPage() {
       });
 
       await batch.commit();
-      toast({ title: "Salida Guardada" });
+
+      // Actualización optimista inmediata en la tabla local
+      const savedDate = guideInfo.fecha ? new Date(guideInfo.fecha + "T12:00:00") : new Date();
+      const savedOutputRecord = {
+        id: term,
+        ...payload,
+        date: savedDate,
+        fechaSalida: savedDate,
+        createdAt: editingDoc?.createdAt ? toDateSafe(editingDoc.createdAt) || new Date() : new Date(),
+        updatedAt: new Date(),
+      };
+      setOutputsRaw(prev => [savedOutputRecord, ...prev.filter(p => p.id !== term)]);
+
+      toast({ title: "Salida Guardada con Éxito" });
       handleResetForm();
-      loadHistory(); // Recargar tras guardar
+      setIsSaving(false);
+      setIsSampleModalOpen(false);
+
+      // Recarga asíncrona en segundo plano sin bloquear la experiencia del usuario
+      loadHistory().catch(err => console.warn("Error refrescando historial tras guardar:", err));
     } catch (e: any) { 
       console.error("Error al guardar salida:", e);
       toast({ variant: "destructive", title: "Error al guardar", description: e.message || "Revisa la consola para más detalles." });
