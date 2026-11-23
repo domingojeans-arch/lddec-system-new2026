@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo } from "react";
@@ -13,7 +12,19 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit3, Eye, Trash2, Printer, AlertTriangle, ArrowUp, ArrowDown, ChevronsUpDown, Users, Crown } from "lucide-react";
+import { 
+  Edit3, 
+  Eye, 
+  Trash2, 
+  Printer, 
+  AlertTriangle, 
+  ArrowUp, 
+  ArrowDown, 
+  ChevronsUpDown, 
+  Users, 
+  Crown,
+  RotateCcw
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -26,6 +37,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useAuth } from "@/hooks/use-auth";
+import { ResetCobranzasModal } from "@/components/cobranzas/ResetCobranzasModal";
 
 interface ClientTableProps {
   clients: Client[];
@@ -47,6 +60,10 @@ const classificationMap = {
 };
 
 export function ClientTable({ clients, allClients, onEdit, onView, onPrint, onDelete, hideFinancials = false, canDelete = true }: ClientTableProps) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [resetModalClient, setResetModalClient] = useState<Client | null>(null);
+
   // Conteo de cuentas familiares vinculadas a cada titular
   const linkedCountMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -167,15 +184,27 @@ export function ClientTable({ clients, allClients, onEdit, onView, onPrint, onDe
                 )}
                 <TableCell className="text-right pr-8">
                   <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => onView(client)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10" onClick={() => onView(client)} title="Ver detalles">
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-600/10" onClick={() => onPrint(client)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-600/10" onClick={() => onPrint(client)} title="Imprimir ficha">
                       <Printer className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-400/10" onClick={() => onEdit(client)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-400/10" onClick={() => onEdit(client)} title="Editar socio">
                       <Edit3 className="h-4 w-4" />
                     </Button>
+
+                    {isAdmin && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10" 
+                        onClick={() => setResetModalClient(client)}
+                        title="Reiniciar Cobros por Mes (Solo Administrador)"
+                      >
+                        <RotateCcw className="h-4 w-4 text-amber-600" />
+                      </Button>
+                    )}
                     
                     {canDelete && (
                       <AlertDialog>
@@ -184,6 +213,7 @@ export function ClientTable({ clients, allClients, onEdit, onView, onPrint, onDe
                             variant="ghost" 
                             size="icon" 
                             className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-500/10"
+                            title="Eliminar socio"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -217,6 +247,17 @@ export function ClientTable({ clients, allClients, onEdit, onView, onPrint, onDe
           })}
         </TableBody>
       </Table>
+
+      {/* Modal para reiniciar cobranzas de cliente por mes */}
+      {resetModalClient && (
+        <ResetCobranzasModal
+          isOpen={Boolean(resetModalClient)}
+          onClose={() => setResetModalClient(null)}
+          client={resetModalClient}
+          allClients={allClients || clients}
+          onSuccess={() => setResetModalClient(null)}
+        />
+      )}
     </div>
   );
 }

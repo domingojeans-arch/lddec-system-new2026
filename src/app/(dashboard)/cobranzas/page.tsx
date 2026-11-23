@@ -15,8 +15,10 @@ import {
   Wallet, 
   Info,
   TrendingUp,
-  Users
+  Users,
+  RotateCcw
 } from "lucide-react";
+import { ResetCobranzasModal } from "@/components/cobranzas/ResetCobranzasModal";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -48,6 +50,8 @@ export default function CobranzasPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isReadOnly = user?.role === "socio";
+  const isAdmin = user?.role === "admin";
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const searchParams = useSearchParams();
 
   const [clients, setClients] = useState<any[]>([]);
@@ -570,7 +574,18 @@ export default function CobranzasPage() {
           </div>
         )}
 
-        <div className="flex justify-end pt-4 border-t border-border/50">
+        <div className="flex justify-end pt-4 border-t border-border/50 gap-3">
+          {isAdmin && currentClient && (
+            <Button 
+              type="button"
+              variant="outline"
+              onClick={() => setIsResetModalOpen(true)}
+              className="border-amber-400 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-black uppercase text-xs tracking-wider h-14 px-6 rounded-2xl gap-2 shadow-sm"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reiniciar Cobros por Mes
+            </Button>
+          )}
           <Button 
             onClick={handleGenerateClick}
             className="bg-primary hover:bg-primary/90 text-white font-black uppercase h-14 px-14 rounded-2xl shadow-xl shadow-primary/20 transition-all active:scale-95 group"
@@ -681,6 +696,20 @@ export default function CobranzasPage() {
             </div>
           </div>
         </div>
+      )}
+      {currentClient && (
+        <ResetCobranzasModal
+          isOpen={isResetModalOpen}
+          onClose={() => setIsResetModalOpen(false)}
+          client={currentClient}
+          allClients={clients}
+          onSuccess={() => {
+            setIsGenerated(false);
+            setTimeout(() => {
+              handleGenerateClick();
+            }, 300);
+          }}
+        />
       )}
     </div>
   );

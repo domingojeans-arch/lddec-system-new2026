@@ -125,7 +125,111 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
 
       const visibleClients = clientRows.filter(c => c && (c.hasMovement || Math.abs(c.saldoActual) > 0.01));
 
-      const sortedClients = [...visibleClients].sort((a, b) => {
+      // AGRUPACIÓN FAMILIAR: Unir miembros familiares bajo la misma fila de cuenta familiar
+      const processedClientIds = new Set<string>();
+      const groupedRows: Array<{
+        isFamily: boolean;
+        id: string;
+        name: string;
+        primaryMember: typeof visibleClients[0];
+        linkedMembers: typeof visibleClients;
+        familyTotals: {
+          saldoAnterior: number;
+          facturacion: number;
+          nd: number;
+          nc: number;
+          retencion: number;
+          cobro: number;
+          saldoActual: number;
+        };
+        saldoAnterior: number;
+        facturacion: number;
+        nd: number;
+        nc: number;
+        retencion: number;
+        cobro: number;
+        saldoActual: number;
+      }> = [];
+
+      // Primero ordenamos los visibleClients alfabéticamente para que el primer miembro de la familia que aparezca sea el principal
+      const sortedVisible = [...visibleClients].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+
+      for (const clientRow of sortedVisible) {
+        if (processedClientIds.has(clientRow.id)) continue;
+
+        const rawClient = clients.find(c => c.id === clientRow.id);
+        const rootId = rawClient?.parentClientId || rawClient?.id;
+
+        // Buscar todos los miembros de este grupo familiar presentes en visibleClients
+        const familyMembers = sortedVisible.filter(c => {
+          const rawC = clients.find(cl => cl.id === c.id);
+          const cRoot = rawC?.parentClientId || rawC?.id;
+          return cRoot === rootId || rawC?.id === rootId || rawC?.parentClientId === rootId;
+        });
+
+        if (familyMembers.length > 1) {
+          // Cuenta familiar con 2 o más miembros
+          familyMembers.forEach(m => processedClientIds.add(m.id));
+
+          const primaryMember = familyMembers[0];
+          const linkedMembers = familyMembers.slice(1);
+
+          const familyTotals = familyMembers.reduce((acc, m) => ({
+            saldoAnterior: acc.saldoAnterior + m.saldoAnterior,
+            facturacion: acc.facturacion + m.facturacion,
+            nd: acc.nd + m.nd,
+            nc: acc.nc + m.nc,
+            retencion: acc.retencion + m.retencion,
+            cobro: acc.cobro + m.cobro,
+            saldoActual: acc.saldoActual + m.saldoActual
+          }), { saldoAnterior: 0, facturacion: 0, nd: 0, nc: 0, retencion: 0, cobro: 0, saldoActual: 0 });
+
+          groupedRows.push({
+            isFamily: true,
+            id: primaryMember.id,
+            name: primaryMember.name,
+            primaryMember,
+            linkedMembers,
+            familyTotals,
+            saldoAnterior: familyTotals.saldoAnterior,
+            facturacion: familyTotals.facturacion,
+            nd: familyTotals.nd,
+            nc: familyTotals.nc,
+            retencion: familyTotals.retencion,
+            cobro: familyTotals.cobro,
+            saldoActual: familyTotals.saldoActual
+          });
+        } else {
+          // Cliente individual
+          processedClientIds.add(clientRow.id);
+          groupedRows.push({
+            isFamily: false,
+            id: clientRow.id,
+            name: clientRow.name,
+            primaryMember: clientRow,
+            linkedMembers: [],
+            familyTotals: {
+              saldoAnterior: clientRow.saldoAnterior,
+              facturacion: clientRow.facturacion,
+              nd: clientRow.nd,
+              nc: clientRow.nc,
+              retencion: clientRow.retencion,
+              cobro: clientRow.cobro,
+              saldoActual: clientRow.saldoActual
+            },
+            saldoAnterior: clientRow.saldoAnterior,
+            facturacion: clientRow.facturacion,
+            nd: clientRow.nd,
+            nc: clientRow.nc,
+            retencion: clientRow.retencion,
+            cobro: clientRow.cobro,
+            saldoActual: clientRow.saldoActual
+          });
+        }
+      }
+
+      // Ordenar según columna seleccionada
+      const sortedClients = [...groupedRows].sort((a, b) => {
         const valA = a[sortKey];
         const valB = b[sortKey];
         if (typeof valA === 'string' && typeof valB === 'string') return sortDir === "asc" ? valA.localeCompare(valB, 'es') : valB.localeCompare(valA, 'es');
@@ -146,48 +250,23 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
     });
   }, [clients, invoices, payments, dateFrom, dateTo, sortKey, sortDir]);
 
-  // Detección y consolidación de cuenta familiar si hay miembros vinculados presentes en el reporte
+  // Detección de cuenta familiar activa si el filtro es de un cliente específico o familia
   const familySummary = useMemo(() => {
+    // Si tenemos más de 5 clientes cargados (e.g. "Todos los clientes"), no mostramos banner superior
+    if (clients.length > 5) return null;
+
     const allComputedClientRows = reportData.flatMap(g => g.clients);
-    if (allComputedClientRows.length < 2) return null;
+    const familyRow = allComputedClientRows.find(r => r.isFamily);
+    if (!familyRow) return null;
 
-    // Buscar clientes vinculados entre sí
-    const linkedClients = clients.filter(c => 
-      c.parentClientId || clients.some(other => other.parentClientId === c.id)
-    );
-    if (linkedClients.length < 2) return null;
-
-    // Identificar el titular principal del grupo
-    const titularClient = linkedClients.find(c => !c.parentClientId && clients.some(other => other.parentClientId === c.id)) || linkedClients[0];
-    const titularId = titularClient?.id;
-
-    // Filtrar los rows calculados que pertenecen a este grupo familiar
-    const familyRows = allComputedClientRows.filter(row => {
-      const matchClient = clients.find(c => c.id === row.id);
-      if (!matchClient) return false;
-      const rootId = matchClient.parentClientId || matchClient.id;
-      return rootId === titularId || matchClient.id === titularId || matchClient.parentClientId === titularId;
-    });
-
-    if (familyRows.length < 2) return null;
-
-    const totals = familyRows.reduce((acc, r) => ({
-      saldoAnterior: acc.saldoAnterior + r.saldoAnterior,
-      facturacion: acc.facturacion + r.facturacion,
-      nd: acc.nd + r.nd,
-      nc: acc.nc + r.nc,
-      retencion: acc.retencion + r.retencion,
-      cobro: acc.cobro + r.cobro,
-      saldoActual: acc.saldoActual + r.saldoActual
-    }), { saldoAnterior: 0, facturacion: 0, nd: 0, nc: 0, retencion: 0, cobro: 0, saldoActual: 0 });
-
-    const memberNames = familyRows.map(r => r.name).join(" + ");
+    const allMembers = [familyRow.primaryMember, ...familyRow.linkedMembers];
+    const memberNames = allMembers.map(m => m.name).join(" + ");
 
     return {
-      titularName: titularClient ? formatClientName(titularClient.name, titularClient.firstName, titularClient.lastName) : familyRows[0].name,
+      primaryName: familyRow.primaryMember.name,
       memberNames,
-      members: familyRows,
-      totals
+      members: allMembers,
+      totals: familyRow.familyTotals
     };
   }, [clients, reportData]);
 
@@ -225,7 +304,7 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
       </div>
 
       <div id="statement-accounts-report-area" className="space-y-12">
-        {/* Banner Consolidado de Cuenta Familiar si aplica */}
+        {/* Banner Consolidado de Cuenta Familiar si se filtra un cliente específico vinculado */}
         {familySummary && (
           <div className="rounded-2xl border-2 border-blue-500/30 bg-blue-50/70 dark:bg-blue-950/20 p-6 space-y-4 shadow-sm print:border-blue-700">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-blue-200/60 dark:border-blue-800/60 pb-4">
@@ -307,49 +386,148 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                     </TableRow>
                   </TableHeader>
                   <TableBody className="tabular-nums">
-                    {group.clients.map((client, idx) => (
-                      <TableRow key={idx} className="border-b border-gray-100 dark:border-gray-800">
-                        <TableCell className="text-xs font-semibold uppercase pl-6">
-                          <div>{client.name}</div>
-                          {client.parentClientName && (
-                            <div className="text-[9px] font-bold text-blue-600 dark:text-blue-400 tracking-normal">
-                              (familiar de: {client.parentClientName})
-                            </div>
-                          )}
-                          {!client.parentClientName && clients.some(c => c.parentClientId === client.id) && (
-                            <div className="text-[9px] font-bold text-blue-600 dark:text-blue-400 tracking-normal">
-                              (cuenta titular familiar)
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs text-right font-medium">{formatNum(client.saldoAnterior)}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">{formatNum(client.facturacion)}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">{formatNum(client.nd)}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">{formatNum(client.nc)}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">{formatNum(client.retencion)}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">{formatNum(client.cobro)}</TableCell>
-                        <TableCell className="text-xs text-right font-bold text-slate-900 dark:text-white pr-6">{formatNum(client.saldoActual)}</TableCell>
-                      </TableRow>
-                    ))}
+                    {group.clients.map((row, idx) => {
+                      if (!row.isFamily) {
+                        return (
+                          <TableRow key={idx} className="border-b border-gray-100 dark:border-gray-800">
+                            <TableCell className="text-xs font-semibold uppercase pl-6">
+                              <div>{row.name}</div>
+                            </TableCell>
+                            <TableCell className="text-xs text-right font-medium">{formatNum(row.saldoAnterior)}</TableCell>
+                            <TableCell className="text-xs text-right font-medium">{formatNum(row.facturacion)}</TableCell>
+                            <TableCell className="text-xs text-right font-medium">{formatNum(row.nd)}</TableCell>
+                            <TableCell className="text-xs text-right font-medium">{formatNum(row.nc)}</TableCell>
+                            <TableCell className="text-xs text-right font-medium">{formatNum(row.retencion)}</TableCell>
+                            <TableCell className="text-xs text-right font-medium">{formatNum(row.cobro)}</TableCell>
+                            <TableCell className="text-xs text-right font-bold text-slate-900 dark:text-white pr-6">{formatNum(row.saldoActual)}</TableCell>
+                          </TableRow>
+                        );
+                      }
 
-                    {/* Fila consolidada de cuenta familiar en la tabla */}
-                    {familySummary && group.clients.some(c => familySummary.members.some(m => m.id === c.id)) && (
-                      <TableRow className="bg-blue-50/90 dark:bg-blue-950/50 border-t-2 border-b-2 border-blue-500/50 font-black">
-                        <TableCell className="text-xs font-black uppercase text-blue-900 dark:text-blue-200 pl-6 py-3.5">
-                          <div className="flex items-center gap-1.5">
-                            <Users className="h-4 w-4 text-blue-600 shrink-0" />
-                            <span>TOTAL CUENTA FAMILIAR ({familySummary.members.length} MIEMBROS)</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.saldoAnterior)}</TableCell>
-                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.facturacion)}</TableCell>
-                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.nd)}</TableCell>
-                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.nc)}</TableCell>
-                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.retencion)}</TableCell>
-                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.cobro)}</TableCell>
-                        <TableCell className="text-xs text-right font-black text-blue-700 dark:text-blue-400 pr-6 text-sm">{formatNum(familySummary.totals.saldoActual)}</TableCell>
-                      </TableRow>
-                    )}
+                      // FILA CONSOLIDADA DE CUENTA FAMILIAR:
+                      // Cliente principal arriba, familiares vinculados más abajo con sus datos, y al final un solo cobro y saldo actual
+                      return (
+                        <TableRow key={idx} className="border-b-2 border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20 hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors">
+                          {/* Columna CLIENTE: Principal y Vinculados */}
+                          <TableCell className="text-xs uppercase pl-6 py-3.5 align-middle">
+                            <div className="space-y-1.5">
+                              <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                <span>{row.primaryMember.name}</span>
+                                <Badge className="bg-blue-600 hover:bg-blue-600 text-white text-[8px] font-bold px-1.5 py-0 border-none">
+                                  Cuenta Familiar
+                                </Badge>
+                              </div>
+                              {row.linkedMembers.map((m) => (
+                                <div key={m.id} className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 pl-3 flex items-center gap-1.5">
+                                  <span className="text-blue-500 font-bold text-sm">↳</span>
+                                  <span>{m.name}</span>
+                                  <span className="text-[8px] font-normal text-muted-foreground uppercase">(Familiar Vinculado)</span>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+
+                          {/* S. ANTERIOR: Desglose por miembro y sumatoria */}
+                          <TableCell className="text-xs text-right align-middle py-3.5">
+                            <div className="space-y-1.5 font-medium">
+                              <div>{formatNum(row.primaryMember.saldoAnterior)}</div>
+                              {row.linkedMembers.map((m) => (
+                                <div key={m.id} className="text-[11px] text-blue-700/80 dark:text-blue-400">
+                                  {formatNum(m.saldoAnterior)}
+                                </div>
+                              ))}
+                              {row.linkedMembers.some(m => Math.abs(m.saldoAnterior) > 0.01) && Math.abs(row.primaryMember.saldoAnterior) > 0.01 && (
+                                <div className="border-t border-blue-200 dark:border-blue-800 text-[10px] font-black pt-0.5 text-foreground">
+                                  ∑ {formatNum(row.familyTotals.saldoAnterior)}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* FACTURACIÓN: Desglose por miembro y sumatoria */}
+                          <TableCell className="text-xs text-right align-middle py-3.5">
+                            <div className="space-y-1.5 font-medium">
+                              <div>{formatNum(row.primaryMember.facturacion)}</div>
+                              {row.linkedMembers.map((m) => (
+                                <div key={m.id} className="text-[11px] text-blue-700/80 dark:text-blue-400">
+                                  {formatNum(m.facturacion)}
+                                </div>
+                              ))}
+                              {row.linkedMembers.some(m => Math.abs(m.facturacion) > 0.01) && Math.abs(row.primaryMember.facturacion) > 0.01 && (
+                                <div className="border-t border-blue-200 dark:border-blue-800 text-[10px] font-black pt-0.5 text-foreground">
+                                  ∑ {formatNum(row.familyTotals.facturacion)}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* N/D */}
+                          <TableCell className="text-xs text-right align-middle py-3.5">
+                            <div className="space-y-1.5 font-medium">
+                              <div>{formatNum(row.primaryMember.nd)}</div>
+                              {row.linkedMembers.map((m) => (
+                                <div key={m.id} className="text-[11px] text-blue-700/80 dark:text-blue-400">
+                                  {formatNum(m.nd)}
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+
+                          {/* N/C */}
+                          <TableCell className="text-xs text-right align-middle py-3.5">
+                            <div className="space-y-1.5 font-medium">
+                              <div>{formatNum(row.primaryMember.nc)}</div>
+                              {row.linkedMembers.map((m) => (
+                                <div key={m.id} className="text-[11px] text-blue-700/80 dark:text-blue-400">
+                                  {formatNum(m.nc)}
+                                </div>
+                              ))}
+                              {row.linkedMembers.some(m => Math.abs(m.nc) > 0.01) && Math.abs(row.primaryMember.nc) > 0.01 && (
+                                <div className="border-t border-blue-200 dark:border-blue-800 text-[10px] font-black pt-0.5 text-foreground">
+                                  ∑ {formatNum(row.familyTotals.nc)}
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* RETENCIÓN */}
+                          <TableCell className="text-xs text-right align-middle py-3.5">
+                            <div className="space-y-1.5 font-medium">
+                              <div>{formatNum(row.primaryMember.retencion)}</div>
+                              {row.linkedMembers.map((m) => (
+                                <div key={m.id} className="text-[11px] text-blue-700/80 dark:text-blue-400">
+                                  {formatNum(m.retencion)}
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+
+                          {/* COBRO: ¡UN SOLO COBRO FAMILIAR! */}
+                          <TableCell className="text-xs text-right align-middle py-3.5 font-bold text-slate-900 dark:text-white">
+                            <div className="flex flex-col items-end justify-center">
+                              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                {formatNum(row.familyTotals.cobro)}
+                              </span>
+                              <span className="text-[8px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tighter">
+                                (Cobro Familiar)
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          {/* SALDO ACTUAL: ¡UN SOLO SALDO ACTUAL FAMILIAR! */}
+                          <TableCell className="text-right align-middle py-3.5 pr-6">
+                            <div className="flex flex-col items-end justify-center">
+                              <span className="text-sm font-black text-blue-700 dark:text-blue-400 tracking-tight">
+                                {formatNum(row.familyTotals.saldoActual)}
+                              </span>
+                              <span className="text-[8px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tighter">
+                                (Saldo Total Familiar)
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                   <TableFooter className="bg-gray-100 dark:bg-gray-800 tabular-nums">
                     <TableRow>
