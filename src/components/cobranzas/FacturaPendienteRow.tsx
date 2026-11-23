@@ -51,7 +51,14 @@ export function FacturaPendienteRow({ invoice, isSelected, onToggle }: FacturaPe
             </div>
           )}
           <div className="flex flex-col">
-            <span className="font-black text-foreground text-sm uppercase">{numero}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-black text-foreground text-sm uppercase">{numero}</span>
+              {invoice._ownerClientName && (
+                <Badge variant="outline" className="text-[8px] font-black text-primary border-primary/30 uppercase px-1.5 py-0 h-4 bg-primary/5">
+                  {invoice._ownerClientName}
+                </Badge>
+              )}
+            </div>
             <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">
               {invoice.isInitialBalance ? "Apertura Período 2026" : (invoice.ingresoMaestroId ? `Ingreso: ${invoice.ingresoMaestroId}` : "Referencia")}
             </span>

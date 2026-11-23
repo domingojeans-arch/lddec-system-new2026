@@ -3,7 +3,8 @@
 import React, { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Printer, ArrowUp, ArrowDown, ChevronsUpDown, Download, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Printer, ArrowUp, ArrowDown, ChevronsUpDown, Download, Loader2, Users } from "lucide-react";
 import { exportReportToPdf } from "@/lib/pdfExport";
 import { calculateClientAccountingMetrics } from "@/lib/accounting-motor";
 import { toDate } from "@/lib/toDate";
@@ -18,6 +19,31 @@ interface StatementOfAccountsReportProps {
 }
 
 type SortKey = "name" | "saldoAnterior" | "facturacion" | "nd" | "nc" | "retencion" | "cobro" | "saldoActual";
+
+function isMatchForClient(doc: any, client: any): boolean {
+  if (!doc || !client) return false;
+  const docCid = String(doc.clientId || doc.clienteId || "").trim();
+  if (docCid && docCid === client.id) return true;
+  
+  const clientNames = [
+    client.name,
+    client.nombre,
+    client.fullName,
+    formatClientName(client.name, client.firstName, client.lastName),
+    `${client.firstName || ""} ${client.lastName || ""}`.trim(),
+    `${client.lastName || ""} ${client.firstName || ""}`.trim()
+  ].filter(Boolean).map(s => String(s).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, ""));
+
+  const docNames = [
+    doc.clienteNombre,
+    doc.clientName,
+    doc.cliente,
+    doc.client,
+    doc.socio
+  ].filter(Boolean).map(s => String(s).trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, ""));
+
+  return clientNames.some(cn => docNames.some(dn => dn && (dn === cn || dn.includes(cn) || cn.includes(dn))));
+}
 
 export function StatementOfAccountsReport({ clients, invoices, payments, dateFrom, dateTo }: StatementOfAccountsReportProps) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -64,16 +90,13 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
       
       const clientRows = groupClients.map(client => {
         if (!client) return null;
-        const clientInvoices = invoices.filter(inv => inv && (inv.clientId === client.id || inv.clienteId === client.id || inv.clientName === client.name));
+        const clientInvoices = invoices.filter(inv => isMatchForClient(inv, client));
         
-        // 1. Filtrar los pagos globales correspondientes a este cliente
-        // No necesitamos procesar clientInvoices porque 'payments' ya incluye 
-        // todos los pagos de facturas y los pagos de saldo inicial.
         const clientPayments = (payments || []).filter((p: any) => {
           if (!p) return false;
           const isAnulado = Boolean(p.anulado) || p.estado === "anulado" || p.estado === "Anulado" || p.status === "anulado";
           if (isAnulado) return false;
-          return p.clienteId === client.id || p.clientId === client.id;
+          return isMatchForClient(p, client);
         });
 
         const metrics = calculateClientAccountingMetrics(
@@ -85,7 +108,10 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
           client
         );
         return {
+          id: client.id,
           name: formatClientName(client.name, client.firstName, client.lastName),
+          parentClientId: client.parentClientId || "",
+          parentClientName: client.parentClientName || "",
           saldoAnterior: metrics.saldoAnterior,
           facturacion: metrics.facturacion,
           nd: metrics.nd,
@@ -120,6 +146,51 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
     });
   }, [clients, invoices, payments, dateFrom, dateTo, sortKey, sortDir]);
 
+  // Detección y consolidación de cuenta familiar si hay miembros vinculados presentes en el reporte
+  const familySummary = useMemo(() => {
+    const allComputedClientRows = reportData.flatMap(g => g.clients);
+    if (allComputedClientRows.length < 2) return null;
+
+    // Buscar clientes vinculados entre sí
+    const linkedClients = clients.filter(c => 
+      c.parentClientId || clients.some(other => other.parentClientId === c.id)
+    );
+    if (linkedClients.length < 2) return null;
+
+    // Identificar el titular principal del grupo
+    const titularClient = linkedClients.find(c => !c.parentClientId && clients.some(other => other.parentClientId === c.id)) || linkedClients[0];
+    const titularId = titularClient?.id;
+
+    // Filtrar los rows calculados que pertenecen a este grupo familiar
+    const familyRows = allComputedClientRows.filter(row => {
+      const matchClient = clients.find(c => c.id === row.id);
+      if (!matchClient) return false;
+      const rootId = matchClient.parentClientId || matchClient.id;
+      return rootId === titularId || matchClient.id === titularId || matchClient.parentClientId === titularId;
+    });
+
+    if (familyRows.length < 2) return null;
+
+    const totals = familyRows.reduce((acc, r) => ({
+      saldoAnterior: acc.saldoAnterior + r.saldoAnterior,
+      facturacion: acc.facturacion + r.facturacion,
+      nd: acc.nd + r.nd,
+      nc: acc.nc + r.nc,
+      retencion: acc.retencion + r.retencion,
+      cobro: acc.cobro + r.cobro,
+      saldoActual: acc.saldoActual + r.saldoActual
+    }), { saldoAnterior: 0, facturacion: 0, nd: 0, nc: 0, retencion: 0, cobro: 0, saldoActual: 0 });
+
+    const memberNames = familyRows.map(r => r.name).join(" + ");
+
+    return {
+      titularName: titularClient ? formatClientName(titularClient.name, titularClient.firstName, titularClient.lastName) : familyRows[0].name,
+      memberNames,
+      members: familyRows,
+      totals
+    };
+  }, [clients, reportData]);
+
   const formatNum = (val: number) => {
     if (Math.abs(val) < 0.001) return "-";
     return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -150,11 +221,71 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
         >
           {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           {isExporting ? "Generando PDF..." : "Guardar Reporte en PDF"}
-
         </Button>
       </div>
 
       <div id="statement-accounts-report-area" className="space-y-12">
+        {/* Banner Consolidado de Cuenta Familiar si aplica */}
+        {familySummary && (
+          <div className="rounded-2xl border-2 border-blue-500/30 bg-blue-50/70 dark:bg-blue-950/20 p-6 space-y-4 shadow-sm print:border-blue-700">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-blue-200/60 dark:border-blue-800/60 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-blue-900 dark:text-blue-300">
+                      Total Consolidado de la Cuenta Familiar
+                    </span>
+                    <Badge className="bg-blue-600 hover:bg-blue-600 text-white text-[10px] uppercase font-bold tracking-wider">
+                      {familySummary.members.length} Cuentas Vinculadas
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] font-semibold text-blue-700/90 dark:text-blue-400 mt-0.5">
+                    Miembros: {familySummary.memberNames}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Saldo Actual Total Familiar
+                </div>
+                <div className="text-2xl font-black text-blue-700 dark:text-blue-400 tracking-tight">
+                  ${formatNum(familySummary.totals.saldoActual)}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 pt-1 text-center">
+              <div className="bg-white/80 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase block">S. Anterior</span>
+                <span className="text-xs font-black text-foreground">${formatNum(familySummary.totals.saldoAnterior)}</span>
+              </div>
+              <div className="bg-white/80 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase block">Facturación</span>
+                <span className="text-xs font-black text-foreground">${formatNum(familySummary.totals.facturacion)}</span>
+              </div>
+              <div className="bg-white/80 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase block">N/D</span>
+                <span className="text-xs font-black text-foreground">${formatNum(familySummary.totals.nd)}</span>
+              </div>
+              <div className="bg-white/80 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase block">N/C</span>
+                <span className="text-xs font-black text-foreground">${formatNum(familySummary.totals.nc)}</span>
+              </div>
+              <div className="bg-white/80 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-[9px] font-bold text-muted-foreground uppercase block">Cobros</span>
+                <span className="text-xs font-black text-foreground">${formatNum(familySummary.totals.cobro)}</span>
+              </div>
+              <div className="bg-blue-600/10 dark:bg-blue-950/60 p-2.5 rounded-xl border border-blue-300 dark:border-blue-700/50">
+                <span className="text-[9px] font-black text-blue-700 dark:text-blue-300 uppercase block">Saldo Total</span>
+                <span className="text-xs font-black text-blue-700 dark:text-blue-400">${formatNum(familySummary.totals.saldoActual)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {reportData.map((group) => (
           group.clients.length > 0 && (
             <div key={group.id} className="space-y-4">
@@ -178,7 +309,19 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                   <TableBody className="tabular-nums">
                     {group.clients.map((client, idx) => (
                       <TableRow key={idx} className="border-b border-gray-100 dark:border-gray-800">
-                        <TableCell className="text-xs font-semibold uppercase pl-6">{client.name}</TableCell>
+                        <TableCell className="text-xs font-semibold uppercase pl-6">
+                          <div>{client.name}</div>
+                          {client.parentClientName && (
+                            <div className="text-[9px] font-bold text-blue-600 dark:text-blue-400 tracking-normal">
+                              (familiar de: {client.parentClientName})
+                            </div>
+                          )}
+                          {!client.parentClientName && clients.some(c => c.parentClientId === client.id) && (
+                            <div className="text-[9px] font-bold text-blue-600 dark:text-blue-400 tracking-normal">
+                              (cuenta titular familiar)
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="text-xs text-right font-medium">{formatNum(client.saldoAnterior)}</TableCell>
                         <TableCell className="text-xs text-right font-medium">{formatNum(client.facturacion)}</TableCell>
                         <TableCell className="text-xs text-right font-medium">{formatNum(client.nd)}</TableCell>
@@ -188,6 +331,25 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                         <TableCell className="text-xs text-right font-bold text-slate-900 dark:text-white pr-6">{formatNum(client.saldoActual)}</TableCell>
                       </TableRow>
                     ))}
+
+                    {/* Fila consolidada de cuenta familiar en la tabla */}
+                    {familySummary && group.clients.some(c => familySummary.members.some(m => m.id === c.id)) && (
+                      <TableRow className="bg-blue-50/90 dark:bg-blue-950/50 border-t-2 border-b-2 border-blue-500/50 font-black">
+                        <TableCell className="text-xs font-black uppercase text-blue-900 dark:text-blue-200 pl-6 py-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <Users className="h-4 w-4 text-blue-600 shrink-0" />
+                            <span>TOTAL CUENTA FAMILIAR ({familySummary.members.length} MIEMBROS)</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.saldoAnterior)}</TableCell>
+                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.facturacion)}</TableCell>
+                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.nd)}</TableCell>
+                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.nc)}</TableCell>
+                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.retencion)}</TableCell>
+                        <TableCell className="text-xs text-right font-black text-blue-900 dark:text-blue-200">{formatNum(familySummary.totals.cobro)}</TableCell>
+                        <TableCell className="text-xs text-right font-black text-blue-700 dark:text-blue-400 pr-6 text-sm">{formatNum(familySummary.totals.saldoActual)}</TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                   <TableFooter className="bg-gray-100 dark:bg-gray-800 tabular-nums">
                     <TableRow>

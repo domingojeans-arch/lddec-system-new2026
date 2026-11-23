@@ -38,6 +38,7 @@ import { OutputsDetailedReport } from "./outputs-detailed-report";
 import { ChemicalMovementsDetailedReport } from "./chemical-movements-detailed-report";
 import { SalesDetailedReport } from "./sales-detailed-report";
 import { calculateInventorySummary } from "@/lib/inventoryEngine";
+import { formatClientName } from "@/lib/format-name";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, orderBy, where, Timestamp, limit, doc, onSnapshot } from "firebase/firestore";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -194,14 +195,39 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
       const selectedClientObj = clients.find(c => c.id === filters.clientId);
       const normalizeStr = (s: any) => String(s ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
       const targetClientId = filters.clientId && filters.clientId !== "all" ? normalizeStr(filters.clientId) : "";
-      const targetClientName = selectedClientObj ? normalizeStr(selectedClientObj.name || selectedClientObj.nombre) : "";
+      
+      const targetClientNames = selectedClientObj ? Array.from(new Set([
+        selectedClientObj.name,
+        selectedClientObj.nombre,
+        `${selectedClientObj.firstName || ""} ${selectedClientObj.lastName || ""}`.trim(),
+        `${selectedClientObj.lastName || ""} ${selectedClientObj.firstName || ""}`.trim(),
+        formatClientName(selectedClientObj.name, selectedClientObj.firstName, selectedClientObj.lastName)
+      ].filter(Boolean).map(normalizeStr))) : [];
+      const targetClientName = targetClientNames[0] || "";
+
+      // Miembros del grupo familiar para consolidación en reportes
+      const rootTitularId = selectedClientObj?.parentClientId || selectedClientObj?.id || filters.clientId;
+      const familyGroup = (filters.clientId && filters.clientId !== "all")
+        ? clients.filter(c => c.id === rootTitularId || c.parentClientId === rootTitularId || (selectedClientObj?.parentClientId && c.id === selectedClientObj.parentClientId))
+        : [];
+      const familyGroupIds = Array.from(new Set(familyGroup.map(c => normalizeStr(c.id)).filter(Boolean)));
+      const familyGroupNames = Array.from(new Set(familyGroup.flatMap(c => [
+        c.name,
+        c.nombre,
+        `${c.firstName || ""} ${c.lastName || ""}`.trim(),
+        `${c.lastName || ""} ${c.firstName || ""}`.trim(),
+        formatClientName(c.name, c.firstName, c.lastName)
+      ].filter(Boolean).map(normalizeStr))));
 
       const matchesClientFilter = (docItem: any): boolean => {
-        if (!targetClientId && !targetClientName) return true;
+        if (!targetClientId && targetClientNames.length === 0) return true;
 
-        // 1. Coincidencia por ID directo
+        // 1. Coincidencia por ID directo o miembros del grupo familiar
         const docClientId = normalizeStr(docItem.clientId || docItem.clienteId);
-        if (docClientId && (docClientId === targetClientId || (targetClientName && docClientId === targetClientName))) return true;
+        if (docClientId) {
+          if (familyGroupIds.length > 0 && familyGroupIds.includes(docClientId)) return true;
+          if (docClientId === targetClientId) return true;
+        }
 
         // 2. Coincidencia por nombres a nivel de documento
         const clientNames = [
@@ -212,13 +238,16 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           docItem.customer
         ].filter(Boolean).map(normalizeStr);
 
-        if (targetClientName && clientNames.some(cn => cn.includes(targetClientName) || targetClientName.includes(cn))) return true;
+        if (familyGroupNames.some(fn => fn && clientNames.some(cn => cn.includes(fn) || fn.includes(cn)))) return true;
+        if (targetClientNames.some(tn => tn && clientNames.some(cn => cn.includes(tn) || tn.includes(cn)))) return true;
 
         // 3. Arreglo de clientes contenidos (containedClientNames)
         if (Array.isArray(docItem.containedClientNames)) {
           if (docItem.containedClientNames.some((cn: any) => {
             const norm = normalizeStr(cn);
-            return (targetClientName && (norm.includes(targetClientName) || targetClientName.includes(norm))) || (targetClientId && norm === targetClientId);
+            if (familyGroupNames.some(fn => fn && (norm.includes(fn) || fn.includes(norm)))) return true;
+            if (familyGroupIds.includes(norm)) return true;
+            return targetClientNames.some(tn => tn && (norm.includes(tn) || tn.includes(norm))) || (targetClientId && norm === targetClientId);
           })) return true;
         }
 
@@ -229,8 +258,9 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
 
         if (subItems.some((it: any) => {
           const itId = normalizeStr(it.clientId || it.clienteId);
-          if (itId && (itId === targetClientId || (targetClientName && itId === targetClientName))) return true;
+          if (itId && (familyGroupIds.includes(itId) || itId === targetClientId || (targetClientName && itId === targetClientName))) return true;
           const itNames = [it.clientName, it.clienteNombre, it.cliente].filter(Boolean).map(normalizeStr);
+          if (familyGroupNames.some(fn => fn && itNames.some(cn => cn.includes(fn) || fn.includes(cn)))) return true;
           return targetClientName && itNames.some(cn => cn.includes(targetClientName) || targetClientName.includes(cn));
         })) return true;
 
@@ -313,7 +343,15 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
         let raw = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         if (hasClientFilter && filters.clientId !== "all") {
-          raw = raw.filter((d: any) => d.clientId === filters.clientId || d.clienteId === filters.clientId);
+          raw = raw.filter((d: any) => {
+            const cid = normalizeStr(d.clientId || d.clienteId);
+            if (familyGroupIds.length > 0 && familyGroupIds.includes(cid)) return true;
+            if (cid && cid === targetClientId) return true;
+            const cnames = [d.clienteNombre, d.clientName, d.cliente, d.client].filter(Boolean).map(normalizeStr);
+            if (familyGroupNames.some(fn => fn && cnames.some(cn => cn.includes(fn) || fn.includes(cn)))) return true;
+            if (targetClientNames.some(tn => tn && cnames.some(cn => cn.includes(tn) || tn.includes(cn)))) return true;
+            return false;
+          });
         }
 
         data.allInvoices = raw;
@@ -338,7 +376,15 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           const pSnap = await getDocs(collection(db, "payments"));
           paymentsDocs = pSnap.docs.map(d => ({ id: d.id, ...d.data() }));
           if (hasClientFilter && filters.clientId !== "all") {
-            paymentsDocs = paymentsDocs.filter((p: any) => p.clientId === filters.clientId || p.clienteId === filters.clientId);
+            paymentsDocs = paymentsDocs.filter((p: any) => {
+              const cid = normalizeStr(p.clientId || p.clienteId);
+              if (familyGroupIds.length > 0 && familyGroupIds.includes(cid)) return true;
+              if (cid && cid === targetClientId) return true;
+              const cnames = [p.clienteNombre, p.clientName, p.cliente, p.client].filter(Boolean).map(normalizeStr);
+              if (familyGroupNames.some(fn => fn && cnames.some(cn => cn.includes(fn) || fn.includes(cn)))) return true;
+              if (targetClientNames.some(tn => tn && cnames.some(cn => cn.includes(tn) || tn.includes(cn)))) return true;
+              return false;
+            });
           }
         } catch (e) {
           console.warn("Could not fetch payments collection:", e);
@@ -555,7 +601,13 @@ export function ReportGeneratorPanel({ clients }: ReportGeneratorPanelProps) {
           {filters.type === "Informe de Movimientos Bancarios" && <BankMovementsReport accounts={reportData.cuentas} transactions={reportData.bankTransactions} dateFrom={filters.dateFrom} dateTo={filters.dateTo} />}
           {filters.type === "Estado de Cuentas por Cliente a Fecha de Corte" && (
             <StatementOfAccountsReport 
-              clients={filters.clientId === "all" ? clients : clients.filter(c => c.id === filters.clientId)} 
+              clients={filters.clientId === "all" ? clients : clients.filter(c => {
+                if (c.id === filters.clientId) return true;
+                const target = clients.find(cl => cl.id === filters.clientId);
+                if (!target) return false;
+                const rootId = target.parentClientId || target.id;
+                return c.id === rootId || c.parentClientId === rootId || (target.parentClientId && c.id === target.parentClientId);
+              })} 
               invoices={reportData.allInvoices || reportData.invoices} 
               payments={reportData.payments} 
               dateFrom={filters.dateFrom} 

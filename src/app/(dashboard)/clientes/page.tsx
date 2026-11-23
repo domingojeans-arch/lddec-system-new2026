@@ -70,7 +70,9 @@ export default function ClientesPage() {
           lastName: lName,
           idNumber: data.idNumber || data.identificacion || data.ruc || data.cedula || "",
           baseDebt: Number(data.baseDebt !== undefined ? data.baseDebt : (data.saldoInicial !== undefined ? data.saldoInicial : 0)),
-          classification: normalizedClass
+          classification: normalizedClass,
+          parentClientId: data.parentClientId || "",
+          parentClientName: data.parentClientName || ""
         } as Client;
       });
       
@@ -290,6 +292,7 @@ export default function ClientesPage() {
         ) : filteredClients.length > 0 ? (
           <ClientTable 
             clients={filteredClients} 
+            allClients={clients}
             onEdit={handleEdit} 
             onView={handleView} 
             onPrint={() => window.print()} 
@@ -320,6 +323,7 @@ export default function ClientesPage() {
               <ClientForm 
                 key={editingClient?.id || 'new'} 
                 initialData={editingClient} 
+                clients={clients}
                 onSubmit={handleFormSubmit} 
                 onCancel={() => setIsSheetOpen(false)} 
                 hideFinancials={hideFinancials}

@@ -14,10 +14,12 @@ import {
   X, 
   Wallet, 
   Info,
-  TrendingUp
+  TrendingUp,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -68,6 +70,8 @@ export default function CobranzasPage() {
   const [clientComboOpen, setClientComboOpen] = useState(false);
   const [clientSearchQuery, setClientSearchQuery] = useState("");
 
+  const [isConsolidated, setIsConsolidated] = useState<boolean>(true);
+
   useEffect(() => {
     const d = new Date(); 
     d.setDate(1); 
@@ -81,7 +85,13 @@ export default function CobranzasPage() {
       const mapped = snap.docs.map(d => {
         const data = d.data();
         const rawName = (data.name || data.nombre || "").trim().toUpperCase();
-        return { id: d.id, ...data, displayName: rawName };
+        return { 
+          id: d.id, 
+          ...data, 
+          displayName: rawName,
+          parentClientId: data.parentClientId || "",
+          parentClientName: data.parentClientName || ""
+        };
       });
       
       const sorted = mapped.sort((a, b) => 
@@ -111,60 +121,126 @@ export default function CobranzasPage() {
     }
   }, [selectedClientId, clients]);
 
-  useEffect(() => {
-    if (!db || !selectedClientId) { setAllInvoices([]); return; }
-    setLoading(true);
-    const qInvoices = query(collection(db, "facturas"), where("clientId", "==", selectedClientId));
-    const unsubInvoices = onSnapshot(qInvoices, async (snap) => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      
-      let finalInvoices = docs;
-      try {
-        const snapAlt = await getDocs(query(collection(db, "facturas"), where("clienteId", "==", selectedClientId)));
-        const docsAlt = snapAlt.docs.map(d => ({ id: d.id, ...d.data() }));
-        const map = new Map();
-        docs.forEach(d => map.set(d.id, d));
-        docsAlt.forEach(d => map.set(d.id, d));
-        finalInvoices = Array.from(map.values());
-      } catch {
-        // fallback
-      }
-      setAllInvoices(finalInvoices);
-      setLoading(false);
+  // Identificación del Grupo Familiar Vinculado
+  const familyGroup = useMemo(() => {
+    if (!selectedClientId || clients.length === 0) return [];
+    const target = clients.find(c => c.id === selectedClientId);
+    if (!target) return [];
 
-      const targetInvId = searchParams.get("invoiceId");
-      if (targetInvId) {
-        const belongs = finalInvoices.some((f: any) => f.id === targetInvId);
-        if (belongs) {
-          setSelectedInvoices([targetInvId]);
-          setPaymentLines(prev => {
-            const exists = prev.some(line => line.invoiceId === targetInvId);
-            if (!exists) {
-              return [{
-                id: Math.random().toString(36).substr(2, 9),
-                monto: 0,
-                tipoTransaccion: "Pago",
-                fechaTransaccion: new Date(),
-                invoiceId: targetInvId
-              }];
-            }
-            return prev;
+    const rootTitularId = target.parentClientId || target.id;
+    return clients.filter(c => c.id === rootTitularId || c.parentClientId === rootTitularId);
+  }, [selectedClientId, clients]);
+
+  // IDs de clientes a consultar según modo consolidado o individual
+  const activeClientIds = useMemo(() => {
+    if (isConsolidated && familyGroup.length > 1) {
+      return familyGroup.map(c => c.id);
+    }
+    return selectedClientId ? [selectedClientId] : [];
+  }, [isConsolidated, familyGroup, selectedClientId]);
+
+  useEffect(() => {
+    if (!db || activeClientIds.length === 0) { setAllInvoices([]); return; }
+    setLoading(true);
+
+    const invoicesMap = new Map<string, any>();
+
+    const unsubs = activeClientIds.map((cid) => {
+      const qInvoices = query(collection(db, "facturas"), where("clientId", "==", cid));
+      return onSnapshot(qInvoices, async (snap) => {
+        snap.docs.forEach(d => {
+          const data = d.data();
+          const ownerClient = clients.find(c => c.id === (data.clientId || data.clienteId));
+          invoicesMap.set(d.id, { 
+            id: d.id, 
+            ...data,
+            _ownerClientName: ownerClient ? (ownerClient.displayName || ownerClient.name) : (data.clienteNombre || data.clientName || "")
           });
+        });
+
+        try {
+          const snapAlt = await getDocs(query(collection(db, "facturas"), where("clienteId", "==", cid)));
+          snapAlt.docs.forEach(d => {
+            const data = d.data();
+            const ownerClient = clients.find(c => c.id === (data.clientId || data.clienteId));
+            invoicesMap.set(d.id, { 
+              id: d.id, 
+              ...data,
+              _ownerClientName: ownerClient ? (ownerClient.displayName || ownerClient.name) : (data.clienteNombre || data.clientName || "")
+            });
+          });
+        } catch {
+          // fallback
         }
-      }
+
+        const finalInvoices = Array.from(invoicesMap.values());
+        setAllInvoices(finalInvoices);
+        setLoading(false);
+
+        const targetInvId = searchParams.get("invoiceId");
+        if (targetInvId) {
+          const belongs = finalInvoices.some((f: any) => f.id === targetInvId);
+          if (belongs) {
+            setSelectedInvoices([targetInvId]);
+            setPaymentLines(prev => {
+              const exists = prev.some(line => line.invoiceId === targetInvId);
+              if (!exists) {
+                return [{
+                  id: Math.random().toString(36).substr(2, 9),
+                  monto: 0,
+                  tipoTransaccion: "Pago",
+                  fechaTransaccion: new Date(),
+                  invoiceId: targetInvId
+                }];
+              }
+              return prev;
+            });
+          }
+        }
+      });
     });
-    return () => unsubInvoices();
-  }, [selectedClientId, searchParams]);
+
+    return () => {
+      unsubs.forEach(unsub => unsub());
+    };
+  }, [activeClientIds, clients, searchParams]);
 
   const accountMetrics = useMemo(() => {
     if (!isGenerated || !selectedClientId || !currentClient || !dateFrom || !dateTo) return null;
-    return calculateClientAccountingMetrics(Number(currentClient.baseDebt || 0), dateFrom, dateTo, allInvoices, allInvoices.flatMap(inv => Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : []), currentClient);
-  }, [allInvoices, currentClient, dateFrom, dateTo, selectedClientId, isGenerated]);
+
+    if (isConsolidated && familyGroup.length > 1) {
+      const totalBaseDebt = familyGroup.reduce((acc, c) => acc + Number(c.baseDebt || c.saldoInicial || 0), 0);
+      const allFamilyPagosSI = familyGroup.flatMap(c => Array.isArray(c.pagosSaldoInicial) ? c.pagosSaldoInicial : []);
+      const syntheticFamilyClient = {
+        ...currentClient,
+        baseDebt: totalBaseDebt,
+        pagosSaldoInicial: allFamilyPagosSI
+      };
+
+      return calculateClientAccountingMetrics(
+        totalBaseDebt, 
+        dateFrom, 
+        dateTo, 
+        allInvoices, 
+        allInvoices.flatMap(inv => Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : [])), 
+        syntheticFamilyClient
+      );
+    }
+
+    return calculateClientAccountingMetrics(
+      Number(currentClient.baseDebt || 0), 
+      dateFrom, 
+      dateTo, 
+      allInvoices, 
+      allInvoices.flatMap(inv => Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : [])), 
+      currentClient
+    );
+  }, [allInvoices, currentClient, dateFrom, dateTo, selectedClientId, isGenerated, isConsolidated, familyGroup]);
 
   /**
    * MOTOR DE RESOLUCIÓN DE PENDIENTES LDDEC 1.3
    * Inyecta saldo inicial base 2026 y garantiza visibilidad de deudas activas.
-   * Ahora controlado por isGenerated.
+   * Ahora controlado por isGenerated y compatible con Cuentas Familiares Unificadas.
    */
   const invoicesWithBalance = useMemo(() => {
     if (!isGenerated || !currentClient) return [];
@@ -175,8 +251,13 @@ export default function CobranzasPage() {
     const result: any[] = [];
 
     // 1. Process initial balance 2026 (virtual row) with date filter
-    const baseDebt = Number(currentClient.baseDebt || currentClient.saldoInicial || 0);
-    const pagosSI = Array.isArray(currentClient.pagosSaldoInicial) ? currentClient.pagosSaldoInicial : [];
+    const baseDebt = (isConsolidated && familyGroup.length > 1)
+      ? familyGroup.reduce((acc, c) => acc + Number(c.baseDebt || c.saldoInicial || 0), 0)
+      : Number(currentClient.baseDebt || currentClient.saldoInicial || 0);
+
+    const pagosSI = (isConsolidated && familyGroup.length > 1)
+      ? familyGroup.flatMap(c => Array.isArray(c.pagosSaldoInicial) ? c.pagosSaldoInicial : [])
+      : (Array.isArray(currentClient.pagosSaldoInicial) ? currentClient.pagosSaldoInicial : []);
     
     // EL SALDO PENDIENTE DEL "SALDO INICIAL" ES GLOBAL. NO DEBE FILTRARSE POR FECHAS PARA EL CÁLCULO.
     const totalAbonadoSIGlobal = pagosSI.reduce((acc: number, p: any) => {
@@ -194,6 +275,7 @@ export default function CobranzasPage() {
         _normalizedTotal: baseDebt,
         _normalizedSaldo: saldoSI,
         _normalizedDate: FECHA_BASE_2026,
+        _ownerClientName: isConsolidated && familyGroup.length > 1 ? "FAMILIAR CONSOLIDADO" : (currentClient.displayName || currentClient.name),
         estadoCobranza: totalAbonadoSIGlobal > 0 ? "Parcialmente Cobrada" : "Por Cobrar"
       });
     }
@@ -218,7 +300,7 @@ export default function CobranzasPage() {
     });
 
     return [...result, ...facturaRows].sort((a, b) => b._normalizedDate.getTime() - a._normalizedDate.getTime());
-  }, [allInvoices, dateFrom, dateTo, currentClient, isGenerated]);
+  }, [allInvoices, dateFrom, dateTo, currentClient, isGenerated, isConsolidated, familyGroup]);
 
   const handleConfirmPayments = async () => {
     if (isReadOnly || !selectedClientId || paymentLines.length === 0) return;
@@ -259,11 +341,15 @@ export default function CobranzasPage() {
           newPayment.fechaCobro = line.fechaCobro || "";
         }
 
+        const inv = allInvoices.find(i => i.id === line.invoiceId);
+        const invClientId = inv?.clientId || inv?.clienteId || selectedClientId;
+        const invClientName = inv?._ownerClientName || inv?.clienteNombre || inv?.clientName || currentClient?.displayName || currentClient?.name || "Socio";
+
         const globalPaymentRef = doc(collection(db, "payments"));
         const globalPaymentData: any = {
           ...newPayment,
-          clienteId: selectedClientId,
-          clienteNombre: currentClient?.displayName || currentClient?.name || currentClient?.nombre || "Socio",
+          clienteId: invClientId,
+          clienteNombre: invClientName,
           origen: "factura",
           migrado: false,
           createdAt: nowServer
@@ -275,15 +361,18 @@ export default function CobranzasPage() {
           globalPaymentData.numeroFactura = "SALDO INICIAL 2026";
           batch.set(globalPaymentRef, globalPaymentData);
 
-          const clientRef = doc(db, "clients", selectedClientId);
-          const currentPagosSI = Array.isArray(currentClient.pagosSaldoInicial) ? currentClient.pagosSaldoInicial : [];
+          const targetClientForSI = (isConsolidated && familyGroup.length > 1)
+            ? (familyGroup.find(c => Number(c.baseDebt || c.saldoInicial || 0) > 0) || currentClient)
+            : currentClient;
+
+          const clientRef = doc(db, "clients", targetClientForSI.id);
+          const currentPagosSI = Array.isArray(targetClientForSI.pagosSaldoInicial) ? targetClientForSI.pagosSaldoInicial : [];
           batch.update(clientRef, {
             pagosSaldoInicial: [...currentPagosSI, newPayment],
             updatedAt: nowServer
           });
         } 
         else {
-          const inv = allInvoices.find(i => i.id === line.invoiceId);
           if (!inv) continue;
 
           globalPaymentData.facturaId = inv.id;
@@ -446,6 +535,40 @@ export default function CobranzasPage() {
             </Popover>
           </div>
         </div>
+
+        {familyGroup.length > 1 && (
+          <div className="p-5 bg-primary/5 border border-primary/20 rounded-3xl flex flex-wrap items-center justify-between gap-4 animate-in fade-in">
+            <div className="flex items-center gap-3.5">
+              <div className="h-11 w-11 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black shadow-inner">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-primary">Grupo Familiar Vinculado</span>
+                  <Badge className="bg-primary/20 text-primary border-none text-[9px] font-black py-0 h-4 uppercase">
+                    {familyGroup.length} Miembros
+                  </Badge>
+                </div>
+                <p className="text-xs font-black text-foreground uppercase tracking-tight mt-0.5">
+                  {familyGroup.map(m => m.displayName || m.name).join("  •  ")}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 bg-card px-4 py-2.5 rounded-2xl border border-border shadow-sm">
+              <Label htmlFor="toggle-consolidado" className="text-xs font-bold uppercase cursor-pointer text-foreground">
+                {isConsolidated ? "Vista Consolidada Unificada" : "Solo Cuenta Individual"}
+              </Label>
+              <Switch
+                id="toggle-consolidado"
+                checked={isConsolidated}
+                onCheckedChange={(checked) => {
+                  setIsConsolidated(checked);
+                  setIsGenerated(false);
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end pt-4 border-t border-border/50">
           <Button 

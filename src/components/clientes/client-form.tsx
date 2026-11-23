@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Save, X, CreditCard, Phone, Mail, Wallet, Calendar as CalendarIcon } from "lucide-react";
+import { Save, X, CreditCard, Phone, Mail, Wallet, Calendar as CalendarIcon, Users } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
@@ -42,16 +42,18 @@ const clientSchema = z.object({
   email: z.string().email("Correo inválido").or(z.literal("")).optional(),
   address: z.string().optional(),
   status: z.enum(["active", "inactive"]),
+  parentClientId: z.string().optional(),
 });
 
 interface ClientFormProps {
   initialData?: Client;
+  clients?: Client[];
   onSubmit: (data: ClientInput) => void;
   onCancel: () => void;
   hideFinancials?: boolean;
 }
 
-export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = false }: ClientFormProps) {
+export function ClientForm({ initialData, clients = [], onSubmit, onCancel, hideFinancials = false }: ClientFormProps) {
   const { user } = useAuth();
   const isContador = user?.role === "contador";
 
@@ -69,6 +71,7 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
       email: initialData.email || "",
       address: initialData.address || "",
       status: initialData.status || "active",
+      parentClientId: initialData.parentClientId || "",
     } : {
       firstName: "",
       lastName: "",
@@ -81,6 +84,7 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
       email: "",
       address: "",
       status: "active",
+      parentClientId: "",
     },
   });
 
@@ -88,13 +92,28 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
   const openingDate = form.watch("openingDate");
   const openingDateObj = openingDate ? parseISO(openingDate) : undefined;
 
+  // Filtrar posibles cuentas titulares para evitar que se vincule a sí mismo o a cuentas ya vinculadas a otros
+  const availableTitulares = React.useMemo(() => {
+    return (clients || []).filter(c => {
+      if (initialData?.id && c.id === initialData.id) return false;
+      if (c.parentClientId && c.parentClientId !== "") return false;
+      return true;
+    });
+  }, [clients, initialData]);
+
   const handleFormSubmit = (values: z.infer<typeof clientSchema>) => {
+    const parentId = values.parentClientId && values.parentClientId !== "none" ? values.parentClientId : "";
+    const parentObj = parentId ? (clients || []).find(c => c.id === parentId) : null;
+    const parentName = parentObj ? (parentObj.name || `${parentObj.lastName} ${parentObj.firstName}`).trim().toUpperCase() : "";
+
     onSubmit({
       ...values,
       classification: values.classification as ClientClassification,
       email: values.email || "",
       address: values.address || "",
-      idNumber: values.idNumber || ""
+      idNumber: values.idNumber || "",
+      parentClientId: parentId,
+      parentClientName: parentName
     } as ClientInput);
   };
 
@@ -131,6 +150,7 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
             />
           </div>
         </div>
+
 
         {!hideFinancials && (
           <FormField
@@ -308,6 +328,45 @@ export function ClientForm({ initialData, onSubmit, onCancel, hideFinancials = f
             </FormItem>
           )}
         />
+
+
+        {/* VINCULACIÓN FAMILIAR / GRUPO COMERCIAL */}
+        {!hideFinancials && (
+          <div className="bg-primary/5 p-4 rounded-2xl border border-primary/20 space-y-3">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Cuenta Familiar / Vinculación</h4>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Vincule este cliente si pertenece a la misma cuenta o grupo familiar (esposo/a, hijos, etc.) para unificar cartera y cobranzas.
+            </p>
+            <FormField
+              control={form.control}
+              name="parentClientId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-[9px] font-black uppercase text-muted-foreground">Cuenta Titular / Principal</FormLabel>
+                  <Select onValueChange={(val) => field.onChange(val === "none" ? "" : val)} value={field.value || "none"}>
+                    <FormControl>
+                      <SelectTrigger className="erp-input h-10 text-xs font-bold bg-background">
+                        <SelectValue placeholder="Cuenta Independiente (Sin vincular)" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="max-h-56 z-[100]">
+                      <SelectItem value="none">-- Cuenta Independiente (Sin vincular) --</SelectItem>
+                      {availableTitulares.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name || `${c.lastName} ${c.firstName}`.trim()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
 
         {!hideFinancials && (
           <FormField

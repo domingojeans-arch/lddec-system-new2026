@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit3, Eye, Trash2, Printer, AlertTriangle, ArrowUp, ArrowDown, ChevronsUpDown } from "lucide-react";
+import { Edit3, Eye, Trash2, Printer, AlertTriangle, ArrowUp, ArrowDown, ChevronsUpDown, Users, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -29,6 +29,7 @@ import {
 
 interface ClientTableProps {
   clients: Client[];
+  allClients?: Client[];
   onEdit: (client: Client) => void;
   onView: (client: Client) => void;
   onPrint: (client: Client) => void;
@@ -45,7 +46,18 @@ const classificationMap = {
   temporal: { label: "Temporal / Muestra", color: "bg-amber-500/10 text-amber-700 dark:text-amber-400" },
 };
 
-export function ClientTable({ clients, onEdit, onView, onPrint, onDelete, hideFinancials = false, canDelete = true }: ClientTableProps) {
+export function ClientTable({ clients, allClients, onEdit, onView, onPrint, onDelete, hideFinancials = false, canDelete = true }: ClientTableProps) {
+  // Conteo de cuentas familiares vinculadas a cada titular
+  const linkedCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    (allClients || clients).forEach(c => {
+      if (c.parentClientId) {
+        map.set(c.parentClientId, (map.get(c.parentClientId) || 0) + 1);
+      }
+    });
+    return map;
+  }, [allClients, clients]);
+
   // ORDENAR POR APELLIDO POR DEFECTO
   const [sortKey, setSortKey] = useState<string>("lastName");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -119,6 +131,18 @@ export function ClientTable({ clients, onEdit, onView, onPrint, onDelete, hideFi
                 <TableCell>
                   <div className="font-bold text-sm text-foreground uppercase">{client.lastName} {client.firstName}</div>
                   <div className="text-[10px] text-muted-foreground mt-0.5 uppercase">Apertura: {client.openingDate}</div>
+                  {client.parentClientId && (
+                    <div className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-bold tracking-tight mt-1 bg-blue-500/10 px-2 py-0.5 rounded-md w-fit">
+                      <Users className="h-3 w-3 inline text-blue-500 shrink-0" />
+                      <span>Familiar de: {client.parentClientName || "Cuenta Titular"}</span>
+                    </div>
+                  )}
+                  {Number(linkedCountMap.get(client.id) || 0) > 0 && (
+                    <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold tracking-tight mt-1 bg-emerald-500/10 px-2 py-0.5 rounded-md w-fit">
+                      <Crown className="h-3 w-3 inline text-emerald-500 shrink-0" />
+                      <span>Titular Familiar ({linkedCountMap.get(client.id)} {linkedCountMap.get(client.id) === 1 ? 'vinculado' : 'vinculados'})</span>
+                    </div>
+                  )}
                 </TableCell>
                 {!hideFinancials && (
                   <TableCell>

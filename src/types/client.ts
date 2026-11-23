@@ -19,6 +19,9 @@ export interface Client {
   createdAt: string;
   updatedAt: string;
   createdBy: string;
+  // Cuenta Familiar / Vinculación
+  parentClientId?: string; // ID del cliente titular principal (vacío si es titular o independiente)
+  parentClientName?: string; // Nombre de la cuenta principal vinculada
   // Legacy fields for backward compatibility
   code?: string;
   contactName?: string;
