@@ -324,10 +324,18 @@ function PrintContent() {
                 return (
                   <tr key={i} style={{ backgroundColor: '#f0f7ff', borderBottom: '1.5pt solid #3b82f6' }}>
                     <td>
-                      <div style={{ fontWeight: 'bold' }}>{row.primaryMember.name} (Cuenta Familiar)</div>
+                      <div style={{ fontWeight: 'bold' }}>
+                        {row.primaryMember.name} (Cuenta Familiar)
+                        {row.familyTotals.nc > 0.01 && <span style={{ marginLeft: '4px', fontSize: '6.5pt', color: '#b45309', background: '#fef3c7', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>Tiene N/C (${formatNum(row.familyTotals.nc)})</span>}
+                        {row.familyTotals.nd > 0.01 && <span style={{ marginLeft: '4px', fontSize: '6.5pt', color: '#7e22ce', background: '#f3e8ff', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>Tiene N/D (${formatNum(row.familyTotals.nd)})</span>}
+                        {row.primaryMember.nc > 0.01 && <span style={{ marginLeft: '4px', fontSize: '6.5pt', color: '#b45309' }}>(N/C: ${formatNum(row.primaryMember.nc)})</span>}
+                        {row.primaryMember.nd > 0.01 && <span style={{ marginLeft: '4px', fontSize: '6.5pt', color: '#7e22ce' }}>(N/D: ${formatNum(row.primaryMember.nd)})</span>}
+                      </div>
                       {row.linkedMembers.map((m: any) => (
                         <div key={m.id} style={{ paddingLeft: '10px', fontSize: '7pt', color: '#1d4ed8' }}>
                           ↳ {m.name} (Familiar Vinculado)
+                          {m.nc > 0.01 && <span style={{ marginLeft: '4px', fontSize: '6.5pt', color: '#b45309', fontWeight: 'bold' }}>(N/C: ${formatNum(m.nc)})</span>}
+                          {m.nd > 0.01 && <span style={{ marginLeft: '4px', fontSize: '6.5pt', color: '#7e22ce', fontWeight: 'bold' }}>(N/D: ${formatNum(m.nd)})</span>}
                         </div>
                       ))}
                     </td>
@@ -349,16 +357,26 @@ function PrintContent() {
                       )}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <div>{formatNum(row.primaryMember.nd)}</div>
+                      <div style={{ color: row.primaryMember.nd > 0.01 ? '#7e22ce' : 'inherit', fontWeight: row.primaryMember.nd > 0.01 ? 'bold' : 'normal' }}>{formatNum(row.primaryMember.nd)}</div>
                       {row.linkedMembers.map((m: any) => (
-                        <div key={m.id} style={{ fontSize: '7pt', color: '#64748b' }}>{formatNum(m.nd)}</div>
+                        <div key={m.id} style={{ fontSize: '7pt', color: m.nd > 0.01 ? '#7e22ce' : '#64748b', fontWeight: m.nd > 0.01 ? 'bold' : 'normal' }}>{formatNum(m.nd)}</div>
                       ))}
+                      {row.familyTotals.nd > 0.01 && (
+                        <div style={{ borderTop: '0.5pt solid #d8b4fe', fontSize: '6.5pt', fontWeight: 'bold', color: '#7e22ce' }}>
+                          ∑ {formatNum(row.familyTotals.nd)}
+                        </div>
+                      )}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <div>{formatNum(row.primaryMember.nc)}</div>
+                      <div style={{ color: row.primaryMember.nc > 0.01 ? '#b45309' : 'inherit', fontWeight: row.primaryMember.nc > 0.01 ? 'bold' : 'normal' }}>{formatNum(row.primaryMember.nc)}</div>
                       {row.linkedMembers.map((m: any) => (
-                        <div key={m.id} style={{ fontSize: '7pt', color: '#64748b' }}>{formatNum(m.nc)}</div>
+                        <div key={m.id} style={{ fontSize: '7pt', color: m.nc > 0.01 ? '#b45309' : '#64748b', fontWeight: m.nc > 0.01 ? 'bold' : 'normal' }}>{formatNum(m.nc)}</div>
                       ))}
+                      {row.familyTotals.nc > 0.01 && (
+                        <div style={{ borderTop: '0.5pt solid #fcd34d', fontSize: '6.5pt', fontWeight: 'bold', color: '#b45309' }}>
+                          ∑ {formatNum(row.familyTotals.nc)}
+                        </div>
+                      )}
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       <div>{formatNum(row.primaryMember.retencion)}</div>

@@ -320,6 +320,16 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                     <Badge className="bg-blue-600 hover:bg-blue-600 text-white text-[10px] uppercase font-bold tracking-wider">
                       {familySummary.members.length} Cuentas Vinculadas
                     </Badge>
+                    {familySummary.totals.nc > 0.01 && (
+                      <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-[9px] font-black uppercase tracking-wider">
+                        Tiene N/C (${formatNum(familySummary.totals.nc)})
+                      </Badge>
+                    )}
+                    {familySummary.totals.nd > 0.01 && (
+                      <Badge className="bg-purple-600 hover:bg-purple-600 text-white text-[9px] font-black uppercase tracking-wider">
+                        Tiene N/D (${formatNum(familySummary.totals.nd)})
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-[11px] font-semibold text-blue-700/90 dark:text-blue-400 mt-0.5">
                     Miembros: {familySummary.memberNames}
@@ -345,13 +355,13 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                 <span className="text-[9px] font-bold text-muted-foreground uppercase block">Facturación</span>
                 <span className="text-xs font-black text-foreground">${formatNum(familySummary.totals.facturacion)}</span>
               </div>
-              <div className="bg-white/80 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
+              <div className={`p-2.5 rounded-xl border ${familySummary.totals.nd > 0.01 ? 'bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800' : 'bg-white/80 dark:bg-gray-900/60 border-blue-100 dark:border-blue-900/40'}`}>
                 <span className="text-[9px] font-bold text-muted-foreground uppercase block">N/D</span>
-                <span className="text-xs font-black text-foreground">${formatNum(familySummary.totals.nd)}</span>
+                <span className={`text-xs font-black ${familySummary.totals.nd > 0.01 ? 'text-purple-700 dark:text-purple-300' : 'text-foreground'}`}>${formatNum(familySummary.totals.nd)}</span>
               </div>
-              <div className="bg-white/80 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
+              <div className={`p-2.5 rounded-xl border ${familySummary.totals.nc > 0.01 ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800' : 'bg-white/80 dark:bg-gray-900/60 border-blue-100 dark:border-blue-900/40'}`}>
                 <span className="text-[9px] font-bold text-muted-foreground uppercase block">N/C</span>
-                <span className="text-xs font-black text-foreground">${formatNum(familySummary.totals.nc)}</span>
+                <span className={`text-xs font-black ${familySummary.totals.nc > 0.01 ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'}`}>${formatNum(familySummary.totals.nc)}</span>
               </div>
               <div className="bg-white/80 dark:bg-gray-900/60 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
                 <span className="text-[9px] font-bold text-muted-foreground uppercase block">Cobros</span>
@@ -408,20 +418,50 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                       // Cliente principal arriba, familiares vinculados más abajo con sus datos, y al final un solo cobro y saldo actual
                       return (
                         <TableRow key={idx} className="border-b-2 border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20 hover:bg-blue-50/60 dark:hover:bg-blue-950/30 transition-colors">
-                          {/* Columna CLIENTE: Principal y Vinculados */}
+                          {/* Columna CLIENTE: Principal y Vinculados con indicadores N/D y N/C */}
                           <TableCell className="text-xs uppercase pl-6 py-3.5 align-middle">
                             <div className="space-y-1.5">
-                              <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                              <div className="font-bold text-slate-900 dark:text-slate-100 flex flex-wrap items-center gap-1.5">
                                 <span>{row.primaryMember.name}</span>
                                 <Badge className="bg-blue-600 hover:bg-blue-600 text-white text-[8px] font-bold px-1.5 py-0 border-none">
                                   Cuenta Familiar
                                 </Badge>
+                                {row.familyTotals.nc > 0.01 && (
+                                  <Badge className="bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700/60 text-[8px] font-black px-1.5 py-0">
+                                    Tiene N/C (${formatNum(row.familyTotals.nc)})
+                                  </Badge>
+                                )}
+                                {row.familyTotals.nd > 0.01 && (
+                                  <Badge className="bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-700/60 text-[8px] font-black px-1.5 py-0">
+                                    Tiene N/D (${formatNum(row.familyTotals.nd)})
+                                  </Badge>
+                                )}
+                                {row.primaryMember.nc > 0.01 && (
+                                  <span className="text-[8px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/40 px-1 rounded">
+                                    (N/C: ${formatNum(row.primaryMember.nc)})
+                                  </span>
+                                )}
+                                {row.primaryMember.nd > 0.01 && (
+                                  <span className="text-[8px] font-bold text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/40 px-1 rounded">
+                                    (N/D: ${formatNum(row.primaryMember.nd)})
+                                  </span>
+                                )}
                               </div>
                               {row.linkedMembers.map((m) => (
-                                <div key={m.id} className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 pl-3 flex items-center gap-1.5">
+                                <div key={m.id} className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 pl-3 flex flex-wrap items-center gap-1.5">
                                   <span className="text-blue-500 font-bold text-sm">↳</span>
                                   <span>{m.name}</span>
                                   <span className="text-[8px] font-normal text-muted-foreground uppercase">(Familiar Vinculado)</span>
+                                  {m.nc > 0.01 && (
+                                    <span className="text-[8px] font-black text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-1 rounded">
+                                      N/C: ${formatNum(m.nc)}
+                                    </span>
+                                  )}
+                                  {m.nd > 0.01 && (
+                                    <span className="text-[8px] font-black text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-1 rounded">
+                                      N/D: ${formatNum(m.nd)}
+                                    </span>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -461,30 +501,41 @@ export function StatementOfAccountsReport({ clients, invoices, payments, dateFro
                             </div>
                           </TableCell>
 
-                          {/* N/D */}
+                          {/* N/D: Desglose por miembro e indicador/total de notas de débito familiares */}
                           <TableCell className="text-xs text-right align-middle py-3.5">
                             <div className="space-y-1.5 font-medium">
-                              <div>{formatNum(row.primaryMember.nd)}</div>
+                              <div className={row.primaryMember.nd > 0.01 ? "font-bold text-purple-700 dark:text-purple-300" : ""}>
+                                {formatNum(row.primaryMember.nd)}
+                              </div>
                               {row.linkedMembers.map((m) => (
-                                <div key={m.id} className="text-[11px] text-blue-700/80 dark:text-blue-400">
+                                <div key={m.id} className={`text-[11px] ${m.nd > 0.01 ? 'font-bold text-purple-700 dark:text-purple-300' : 'text-blue-700/80 dark:text-blue-400'}`}>
                                   {formatNum(m.nd)}
                                 </div>
                               ))}
+                              {row.familyTotals.nd > 0.01 && (
+                                <div className="border-t border-purple-300 dark:border-purple-800 text-[10px] font-black pt-0.5 text-purple-800 dark:text-purple-300 flex items-center justify-end gap-1">
+                                  <span>∑</span>
+                                  <span>{formatNum(row.familyTotals.nd)}</span>
+                                </div>
+                              )}
                             </div>
                           </TableCell>
 
-                          {/* N/C */}
+                          {/* N/C: Desglose por miembro e indicador/total de notas de crédito familiares */}
                           <TableCell className="text-xs text-right align-middle py-3.5">
                             <div className="space-y-1.5 font-medium">
-                              <div>{formatNum(row.primaryMember.nc)}</div>
+                              <div className={row.primaryMember.nc > 0.01 ? "font-bold text-amber-700 dark:text-amber-400" : ""}>
+                                {formatNum(row.primaryMember.nc)}
+                              </div>
                               {row.linkedMembers.map((m) => (
-                                <div key={m.id} className="text-[11px] text-blue-700/80 dark:text-blue-400">
+                                <div key={m.id} className={`text-[11px] ${m.nc > 0.01 ? 'font-bold text-amber-700 dark:text-amber-400' : 'text-blue-700/80 dark:text-blue-400'}`}>
                                   {formatNum(m.nc)}
                                 </div>
                               ))}
-                              {row.linkedMembers.some(m => Math.abs(m.nc) > 0.01) && Math.abs(row.primaryMember.nc) > 0.01 && (
-                                <div className="border-t border-blue-200 dark:border-blue-800 text-[10px] font-black pt-0.5 text-foreground">
-                                  ∑ {formatNum(row.familyTotals.nc)}
+                              {row.familyTotals.nc > 0.01 && (
+                                <div className="border-t border-amber-300 dark:border-amber-800 text-[10px] font-black pt-0.5 text-amber-800 dark:text-amber-300 flex items-center justify-end gap-1">
+                                  <span>∑</span>
+                                  <span>{formatNum(row.familyTotals.nc)}</span>
                                 </div>
                               )}
                             </div>

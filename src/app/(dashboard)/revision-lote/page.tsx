@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, ClipboardCheck, Check, Loader2, AlertTriangle, Info, Zap, Layers, MousePointer2, Plus, CheckCircle2, Save, Printer } from "lucide-react";
-import { ThermalSticker30mm, ThermalStickerData } from "@/components/revision-lote/thermal-sticker-30mm";
+import { Search, ClipboardCheck, Check, Loader2, AlertTriangle, Info, Zap, Layers, MousePointer2, Plus, CheckCircle2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -155,8 +154,6 @@ export default function RevisionLotePage() {
 
   // Estados para el nuevo proceso rápido
   const [isNewProcessDialogOpen, setIsNewProcessDialogOpen] = useState(false);
-  const [stickerData, setStickerData] = useState<ThermalStickerData | null>(null);
-  const [isStickerModalOpen, setIsStickerModalOpen] = useState(false);
   const [newProcessName, setNewProcessName] = useState("");
   const [isCreatingProcess, setIsCreatingProcess] = useState(false);
 
@@ -421,32 +418,6 @@ export default function RevisionLotePage() {
     };
   }, [selectedLot, parentEntry, garmentReviews, activeSubLotId]);
 
-  const buildStickerPayload = (): ThermalStickerData | null => {
-    if (!parentEntry || !selectedLot) return null;
-    const nowObj = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const fechaFormatted = `${pad(nowObj.getDate())}/${pad(nowObj.getMonth() + 1)}/${nowObj.getFullYear()} ${pad(nowObj.getHours())}:${pad(nowObj.getMinutes())}`;
-    
-    const lotVisibleName = getVisibleLotName(selectedLot);
-    return {
-      fecha: fechaFormatted,
-      lote: lotVisibleName,
-      ingreso: parentEntry.visibleEntryNumber || parentEntry.entryNumber || parentEntry.id,
-      cantidad: totals.confirmed,
-      cliente: (parentEntry.clientName || parentEntry.clienteNombre || parentEntry.cliente || "Socio Industrial").toUpperCase(),
-      prenda: garmentReviews.map(gr => gr.garmentType).filter(Boolean).join(", "),
-      revisadoPor: user?.displayName || "Operario",
-    };
-  };
-
-  const handleCloseStickerModal = () => {
-    setIsStickerModalOpen(false);
-    setStickerData(null);
-    setSelectedLot(null);
-    setParentEntry(null);
-    setSearchTerm("");
-  };
-
   const handleSave = async () => {
     if (isReadOnly || !parentEntry || !selectedLot || saving) return;
     setSaving(true);
@@ -504,20 +475,7 @@ export default function RevisionLotePage() {
         updatedAt: serverTimestamp() 
       });
 
-      const payload = buildStickerPayload();
-      if (payload) {
-        setStickerData(payload);
-        setIsStickerModalOpen(true);
-        setTimeout(() => {
-          window.print();
-        }, 500);
-      } else {
-        setSelectedLot(null);
-        setParentEntry(null);
-        setSearchTerm("");
-      }
-
-      toast({ title: "Revisión Finalizada y Guardada" });
+      toast({ title: "Revisión Finalizada" });
       setSelectedLot(null);
       setParentEntry(null);
       setSearchTerm("");
@@ -754,28 +712,10 @@ export default function RevisionLotePage() {
               )}
             </div>
 
-            <div className="bg-muted/20 p-10 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4">
-              <Button variant="outline" className="bg-background border-border text-muted-foreground font-bold h-12 px-8 rounded-2xl w-full sm:w-auto" onClick={() => setSelectedLot(null)} disabled={saving}>Cancelar Auditoría</Button>
+            <div className="bg-muted/20 p-10 border-t border-border flex justify-between items-center">
+              <Button variant="outline" className="bg-background border-border text-muted-foreground font-bold h-12 px-10 rounded-2xl" onClick={() => setSelectedLot(null)} disabled={saving}>Cancelar Auditoría</Button>
               {!isReadOnly && (
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      const payload = buildStickerPayload();
-                      if (payload) {
-                        setStickerData(payload);
-                        setIsStickerModalOpen(true);
-                      }
-                    }}
-                    disabled={saving}
-                    className="border-primary/40 text-primary hover:bg-primary/10 font-black uppercase tracking-wider h-12 px-6 rounded-2xl gap-2 w-full sm:w-auto shadow-sm"
-                  >
-                    <Printer className="h-4 w-4" />
-                    Sticker (30mm)
-                  </Button>
-                  <Button className="bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest h-12 px-10 rounded-2xl shadow-xl transition-all active:scale-95 w-full sm:w-auto" onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />} Finalizar Revisión</Button>
-                </div>
+                <Button className="bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest h-12 px-14 rounded-2xl shadow-xl transition-all active:scale-95" onClick={handleSave} disabled={saving}>{saving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />} Finalizar Revisión</Button>
               )}
             </div>
           </div>
@@ -824,66 +764,6 @@ export default function RevisionLotePage() {
               >
                 {isCreatingProcess ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                 Guardar y Aplicar
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* MODAL / PREVISUALIZACIÓN DE STICKER TÉRMICO (30 MM) */}
-      <Dialog open={isStickerModalOpen} onOpenChange={(open) => !open && handleCloseStickerModal()}>
-        <DialogContent className="max-w-sm rounded-[2.5rem] p-0 overflow-hidden border-border bg-card shadow-2xl">
-          <div className="p-6 border-b border-border bg-primary/5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                <Printer className="h-5 w-5" />
-              </div>
-              <div>
-                <DialogTitle className="text-xl font-black uppercase tracking-tight">
-                  Sticker de Revisión (30 mm)
-                </DialogTitle>
-                <DialogDescription className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
-                  Impresora térmica portátil / recibos
-                </DialogDescription>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-6 space-y-6">
-            {/* Visualización física del sticker de 30mm */}
-            <div className="bg-muted/30 p-6 rounded-2xl border border-border flex flex-col items-center justify-center">
-              <div className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-3 flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Vista Previa Real (30 mm)
-              </div>
-              {stickerData && (
-                <div className="p-1 bg-white rounded shadow-md border border-zinc-200">
-                  <ThermalSticker30mm data={stickerData} />
-                </div>
-              )}
-            </div>
-
-            <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 text-primary text-xs leading-relaxed">
-              <span className="font-bold">Formato 30 mm: </span>
-              Centrado con alto contraste para bobinas pequeñas. Incluye Fecha, Lote, Ingreso, Cantidad Confirmada y Cliente.
-            </div>
-
-            <DialogFooter className="gap-2 sm:gap-2 pt-2 flex flex-col sm:flex-row">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleCloseStickerModal}
-                className="w-full sm:w-auto rounded-xl h-11 font-bold text-xs"
-              >
-                Siguiente Lote
-              </Button>
-              <Button
-                type="button"
-                onClick={() => window.print()}
-                className="w-full sm:flex-1 bg-primary hover:bg-primary/90 text-white rounded-xl h-11 font-black uppercase text-xs shadow-md gap-2 px-6"
-              >
-                <Printer className="h-4 w-4" />
-                Imprimir Sticker
               </Button>
             </DialogFooter>
           </div>
