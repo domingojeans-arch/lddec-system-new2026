@@ -23,8 +23,10 @@ import {
   ChevronsUpDown, 
   Users, 
   Crown,
-  RotateCcw
+  RotateCcw,
+  FileMinus
 } from "lucide-react";
+import { CrearNotaCreditoModal } from "@/components/cobranzas/CrearNotaCreditoModal";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -63,6 +65,7 @@ export function ClientTable({ clients, allClients, onEdit, onView, onPrint, onDe
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [resetModalClient, setResetModalClient] = useState<Client | null>(null);
+  const [notaCreditoClient, setNotaCreditoClient] = useState<Client | null>(null);
 
   // Conteo de cuentas familiares vinculadas a cada titular
   const linkedCountMap = useMemo(() => {
@@ -193,6 +196,15 @@ export function ClientTable({ clients, allClients, onEdit, onView, onPrint, onDe
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-amber-600 hover:bg-amber-400/10" onClick={() => onEdit(client)} title="Editar socio">
                       <Edit3 className="h-4 w-4" />
                     </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-muted-foreground hover:text-purple-600 hover:bg-purple-500/10" 
+                      onClick={() => setNotaCreditoClient(client)}
+                      title="Registrar Nota de Crédito (Sin Factura)"
+                    >
+                      <FileMinus className="h-4 w-4 text-purple-600" />
+                    </Button>
 
                     {isAdmin && (
                       <Button 
@@ -256,6 +268,15 @@ export function ClientTable({ clients, allClients, onEdit, onView, onPrint, onDe
           client={resetModalClient}
           allClients={allClients || clients}
           onSuccess={() => setResetModalClient(null)}
+        />
+      )}
+      {notaCreditoClient && (
+        <CrearNotaCreditoModal
+          isOpen={Boolean(notaCreditoClient)}
+          onClose={() => setNotaCreditoClient(null)}
+          client={notaCreditoClient}
+          allClients={allClients || clients}
+          onSuccess={() => setNotaCreditoClient(null)}
         />
       )}
     </div>

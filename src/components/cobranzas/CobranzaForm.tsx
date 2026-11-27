@@ -72,11 +72,24 @@ export function CobranzaForm({ lines, onUpdateLine, onRemoveLine, onAddLine, inv
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 <div className="space-y-1.5 md:col-span-8">
                   <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest ml-1">Factura Destino</Label>
-                  <Select value={line.invoiceId} onValueChange={(val) => onUpdateLine(line.id, { invoiceId: val })}>
+                  <Select 
+                    value={line.invoiceId} 
+                    onValueChange={(val) => {
+                      const updates: any = { invoiceId: val };
+                      if (val === "SIN_FACTURA") {
+                        updates.tipoTransaccion = "Nota de Crédito";
+                        updates.metodoPago = "";
+                      }
+                      onUpdateLine(line.id, updates);
+                    }}
+                  >
                     <SelectTrigger className="erp-input h-11 bg-background font-bold text-xs">
                       <SelectValue placeholder="Seleccione..." />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
+                      <SelectItem value="SIN_FACTURA" className="text-xs font-black text-purple-700 dark:text-purple-300">
+                        ★ SIN FACTURA (CRÉDITO / AJUSTE DIRECTO A CUENTA)
+                      </SelectItem>
                       {invoices.map(inv => {
                         const isAlreadySelected = lines.some(line => line.invoiceId === inv.id);
                         return (

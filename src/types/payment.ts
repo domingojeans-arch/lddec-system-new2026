@@ -1,4 +1,3 @@
-
 import { Timestamp } from "firebase/firestore";
 
 export interface PaymentDocument {
@@ -7,13 +6,14 @@ export interface PaymentDocument {
   clienteNombre: string;
   facturaId?: string;
   numeroFactura?: string;
+  numeroDocumento?: string;
   monto: number;
   tipoTransaccion: string;
   metodoPago?: string;
   fechaTransaccion: Timestamp;
   descripcion?: string;
   registradoPor: string;
-  origen: "factura" | "saldoInicial";
+  origen: "factura" | "saldoInicial" | "directo";
   migrado: boolean;
   createdAt: Timestamp;
   importObservation?: string;

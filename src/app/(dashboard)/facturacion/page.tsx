@@ -10,6 +10,8 @@ import { Invoice } from "@/types/invoice";
 import { InvoiceTable } from "@/components/facturacion/invoice-table";
 import { InvoiceForm } from "@/components/facturacion/invoice-form";
 import { GroupedSamplesForm } from "@/components/facturacion/grouped-samples-form";
+import { FileMinus } from "lucide-react";
+import { CrearNotaCreditoModal } from "@/components/cobranzas/CrearNotaCreditoModal";
 import { ReopenClosedEntryDialog } from "@/components/facturacion/reopen-closed-entry-dialog";
 import { IncompleteDispatchesTab } from "@/components/facturacion/incomplete-dispatches-tab";
 import { useAuth } from "@/hooks/use-auth";
@@ -64,6 +66,7 @@ export default function FacturacionPage() {
   const [activeMode, setActiveMode] = useState("individual");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
+  const [isNotaCreditoModalOpen, setIsNotaCreditoModalOpen] = useState(false);
   
   const { toast } = useToast();
   const { user } = useAuth();

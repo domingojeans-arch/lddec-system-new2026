@@ -16,20 +16,25 @@ import {
   Info,
   TrendingUp,
   Users,
-  RotateCcw
+  RotateCcw,
+  FileMinus,
+  Trash2
 } from "lucide-react";
 import { ResetCobranzasModal } from "@/components/cobranzas/ResetCobranzasModal";
+import { CrearNotaCreditoModal } from "@/components/cobranzas/CrearNotaCreditoModal";
+import { GestionarNotasCreditoModal } from "@/components/cobranzas/GestionarNotasCreditoModal";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
-import { collection, onSnapshot, writeBatch, doc, Timestamp, serverTimestamp, query, where, arrayUnion, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, writeBatch, doc, Timestamp, serverTimestamp, query, where, arrayUnion, getDocs, getDoc, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { FacturaPendienteRow } from "@/components/cobranzas/FacturaPendienteRow";
 import { CobranzaForm } from "@/components/cobranzas/CobranzaForm";
@@ -52,6 +57,9 @@ export default function CobranzasPage() {
   const isReadOnly = user?.role === "socio";
   const isAdmin = user?.role === "admin";
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isNotaCreditoModalOpen, setIsNotaCreditoModalOpen] = useState(false);
+  const [isManageNCModalOpen, setIsManageNCModalOpen] = useState(false);
+  const [directPayments, setDirectPayments] = useState<any[]>([]);
   const searchParams = useSearchParams();
 
   const [clients, setClients] = useState<any[]>([]);
@@ -148,6 +156,21 @@ export default function CobranzasPage() {
     setLoading(true);
 
     const invoicesMap = new Map<string, any>();
+    const paymentsMap = new Map<string, any>();
+
+    const unsubsPayments = activeClientIds.flatMap((cid) => {
+      const q1 = query(collection(db, "payments"), where("clienteId", "==", cid));
+      const q2 = query(collection(db, "payments"), where("clientId", "==", cid));
+      const u1 = onSnapshot(q1, (snap) => {
+        snap.docs.forEach(d => paymentsMap.set(d.id, { id: d.id, ...d.data() }));
+        setDirectPayments(Array.from(paymentsMap.values()));
+      });
+      const u2 = onSnapshot(q2, (snap) => {
+        snap.docs.forEach(d => paymentsMap.set(d.id, { id: d.id, ...d.data() }));
+        setDirectPayments(Array.from(paymentsMap.values()));
+      });
+      return [u1, u2];
+    });
 
     const unsubs = activeClientIds.map((cid) => {
       const qInvoices = query(collection(db, "facturas"), where("clientId", "==", cid));
@@ -205,7 +228,8 @@ export default function CobranzasPage() {
     });
 
     return () => {
-      unsubs.forEach(unsub => unsub());
+      unsubs.forEach((unsub: any) => unsub());
+      unsubsPayments.forEach((unsub: any) => unsub());
     };
   }, [activeClientIds, clients, searchParams]);
 
@@ -305,6 +329,145 @@ export default function CobranzasPage() {
 
     return [...result, ...facturaRows].sort((a, b) => b._normalizedDate.getTime() - a._normalizedDate.getTime());
   }, [allInvoices, dateFrom, dateTo, currentClient, isGenerated, isConsolidated, familyGroup]);
+
+  // Recopilación completa de Notas de Crédito del cliente (tanto directas como en facturas)
+  const allCreditNotes = useMemo(() => {
+    const result: any[] = [];
+    
+    // 1. Pagos directos en payments
+    directPayments.forEach(p => {
+      const isNC = (
+        (p.tipoTransaccion || "").toLowerCase().includes("crédito") ||
+        (p.tipoTransaccion || "").toLowerCase().includes("credito") ||
+        (p.tipoTransaccion || "").toLowerCase().includes("ajuste") ||
+        (p.metodoPago || "").toLowerCase().includes("crédito") ||
+        (p.metodoPago || "").toLowerCase().includes("credito") ||
+        (p.formaPago || "").toLowerCase().includes("crédito") ||
+        (p.formaPago || "").toLowerCase().includes("credito") ||
+        (p.numeroDocumento || "").toUpperCase().startsWith("NC") ||
+        (p.numeroFactura || "").toUpperCase().startsWith("NC") ||
+        p.origen === "directo"
+      );
+      if (isNC && !p.anulado) {
+        result.push({
+          id: p.id,
+          isDirectPayment: true,
+          sourceType: "payments",
+          numero: p.numeroDocumento || p.numeroFactura || "NOTA DE CRÉDITO DIRECTA",
+          fecha: toDate(p.fechaTransaccion || p.fecha || p.createdAt),
+          monto: Number(p.monto || 0),
+          descripcion: p.descripcion || "Nota de crédito directa a la cuenta",
+          registradoPor: p.registradoPor || "Usuario",
+          facturaId: p.facturaId || ""
+        });
+      }
+    });
+
+    // 2. Notas de crédito dentro de facturas (pagosYajustes)
+    allInvoices.forEach(inv => {
+      const pagos = Array.isArray(inv.pagosYajustes) ? inv.pagosYajustes : (Array.isArray(inv.pagosAjustes) ? inv.pagosAjustes : []);
+      pagos.forEach((p: any) => {
+        const isNC = (
+          (p.tipoTransaccion || "").toLowerCase().includes("crédito") ||
+          (p.tipoTransaccion || "").toLowerCase().includes("credito") ||
+          (p.tipoTransaccion || "").toLowerCase().includes("ajuste") ||
+          (p.metodoPago || "").toLowerCase().includes("crédito") ||
+          (p.metodoPago || "").toLowerCase().includes("credito") ||
+          (p.formaPago || "").toLowerCase().includes("crédito") ||
+          (p.formaPago || "").toLowerCase().includes("credito") ||
+          (p.numeroDocumento || "").toUpperCase().startsWith("NC")
+        );
+        if (isNC && !p.anulado) {
+          const already = result.some(r => r.id === p.id);
+          if (!already) {
+            result.push({
+              id: p.id,
+              isDirectPayment: false,
+              sourceType: "factura",
+              facturaId: inv.id,
+              numeroFactura: inv.numeroFactura || inv.id,
+              numero: p.numeroDocumento || `NC Factura #${inv.numeroFactura || inv.id}`,
+              fecha: toDate(p.fechaTransaccion || p.fecha || p.createdAt),
+              monto: Number(p.monto || 0),
+              descripcion: p.descripcion || `Aplicada a Factura #${inv.numeroFactura || inv.id}`,
+              registradoPor: p.registradoPor || "Usuario"
+            });
+          }
+        }
+      });
+    });
+
+    return result.sort((a, b) => (b.fecha?.getTime?.() || 0) - (a.fecha?.getTime?.() || 0));
+  }, [directPayments, allInvoices]);
+
+  // Sumatoria en tiempo real de facturas seleccionadas para cobrar a primera vista
+  const selectedTotals = useMemo(() => {
+    const selected = invoicesWithBalance.filter(inv => selectedInvoices.includes(inv.id));
+    const count = selected.length;
+    const totalSaldo = selected.reduce((sum, inv) => sum + Number(inv._normalizedSaldo !== undefined ? inv._normalizedSaldo : (inv.saldoPendiente || 0)), 0);
+    const totalMontoOriginal = selected.reduce((sum, inv) => sum + Number(inv._normalizedTotal !== undefined ? inv._normalizedTotal : (inv.totalFactura || 0)), 0);
+    return {
+      count,
+      totalSaldo,
+      totalMontoOriginal
+    };
+  }, [invoicesWithBalance, selectedInvoices]);
+
+    const handleDeleteCreditNote = async (itemOrId: any) => {
+    if (isReadOnly) return;
+    const item = typeof itemOrId === 'object' ? itemOrId : allCreditNotes.find(n => n.id === itemOrId) || { id: itemOrId };
+    const montoDisplay = Number(item.monto || 0).toFixed(2);
+    if (!confirm(`¿Seguro que deseas eliminar esta Nota de Crédito por ${montoDisplay}? Esta acción la removerá del sistema y restaurará el saldo del socio.`)) return;
+
+    try {
+      const batch = writeBatch(db);
+      const nowServer = serverTimestamp();
+
+      // 1. Eliminar de colección payments si existe
+      try {
+        const pRef = doc(db, "payments", item.id);
+        const pSnap = await getDoc(pRef);
+        if (pSnap.exists()) {
+          batch.delete(pRef);
+        }
+      } catch {}
+
+      // 2. Si vino de una factura o tiene facturaId, revertir en la factura
+      const targetFacturaId = item.facturaId;
+      if (targetFacturaId && targetFacturaId !== "SIN_FACTURA") {
+        const invRef = doc(db, "facturas", targetFacturaId);
+        const invSnap = await getDoc(invRef);
+        if (invSnap.exists()) {
+          const invData = invSnap.data();
+          const currentPagos = Array.isArray(invData.pagosYajustes) ? invData.pagosYajustes : (Array.isArray(invData.pagosAjustes) ? invData.pagosAjustes : []);
+          const updatedPagos = currentPagos.filter((p: any) => p.id !== item.id);
+          const totalAbonado = updatedPagos.reduce((acc: number, p: any) => {
+            if (p.anulado) return acc;
+            return p.tipoTransaccion === 'Reverso' ? acc - Number(p.monto || 0) : acc + Number(p.monto || 0);
+          }, 0);
+          const originalTotal = Number(invData.totalFactura || invData.total || 0);
+          const nuevoSaldo = Math.max(0, originalTotal - totalAbonado);
+          let nuevoEstado: EstadoCobranza = "Por Cobrar";
+          if (nuevoSaldo <= 0.01) nuevoEstado = "Pagada";
+          else if (totalAbonado > 0) nuevoEstado = "Parcialmente Cobrada";
+
+          batch.update(invRef, {
+            pagosYajustes: updatedPagos,
+            saldoPendiente: nuevoSaldo,
+            estadoCobranza: nuevoEstado,
+            updatedAt: nowServer
+          });
+        }
+      }
+
+      await batch.commit();
+      setDirectPayments(prev => prev.filter(p => p.id !== item.id));
+      toast({ title: "Nota de Crédito Eliminada", description: `Se eliminó la Nota de Crédito por ${montoDisplay} y se restauró el saldo.` });
+    } catch (error: any) {
+      console.error("Error al eliminar nota de crédito:", error);
+      toast({ variant: "destructive", title: "Error al eliminar", description: error?.message || "Ocurrió un error en la base de datos." });
+    }
+  };
 
   const handleConfirmPayments = async () => {
     if (isReadOnly || !selectedClientId || paymentLines.length === 0) return;
@@ -574,7 +737,29 @@ export default function CobranzasPage() {
           </div>
         )}
 
-        <div className="flex justify-end pt-4 border-t border-border/50 gap-3">
+        <div className="flex flex-wrap items-center justify-end pt-4 border-t border-border/50 gap-3">
+          {currentClient && !isReadOnly && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsNotaCreditoModalOpen(true)}
+                className="border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 font-black uppercase text-xs tracking-wider h-14 px-5 rounded-2xl gap-2 shadow-sm"
+              >
+                <FileMinus className="h-4 w-4" />
+                Nueva Nota de Crédito
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsManageNCModalOpen(true)}
+                className="border-red-400 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 font-black uppercase text-xs tracking-wider h-14 px-5 rounded-2xl gap-2 shadow-sm"
+              >
+                <Trash2 className="h-4 w-4 text-red-500" />
+                Ver / Eliminar N/C ({allCreditNotes.length})
+              </Button>
+            </>
+          )}
           {isAdmin && currentClient && (
             <Button 
               type="button"
@@ -608,12 +793,85 @@ export default function CobranzasPage() {
       )}
 
       <div className="bg-card p-10 rounded-[3rem] border border-border shadow-premium space-y-8">
-        <h4 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3"><Receipt className="h-6 w-6 text-primary" /> Cartera Pendiente</h4>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/50 pb-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <h4 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+              <Receipt className="h-6 w-6 text-primary" /> Cartera Pendiente
+            </h4>
+            {selectedTotals.count > 0 && (
+              <div className="flex items-center gap-3 bg-emerald-500/10 border-2 border-emerald-500/30 px-5 py-2 rounded-2xl shadow-sm animate-in zoom-in-95">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                  {selectedTotals.count} {selectedTotals.count === 1 ? 'Factura Seleccionada' : 'Facturas Seleccionadas'}:
+                </span>
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                  ${selectedTotals.totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {invoicesWithBalance.length > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  if (selectedInvoices.length === invoicesWithBalance.length) {
+                    setSelectedInvoices([]);
+                  } else {
+                    setSelectedInvoices(invoicesWithBalance.map(inv => inv.id));
+                  }
+                }}
+                className="text-xs font-bold text-muted-foreground hover:text-foreground h-11 px-4 rounded-xl hover:bg-muted"
+              >
+                {selectedInvoices.length === invoicesWithBalance.length ? "Deseleccionar Todas" : "Seleccionar Todas"}
+              </Button>
+            )}
+            {currentClient && !isReadOnly && (
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsNotaCreditoModalOpen(true)}
+                  className="border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 font-black uppercase text-xs tracking-wider h-11 px-5 rounded-2xl gap-2 shadow-sm"
+                >
+                  <FileMinus className="h-4 w-4" />
+                  Nueva N/C
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsManageNCModalOpen(true)}
+                  className="border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 font-black uppercase text-xs tracking-wider h-11 px-4 rounded-2xl gap-2 shadow-sm"
+                  title="Ver y eliminar notas de crédito"
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                  Eliminar N/C ({allCreditNotes.length})
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="rounded-[2rem] border border-border overflow-hidden min-h-[250px]">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>
-                <TableHead className="w-12 pl-6"></TableHead>
+                <TableHead className="w-12 pl-6">
+                  {invoicesWithBalance.length > 0 && (
+                    <Checkbox
+                      checked={selectedInvoices.length === invoicesWithBalance.length && invoicesWithBalance.length > 0}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedInvoices(invoicesWithBalance.map(inv => inv.id));
+                        } else {
+                          setSelectedInvoices([]);
+                        }
+                      }}
+                      title="Seleccionar todas"
+                      className="border-border data-[state=checked]:bg-primary"
+                    />
+                  )}
+                </TableHead>
                 <TableHead>Documento</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead className="text-right">Total</TableHead>
@@ -652,9 +910,129 @@ export default function CobranzasPage() {
                 </TableRow>
               )}
             </TableBody>
+            {isGenerated && invoicesWithBalance.length > 0 && (
+              <TableFooter className="bg-emerald-50/50 dark:bg-emerald-950/20 border-t-2 border-emerald-500/20 tabular-nums">
+                <TableRow>
+                  <TableCell colSpan={3} className="pl-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-black uppercase tracking-wider text-foreground">
+                        Total Seleccionado:
+                      </span>
+                      <Badge className="bg-emerald-600 text-white font-black text-[10px] px-2.5 py-0.5 border-none">
+                        {selectedTotals.count} de {invoicesWithBalance.length} {invoicesWithBalance.length === 1 ? 'factura' : 'facturas'}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right text-xs font-bold text-muted-foreground py-4">
+                    {selectedTotals.count > 0 ? `${selectedTotals.totalMontoOriginal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
+                  </TableCell>
+                  <TableCell className="text-right py-4">
+                    <div className="flex flex-col items-end">
+                      <span className="text-[9px] font-black uppercase text-emerald-800 dark:text-emerald-400 tracking-wider">
+                        Suma a Cobrar
+                      </span>
+                      <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                        ${selectedTotals.totalSaldo.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="pr-8"></TableCell>
+                </TableRow>
+              </TableFooter>
+            )}
           </Table>
         </div>
       </div>
+
+      {/* SECCIÓN DE NOTAS DE CRÉDITO REGISTRADAS DEL SOCIO */}
+      {selectedClientId && (
+        <div className="bg-card p-8 rounded-[2.5rem] border border-border shadow-premium space-y-6 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/50 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold">
+                <FileMinus className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="text-xl font-black uppercase tracking-tight text-foreground">
+                  Notas de Crédito Registradas
+                </h4>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
+                  Abonos y ajustes aplicados a favor de este socio
+                </p>
+              </div>
+            </div>
+            {!isReadOnly && (
+              <Button
+                type="button"
+                onClick={() => setIsNotaCreditoModalOpen(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-black uppercase text-xs rounded-xl h-11 px-6 gap-2 shadow-md shadow-purple-600/20"
+              >
+                <FileMinus className="h-4 w-4" />
+                Nueva Nota de Crédito
+              </Button>
+            )}
+          </div>
+
+          {allCreditNotes.length === 0 ? (
+            <div className="p-8 text-center border-2 border-dashed border-border rounded-2xl">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                No hay notas de crédito registradas para este socio en este periodo
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-border overflow-hidden">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead className="pl-6">Documento / N°</TableHead>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Concepto / Motivo</TableHead>
+                    <TableHead className="text-right">Monto ($)</TableHead>
+                    <TableHead>Registrado Por</TableHead>
+                    <TableHead className="text-center pr-6 w-24">Acción</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allCreditNotes.map((pago) => {
+                      const fechaStr = pago.fecha instanceof Date 
+                        ? pago.fecha.toLocaleDateString('es-EC') 
+                        : (pago.fecha ? String(pago.fecha) : "S/F");
+                      return (
+                        <TableRow key={pago.id} className="border-b border-border/60 hover:bg-muted/20">
+                          <TableCell className="font-black text-xs uppercase text-purple-700 dark:text-purple-300 pl-6">
+                            {pago.numero || "NOTA DE CRÉDITO"}
+                          </TableCell>
+                          <TableCell className="text-xs font-medium">{fechaStr}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                            {pago.descripcion || "Nota de crédito directa a favor"}
+                          </TableCell>
+                          <TableCell className="text-right font-black text-sm text-purple-600 dark:text-purple-400">
+                            ${Number(pago.monto || 0).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{pago.registradoPor || "Usuario"}</TableCell>
+                          <TableCell className="text-center pr-6">
+                            {!isReadOnly && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteCreditNote(pago)}
+                                className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
+                                title="Eliminar esta Nota de Crédito"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
 
       {!isReadOnly && isGenerated && selectedInvoices.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
@@ -711,6 +1089,27 @@ export default function CobranzasPage() {
           }}
         />
       )}
+      <CrearNotaCreditoModal
+        isOpen={isNotaCreditoModalOpen}
+        onClose={() => setIsNotaCreditoModalOpen(false)}
+        client={currentClient}
+        allClients={clients}
+        invoices={allInvoices}
+        onSuccess={() => {
+          setIsGenerated(false);
+          setTimeout(() => {
+            handleGenerateClick();
+          }, 300);
+        }}
+      />
+      <GestionarNotasCreditoModal
+        isOpen={isManageNCModalOpen}
+        onClose={() => setIsManageNCModalOpen(false)}
+        creditNotes={allCreditNotes}
+        onDelete={handleDeleteCreditNote}
+        clientName={currentClient?.displayName || currentClient?.name || ""}
+        isReadOnly={isReadOnly}
+      />
     </div>
   );
 }
